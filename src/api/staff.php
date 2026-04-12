@@ -138,10 +138,20 @@ if ($method === 'PUT') {
     if (empty($d['id'])) jsonResponse(false, 'User ID required.', [], 422);
 
     // Update password only if supplied
-    $pwHash = null;
+    $pwSql = "";
+    $params = [
+        ':id'        => (int)$d['id'],
+        ':name'      => $d['name']      ?? null,
+        ':email'     => $d['email']     ?? null,
+        ':role'      => $d['role']      ?? null,
+        ':phone'     => $d['phone']     ?? null,
+        ':is_active' => isset($d['is_active']) ? (int)$d['is_active'] : null,
+    ];
+
     if (!empty($d['password'])) {
         if (strlen($d['password']) < 8) jsonResponse(false, 'Password must be at least 8 characters.', [], 422);
-        $pwHash = password_hash($d['password'], PASSWORD_BCRYPT);
+        $pwSql = ", password = :pw";
+        $params[':pw'] = password_hash($d['password'], PASSWORD_BCRYPT);
     }
 
     $stmt = $pdo->prepare("
@@ -150,19 +160,11 @@ if ($method === 'PUT') {
             email     = COALESCE(:email, email),
             role      = COALESCE(:role, role),
             phone     = :phone,
-            is_active = COALESCE(:is_active, is_active),
-            password  = CASE WHEN :pw IS NOT NULL THEN :pw ELSE password END
+            is_active = COALESCE(:is_active, is_active)
+            $pwSql
         WHERE id = :id
     ");
-    $stmt->execute([
-        ':id'        => (int)$d['id'],
-        ':name'      => $d['name']      ?? null,
-        ':email'     => $d['email']     ?? null,
-        ':role'      => $d['role']      ?? null,
-        ':phone'     => $d['phone']     ?? null,
-        ':is_active' => isset($d['is_active']) ? (int)$d['is_active'] : null,
-        ':pw'        => $pwHash,
-    ]);
+    $stmt->execute($params);
     jsonResponse(true, 'User updated.');
 }
 

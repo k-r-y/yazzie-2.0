@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antigravity AI: System Audit</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', -apple-system, sans-serif; background: #f4f6f9; color: #333; }
+        .container { max-width: 900px; margin-top: 40px; margin-bottom: 40px; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        .header-card { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; }
+        h1, h2 { font-weight: 700; margin-bottom: 1rem;}
+        h4 { font-weight: 600; margin-top: 1.5rem; color: #1e3c72;}
+        .finding { background: #fffcf5; border-left: 5px solid #ffc107; padding: 15px; margin-bottom: 15px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);}
+        .fix { background: #f0fdf4; border-left: 5px solid #28a745; padding: 15px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);}
+        pre { background: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 8px; margin-top: 10px; font-size: 0.9rem;}
+        .badge { font-size: 0.85em; padding: 0.4em 0.8em; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card header-card p-5 mb-4">
+        <h1>Antigravity AI</h1>
+        <p class="lead mb-0">Comprehensive System Audit & Health Report</p>
+    </div>
+
+    <div class="card p-4 mb-4">
+        <h3 class="text-danger" style="font-weight: 700;">⚠️ System Health Score: 78 / 100</h3>
+        <p class="mb-0 mt-2" style="font-size: 1.05rem; line-height: 1.6;">The system acts as a highly functional MVP. Core operations are solid, utilizing parameterized queries and strict transactional boundaries. However, crucial structural anomalies, state-machine discrepancies, and concurrency vulnerabilities prevent it from being "enterprise-ready."</p>
+    </div>
+
+    <div class="card p-4 mb-4">
+        <h2>1. Executive Risk Heatmap</h2>
+        <div class="table-responsive">
+            <table class="table table-hover mt-3 align-middle">
+                <thead class="table-light">
+                    <tr><th>Risk Level</th><th>Issue Category</th><th>Description</th><th>Impact</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><span class="badge bg-danger">Critical</span></td><td>Database / Logic Bomb</td><td><strong>Enum Mismatch:</strong> App passes <code>pending</code> to an ENUM expecting <code>inquiry</code>.</td><td>Leads to fatal SQL exceptions on booking creation.</td></tr>
+                    <tr><td><span class="badge bg-danger">Critical</span></td><td>Concurrency</td><td><strong>Race Condition:</strong> <code>SELECT COUNT(*) FOR UPDATE</code> does not prevent phantom inserts.</td><td>Double booking on the same target date under high concurrency.</td></tr>
+                    <tr><td><span class="badge bg-warning text-dark">High</span></td><td>Resiliency</td><td><strong>Partial Failure Handling:</strong> Mailer invoked post-commit without Try/Catch.</td><td>Background fatal errors if the SMTP server abruptly disconnects.</td></tr>
+                    <tr><td><span class="badge bg-warning text-dark">High</span></td><td>Architecture</td><td><strong>Separation of Concerns:</strong> API endpoints handle validation, math, DB, & Emails.</td><td>Monolithic "God files", hard to test.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card p-4 mb-4">
+        <h2>2. Process Mapping & Structural Integrity</h2>
+        <h4>Workflow Trace: The Booking Lifecycle</h4>
+        <ol class="mb-4">
+            <li><strong>Initiation:</strong> Client requests a booking payload &rarr; Package logic auto-calculates constraints.</li>
+            <li><strong>Transaction:</strong> Row inserted &rarr; Trigger updates <code>payment_status</code> if DP provided.</li>
+            <li><strong>Dispatch:</strong> Staff are linked via <code>job_orders</code>, invoking the Notification / Mailer systems.</li>
+        </ol>
+
+        <h4>State Machine Audit ("Orphaned States")</h4>
+        <div class="finding">
+            <strong>Finding:</strong> The application code expects to rely on a <code>pending</code> status, but the database schema strictly defines: <code>booking_status ENUM('inquiry','confirmed','completed','cancelled')</code>. If the app attempts to insert <code>pending</code> (as seen in <code>bookings.php:314</code>), the database will reject the transaction in strict mode.
+        </div>
+        <div class="fix">
+            <strong>Actionable Fix:</strong> Unify the data layer to accommodate this middle state.
+<pre><code>-- Apply this schema adjustment
+ALTER TABLE bookings MODIFY COLUMN booking_status 
+ENUM('inquiry', 'pending', 'confirmed', 'completed', 'cancelled') NOT NULL DEFAULT 'inquiry';</code></pre>
+        </div>
+
+        <h4>Architecture Check</h4>
+        <div class="finding"><strong>Finding:</strong> Controller, Model, and Service layer logic are mashed together inside the <code>src/api/*.php</code> transaction boundaries.</div>
+        <div class="fix"><strong>Actionable Fix:</strong> Extract the email dispatches and pricing calculators into a dedicated <code>Services/BookingService.php</code> to prevent the UI-facing API layer from being intrinsically responsible for domain calculations.</div>
+    </div>
+
+    <div class="card p-4 mb-4">
+        <h2>3. Bug & Vulnerability Detection</h2>
+
+        <h4>Logic Bombs</h4>
+        <p><strong>The "Downpayment" Gap:</strong> In <code>bookings.php</code>, standard floating-point decimals are compared with basic subtraction arithmetic (<code>$downpayment < $minDP - 0.01</code>). This is fundamentally fragile due to IEEE 754 float precision in PHP leading to rounding discrepancies during edge totals.</p>
+        <p><strong>Actionable Fix:</strong> Convert all financial records mathematically utilizing minor currency units (cents via integer logic / <code>bcmath</code>), or cast amounts explicitly.</p>
+
+        <h4>Concurrency & Deadlocks</h4>
+        <p>In <code>bookings.php</code>:</p>
+<pre><code>$avail = $pdo->prepare("SELECT COUNT(*) FROM bookings WHERE event_date = :date FOR UPDATE");</code></pre>
+        <div class="finding"><strong>Vulnerability:</strong> InnoDB row-level locking (<code>FOR UPDATE</code>) on a <code>COUNT(*)</code> aggregation does <strong>not</strong> lock non-existent rows. Two concurrent requests requesting the <em>exact same empty target date</em> will both read <code>0</code> and wildly insert, violating your single-booking constraint.</div>
+        <div class="fix"><strong>Actionable Fix:</strong> Enforce unique dates directly against the Database schema level, relegating InnoDB to orchestrate the race condition atomically via collision errors.
+<pre><code>ALTER TABLE bookings ADD UNIQUE INDEX idx_unique_event_date (event_date);</code></pre>
+        </div>
+
+        <h4>Security & IDOR</h4>
+        <p><strong>Assessment:</strong> IDOR vulnerabilities are mitigated since actions are tightly coupled behind RBAC gates (<code>requireApiRole</code>). Parameterized PDO queries elegantly suppress SQL Injection. However, minor instances of manual PHP concatenation exist (e.g. <code>WHERE id = " . (int)$s['id']</code>) which, while currently safe via strict integer casting, should transition purely to question-mark <code>?</code> PDO parameters for future-proofing.</p>
+    </div>
+
+    <div class="card p-4 mb-4">
+        <h2>4. The "Extreme" Edge Case Suite</h2>
+        <ul class="mb-4">
+            <li class="mb-3"><strong>Data Extremes:</strong> Supplying a 10,000-character string payload to <code>event_location</code> pushes system memory to pure <code>TEXT</code> limits. Max boundaries utilizing <code>strlen()</code> on string structures must be enforced before querying the DB. (Kudos on explicitly guarding maximum 300 Pax bounds, however).</li>
+            <li class="mb-3"><strong>Temporal Issues:</strong> PHP inherently manipulates through <code>Asia/Manila</code> while DB sessions natively hardcode <code>+08:00</code>. While synonymous, crossing midnights during extensive processing can invoke disjointed timestamps between instantaneous PHP variable checks and server-sided <code>CURRENT_TIMESTAMP</code> triggers during latency drift.</li>
+            <li class="mb-3"><strong>Partial Failures:</strong> The Phantom Commit. <code>sendBookingConfirmation()</code> is purposefully commanded <strong>after</strong> <code>$pdo->commit()</code>. If Google's SMTP drops the TCP connection off a spike, the app crashes via an uncaught Exception, outputting a 500 error to the browser. But wait! The SQL row is <strong>already persisted!</strong> The client believes they failed, while your kitchen believes they're confirmed.</li>
+        </ul>
+        <div class="fix"><strong>Actionable Fix:</strong> Encase post-commit dispatchers with localized fault tolerance.
+<pre><code>try {
+    sendBookingConfirmation([...]);
+} catch (\Exception $e) {
+    error_log("Non-fatal: Email dispatch failed for booking ID " . $newId);
+    // Suppress error and proceed to issue the valid HTTP 201 Created JSON Response
+}</code></pre>
+        </div>
+    </div>
+
+    <div class="card p-4 mb-0">
+        <h2>5. Verification of Intent</h2>
+        <p>The core objective has been attained: mapping a structural pivot from a primitive package-centric state to a dynamic OMS equipped with staff dispatch and payment ledgering.</p>
+        <p class="mb-0">To transcend into a <strong>"Frictionless AI-verified standard"</strong>, rectify the rigid ENUM divergences, apply index-level race condition locks, and compartmentalize synchronous integrations (Mailer/SMS) tightly inside try-catch fault envelopes.</p>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

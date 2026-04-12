@@ -41,6 +41,19 @@ if ($method === 'POST') {
     if (empty($d['name']) || empty($d['phone'])) {
         jsonResponse(false, 'Name and phone are required.', [], 422);
     }
+
+    if(empty($d['email'])) {
+        jsonResponse(false, 'Email is required.', [], 422);
+    }
+
+    if(filter_var($d['email'], FILTER_VALIDATE_EMAIL) === false) {
+        jsonResponse(false, 'Invalid email address.', [], 422);
+    }
+
+    if(strlen($d['phone']) < 11 || !str_starts_with($d['phone'], '09')) {
+        jsonResponse(false, 'Invalid phone number.', [], 422);
+    }
+    
     $stmt = $pdo->prepare("
         INSERT INTO clients (name, email, phone, address)
         VALUES (:name, :email, :phone, :address)

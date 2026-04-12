@@ -40,12 +40,9 @@ if ($date < date('Y-m-d')) {
 // Check for existing non-cancelled bookings on this date
 $sql = "
     SELECT b.id, c.name AS client_name, b.event_time, b.event_location, b.pax_count,
-           b.booking_status,
-           COALESCE(pk.set_name, m.name, 'Package Booking') AS menu_name
+           b.booking_status
     FROM bookings b
     JOIN clients  c  ON c.id  = b.client_id
-    LEFT JOIN menus    m  ON m.id  = b.menu_id
-    LEFT JOIN packages pk ON pk.id = b.package_id
     WHERE b.event_date = :date
       AND b.booking_status NOT IN ('cancelled')
 ";
@@ -71,7 +68,6 @@ if ($existing) {
             'event_location' => $existing['event_location'],
             'pax_count'      => $existing['pax_count'],
             'booking_status' => $existing['booking_status'],
-            'menu_name'      => $existing['menu_name'],
         ],
     ]);
 }

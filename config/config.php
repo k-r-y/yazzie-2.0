@@ -8,6 +8,9 @@ define('APP_NAME',    'Yazzies Catering OMS');
 define('APP_VERSION', '1.0.0');
 define('BASE_URL',    'http://localhost/test');
 
+// Business Logic
+define('MIN_LEAD_TIME_DAYS', 3);
+
 // Timezone
 date_default_timezone_set('Asia/Manila');
 

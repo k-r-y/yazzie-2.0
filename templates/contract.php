@@ -1,8 +1,5 @@
 <?php
-/**
- * Printable Event Contract Template
- * URL: /templates/contract.php?booking_id=X
- */
+
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 requireRole(['admin', 'frontdesk']);
@@ -10,19 +7,28 @@ requireRole(['admin', 'frontdesk']);
 $bookingId = (int)($_GET['booking_id'] ?? 0);
 if (!$bookingId) die('Invalid booking ID.');
 
+// 1. Fetch the main booking and client details
 $stmt = $pdo->prepare("
-    SELECT b.*, c.name AS client_name, c.phone AS client_phone, c.email AS client_email,
-           c.address AS client_address, m.name AS menu_name, m.price_per_pax,
-           m.description AS menu_desc
+    SELECT b.*, c.name AS client_name, c.phone AS client_phone, 
+           c.email AS client_email, c.address AS client_address
     FROM bookings b
     JOIN clients c ON c.id = b.client_id
-    JOIN menus   m ON m.id = b.menu_id
     WHERE b.id = :id
 ");
 $stmt->execute([':id' => $bookingId]);
 $b = $stmt->fetch();
+
 if (!$b) die('Booking not found.');
 
+$stmtDishes = $pdo->prepare("
+    SELECT d.name, d.category 
+    FROM booking_dishes bd
+    JOIN dishes d ON d.id = bd.dish_id
+    WHERE bd.booking_id = :id
+    ORDER BY d.category ASC
+");
+$stmtDishes->execute([':id' => $bookingId]);
+$selectedDishes = $stmtDishes->fetchAll(PDO::FETCH_GROUP); 
 $eventDate = date('F j, Y', strtotime($b['event_date']));
 $eventTime = '';
 if ($b['event_time']) {
@@ -78,9 +84,22 @@ $balance = $b['total_cost'] - $b['amount_paid'];
         <div class="print-info-item"><label>Event Time</label><span><?= $eventTime ?: '—' ?></span></div>
         <div class="print-info-item"><label>Venue / Location</label><span><?= htmlspecialchars($b['event_location'] ?? '—') ?></span></div>
         <div class="print-info-item"><label>Number of Guests</label><span><?= $b['pax_count'] ?> persons</span></div>
-        <div class="print-info-item"><label>Menu Package</label><span><?= htmlspecialchars($b['menu_name']) ?></span></div>
-        <div class="print-info-item"><label>Price per Guest</label><span>₱<?= number_format($b['price_per_pax'], 2) ?></span></div>
-    </div>
+       <div class="print-section-title">Selected Menu</div>
+<div class="print-info-grid" style="display: block;"> <?php if (empty($selectedDishes)): ?>
+        <p>No dishes selected.</p>
+    <?php else: ?>
+        <?php foreach ($selectedDishes as $category => $dishes): ?>
+            <div style="margin-bottom: 10px;">
+                <strong style="text-transform: uppercase; font-size: 12px; color: #C8501E;">
+                    <?= htmlspecialchars($category) ?>:
+                </strong>
+                <span style="font-size: 14px; margin-left: 10px;">
+                    <?= implode(', ', array_column($dishes, 'name')) ?>
+                </span>
+            </div>
+        <?php endforeach; ?>
+    <?php endif; ?>
+</div>
 
     <div class="print-section-title">Payment Summary</div>
     <div class="print-total-block" style="max-width:100%;margin:0 0 16pt;">

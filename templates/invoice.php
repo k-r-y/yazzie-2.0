@@ -1,11 +1,13 @@
 <?php
 /**
  * Invoice / Payment Receipt Template
- * URL: /templates/invoice.php?booking_id=X
+ * URL: /templates/invoice.php?booking_id=X&token=Y
  */
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/auth.php';
-requireRole(['admin', 'frontdesk']);
+
+startSession();
+$isAuth = isset($_SESSION['user_id']) && in_array($_SESSION['role'] ?? '', ['admin', 'frontdesk'], true);
 
 $bookingId = (int)($_GET['booking_id'] ?? 0);
 if (!$bookingId) die('Invalid booking ID.');
@@ -21,6 +23,13 @@ $stmt = $pdo->prepare("
 $stmt->execute([':id' => $bookingId]);
 $b = $stmt->fetch();
 if (!$b) die('Booking not found.');
+
+if (!$isAuth) {
+    $token = $_GET['token'] ?? null;
+    if (empty($b['invoice_token']) || $token !== $b['invoice_token']) {
+        die('Access Denied. You do not have permission to view this secure document.');
+    }
+}
 
 // Fetch payment history
 $pStmt = $pdo->prepare("

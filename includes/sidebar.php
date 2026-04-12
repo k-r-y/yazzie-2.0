@@ -21,7 +21,7 @@ $nav = [
         ['dashboard',   'Dashboard',    'fa-chart-line',   '/views/admin/dashboard.php'],
         ['section' => 'Manage'],
         ['bookings',    'Bookings',     'fa-calendar-days','/views/admin/bookings.php'],
-        ['menus',       'Menu Packages','fa-bowl-food',    '/views/admin/menus.php'],
+        ['recipes',     'Recipes & Costing', 'fa-flask',         '/views/admin/recipes.php'],
         ['financial',   'Financials',   'fa-coins',        '/views/admin/financial.php'],
         ['section' => 'Human Resources'],
         ['staff',       'Staff',        'fa-id-badge',     '/views/admin/staff.php'],

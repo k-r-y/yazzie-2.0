@@ -11,13 +11,12 @@ include __DIR__ . '/../../includes/header.php';
 include __DIR__ . '/../../includes/sidebar.php';
 ?>
 
-<!-- SEARCH & ACTIONS BAR -->
 <div class="card mb-4">
     <div class="card-body" style="padding:16px 20px;">
         <div class="search-bar">
             <div class="search-input-wrap">
                 <i class="fas fa-search"></i>
-                <input type="text" class="search-input" id="searchInput" placeholder="Search by client, location, menu…">
+                <input type="text" class="search-input" id="searchInput" placeholder="Search by client, location">
             </div>
             <select class="form-control" id="filterStatus" style="width:160px;">
                 <option value="">All Statuses</option>
@@ -52,10 +51,9 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <th>#</th>
                     <th>Client</th>
                     <th>Event Date</th>
-                    <th>Menu Package</th>
                     <th>Pax</th>
                     <th>Total</th>
-                    <th>Paid / Balance</th>
+                    <th colspan="2">Paid / Balance</th>
                     <th>Status</th>
                     <th class="td-actions">Actions</th>
                 </tr>
@@ -131,7 +129,6 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
 
 <script>
 const BASE = '<?= BASE_URL ?>';
-let menus   = [];
 let clients = [];
 let currentBookings = [];
 
@@ -173,7 +170,6 @@ function renderTable(bookings) {
             <td class="text-muted text-xs">#${b.id}</td>
             <td class="td-name">${b.client_name}<br><small class="text-muted">${b.client_phone}</small></td>
             <td>${Format.dateShort(b.event_date)}<br><small class="text-muted">${b.event_time ? Format.time(b.event_time) : ''}</small></td>
-            <td>${b.menu_name}</td>
             <td>${b.pax_count}</td>
             <td class="text-bold">${Format.peso(b.total_cost)}</td>
             <td>

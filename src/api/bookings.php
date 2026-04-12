@@ -38,12 +38,12 @@ if ($method === 'GET') {
                    c.name  AS client_name, c.phone AS client_phone, c.email AS client_email,
                    pk.set_name AS package_name,
                    pk.pax_count AS package_pax, pk.price AS package_base_price,
-                   COALESCE(pk.set_name, m.name) AS menu_name,
+                   
                    u.name AS created_by_name
             FROM bookings b
             LEFT JOIN clients  c  ON c.id  = b.client_id
             LEFT JOIN packages pk ON pk.id = b.package_id
-            LEFT JOIN menus    m  ON m.id  = b.menu_id
+           
             LEFT JOIN users    u  ON u.id  = b.created_by
             WHERE b.id = :id
         ");
@@ -102,12 +102,10 @@ if ($method === 'GET') {
                b.base_pax, b.extra_pax, b.base_price, b.extra_cost,
                b.notes, b.created_at,
                c.name AS client_name, c.phone AS client_phone,
-               COALESCE(pk.set_name, m.name, '—') AS menu_name,
                pk.set_name AS package_name
         FROM bookings b
         LEFT JOIN clients  c  ON c.id  = b.client_id
         LEFT JOIN packages pk ON pk.id = b.package_id
-        LEFT JOIN menus    m  ON m.id  = b.menu_id
         WHERE $whereClause
         ORDER BY b.event_date ASC, b.id DESC
     ");
@@ -148,17 +146,29 @@ if ($method === 'POST') {
         
         // Let's send an email too - get the staff list
         require_once __DIR__ . '/../../includes/mailer.php';
+        
+        $uStmt = $pdo->prepare("SELECT * FROM users WHERE id = :id");
+        $bStmt = $pdo->prepare("SELECT b.*, c.name as client_name FROM bookings b JOIN clients c ON c.id = b.client_id WHERE b.id = :bid");
+        
         foreach ($data['staff_roles'] as $s) {
-            $u = $pdo->query("SELECT * FROM users WHERE id = " . (int)$s['id'])->fetch();
-            $b = $pdo->query("SELECT b.*, c.name as client_name FROM bookings b JOIN clients c ON c.id = b.client_id WHERE b.id = $bookingId")->fetch();
+            $uStmt->execute([':id' => $s['id']]);
+            $u = $uStmt->fetch();
+            
+            $bStmt->execute([':bid' => $bookingId]);
+            $b = $bStmt->fetch();
+            
             if ($u && $b && !empty($u['email'])) {
-                sendStaffAssignmentEmail($u['email'], $u['name'], [
-                    'event_date' => $b['event_date'],
-                    'event_time' => $b['event_time'] ?? 'TBA',
-                    'event_location' => $b['event_location'] ?? 'TBA',
-                    'client_name' => $b['client_name'],
-                    'role' => $s['role']
-                ]);
+                try {
+                    sendStaffAssignmentEmail($u['email'], $u['name'], [
+                        'event_date' => $b['event_date'],
+                        'event_time' => $b['event_time'] ?? 'TBA',
+                        'event_location' => $b['event_location'] ?? 'TBA',
+                        'client_name' => $b['client_name'],
+                        'role' => $s['role']
+                    ]);
+                } catch (\Throwable $e) {
+                    error_log("Non-fatal: Email assignment dispatch failed for staff ID " . $u['id']);
+                }
             }
         }
         
@@ -175,13 +185,24 @@ if ($method === 'POST') {
     if (!$parsedDate || $parsedDate->format('Y-m-d') !== $eventDate) {
         jsonResponse(false, 'Invalid event date. Use YYYY-MM-DD format.', [], 422);
     }
-    if ($eventDate < date('Y-m-d')) {
-        jsonResponse(false, 'Cannot create a booking for a past date.', [], 422);
+    if ($eventDate < date('Y-m-d', strtotime('+' . MIN_LEAD_TIME_DAYS . ' days'))) {
+        jsonResponse(false, 'Booking date must be at least ' . MIN_LEAD_TIME_DAYS . ' days before the event.', [], 422);
+    }
+    
+    $eventTime = $data['event_time'] ?? '';
+    if (!empty($eventTime)) {
+        $hour = (int)explode(':', $eventTime)[0];
+        if ($hour < 8 || $hour >= 22) {
+            jsonResponse(false, 'Event start time cannot be earlier than 08:00 AM or later than 09:59 PM.', [], 422);
+        }
     }
 
     $paxCount = (int)$data['pax_count'];
     if ($paxCount < 50) {
         jsonResponse(false, 'Minimum of 50 guests is required.', ['min_pax' => 50], 422);
+    }
+    if ($paxCount > 300) {
+        jsonResponse(false, 'Maximum of 300 guests is allowed.', ['max_pax' => 300], 422);
     }
 
     // ── 2. Auto-select package tier from DB ────────────────────────
@@ -207,6 +228,14 @@ if ($method === 'POST') {
         $tierPax = (int)$pkg['pax_count'];
     }
 
+    $p = $paxCount;
+    if ($p < 100) { $pkg['max_main_dishes'] = 5; $pkg['max_desserts'] = 1; }
+    elseif ($p < 150) { $pkg['max_main_dishes'] = 6; $pkg['max_desserts'] = 1; }
+    elseif ($p < 200) { $pkg['max_main_dishes'] = 7; $pkg['max_desserts'] = 2; }
+    elseif ($p < 250) { $pkg['max_main_dishes'] = 8; $pkg['max_desserts'] = 2; }
+    elseif ($p < 300) { $pkg['max_main_dishes'] = 9; $pkg['max_desserts'] = 3; }
+    else { $pkg['max_main_dishes'] = 10; $pkg['max_desserts'] = 3; }
+
     // ── 3. Pro-rated pricing engine ──────────────────────────────
     $basePax    = (int)$pkg['pax_count'];
     $basePrice  = (float)$pkg['price'];
@@ -216,18 +245,18 @@ if ($method === 'POST') {
     $totalCost  = round($basePrice + $extraCost, 2);
 
     // ── 4. Validate downpayment ──────────────────────────────────
-    $downpayment = (float)($data['downpayment'] ?? 0);
+    $downpayment = round((float)($data['downpayment'] ?? 0), 2);
     if ($downpayment < 0) {
         jsonResponse(false, 'Downpayment cannot be a negative value.', [], 422);
     }
     if ($downpayment > 0) {
         $minDP = round($totalCost * 0.50, 2);
-        if ($downpayment < $minDP - 0.01) {
+        if ($downpayment < $minDP) {
             jsonResponse(false,
                 'Minimum downpayment is 50% of total cost (₱' . number_format($minDP, 2) . ').',
                 ['min_downpayment' => $minDP, 'total_cost' => $totalCost], 422);
         }
-        if ($downpayment > $totalCost + 0.01) {
+        if ($downpayment > round($totalCost, 2)) {
             jsonResponse(false,
                 'Downpayment cannot exceed total cost of ₱' . number_format($totalCost, 2) . '.',
                 [], 422);
@@ -283,11 +312,11 @@ if ($method === 'POST') {
             INSERT INTO bookings
               (client_id, package_id, event_date, event_time, event_location, pax_count,
                base_pax, extra_pax, base_price, extra_cost,
-               total_cost, booking_status, notes, created_by)
+               total_cost, booking_status, invoice_token, notes, created_by)
             VALUES
               (:client_id, :package_id, :event_date, :event_time, :event_location, :pax_count,
                :base_pax, :extra_pax, :base_price, :extra_cost,
-               :total_cost, :booking_status, :notes, :created_by)
+               :total_cost, :booking_status, :invoice_token, :notes, :created_by)
         ");
         // ── Determine initial booking_status based on downpayment ────────────
         // 'confirmed' requires >= 50% DP. Without it, booking is 'pending'.
@@ -307,6 +336,7 @@ if ($method === 'POST') {
             ':extra_cost'     => $extraCost,
             ':total_cost'     => $totalCost,
             ':booking_status' => $initialStatus,
+            ':invoice_token'  => bin2hex(random_bytes(16)),
             ':notes'          => $data['notes'] ?? null,
             ':created_by'     => (int)$_SESSION['user_id'],
         ]);
@@ -382,6 +412,27 @@ if ($method === 'POST') {
         );
 
         $pdo->commit();
+
+        // Send email to client
+        require_once __DIR__ . '/../../includes/mailer.php';
+        $clientStmt = $pdo->prepare("SELECT * FROM clients WHERE id = :cid");
+        $clientStmt->execute([':cid' => $data['client_id']]);
+        $client = $clientStmt->fetch();
+        if ($client && !empty($client['email'])) {
+            try {
+                sendBookingConfirmation([
+                    'client_email' => $client['email'],
+                    'client_name' => $client['name'],
+                    'event_date' => $eventDate,
+                   
+                    'pax_count' => $paxCount,
+                    'total_cost' => $totalCost,
+                    'amount_paid' => $amountPaid
+                ]);
+            } catch (\Throwable $e) {
+                error_log("Non-fatal: Email dispatch failed for booking " . $newId);
+            }
+        }
 
     } catch (Exception $e) {
         $pdo->rollBack();
