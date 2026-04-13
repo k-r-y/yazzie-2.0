@@ -121,7 +121,8 @@ button, input, select, textarea {
    ================================================================ */
 .app-wrapper {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* ================================================================
@@ -129,10 +130,10 @@ button, input, select, textarea {
    ================================================================ */
 .sidebar {
   width: var(--sidebar-w);
-  min-height: 100vh;
+  height: 100vh;
   position: fixed;
   top: 0; left: 0;
-  z-index: 100;
+  z-index: 1000;
   display: flex;
   flex-direction: column;
   background: var(--sidebar-bg);
@@ -316,7 +317,10 @@ button, input, select, textarea {
   margin-left: var(--sidebar-w);
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
+  position: relative;
+  background: var(--bg-primary);
 }
 
 /* ================================================================
@@ -327,13 +331,13 @@ button, input, select, textarea {
   align-items: center;
   justify-content: space-between;
   padding: 14px 28px;
-  background: rgba(242, 242, 247, 0.82);
+  background: rgba(242, 242, 247, 0.85); /* Slightly more opaque for fixed feel */
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border-bottom: 0.5px solid var(--glass-sep);
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: 900; /* High enough to stay above content but below sidebar (1000) */
 }
 
 .page-header-left {

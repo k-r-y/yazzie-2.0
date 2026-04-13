@@ -118,11 +118,9 @@ include __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <script>
-const BASE = '<?= BASE_URL ?>';
-
 async function loadKPIs() {
     try {
-        const d = await Api.get(BASE + '/src/api/analytics.php', { type: 'kpis' });
+        const d = await Api.get(BASE + 'src/api/analytics.php', { type: 'kpis' });
         document.getElementById('kpi-revenue-mtd').textContent  = Format.peso(d.revenue_mtd);
         document.getElementById('kpi-active').textContent       = d.active_bookings;
         document.getElementById('kpi-clients').textContent      = d.total_clients;
@@ -133,7 +131,7 @@ async function loadKPIs() {
 
 async function loadRevenueChart() {
     try {
-        const d = await Api.get(BASE + '/src/api/analytics.php', { type: 'revenue_chart' });
+        const d = await Api.get(BASE + 'src/api/analytics.php', { type: 'revenue_chart' });
         const ctx = document.getElementById('revenueChart').getContext('2d');
         new Chart(ctx, {
             type: 'bar',
@@ -176,7 +174,7 @@ async function loadRevenueChart() {
 
 async function loadMenuChart() {
     try {
-        const d = await Api.get(BASE + '/src/api/analytics.php', { type: 'menu_popularity' });
+        const d = await Api.get(BASE + 'src/api/analytics.php', { type: 'menu_popularity' });
         const ctx = document.getElementById('menuChart').getContext('2d');
         const colors = ['#16A34A','#22C55E','#0D9488','#4ADE80','#6A9B7E','#059669','#15803D','#86EFAC'];
         new Chart(ctx, {
@@ -198,7 +196,7 @@ async function loadMenuChart() {
 
 async function loadUpcoming() {
     try {
-        const d = await Api.get(BASE + '/src/api/bookings.php', {
+        const d = await Api.get(BASE + 'src/api/bookings.php', {
             from: new Date().toISOString().split('T')[0]
         });
         const tbody = document.getElementById('upcomingBody');

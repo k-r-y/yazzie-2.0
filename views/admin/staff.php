@@ -224,7 +224,6 @@ include __DIR__ . '/../../includes/sidebar.php';
 </style>
 
 <script>
-const BASE = '<?= BASE_URL ?>';
 let staffModal, allStaff = [];
 
 function switchTab(name, el) {

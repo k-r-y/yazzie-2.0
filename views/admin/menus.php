@@ -107,7 +107,6 @@ include __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <script>
-const BASE = '<?= BASE_URL ?>';
 let activeMenuId = null;
 
 async function loadMenus() {

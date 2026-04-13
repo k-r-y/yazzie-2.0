@@ -24,6 +24,14 @@ $extraCss     = $extraCss     ?? [];
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/print.css" media="print">
 
+    <script>
+        /**
+         * Global Portability Constant
+         * Normalized with a trailing slash for reliable path concatenation
+         */
+        const BASE = '<?= rtrim(BASE_URL, "/") ?>/';
+    </script>
+
     <?php foreach ($extraCss as $css): ?>
         <link rel="stylesheet" href="<?= htmlspecialchars($css) ?>">
     <?php endforeach; ?>

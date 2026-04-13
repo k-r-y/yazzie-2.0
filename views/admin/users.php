@@ -83,7 +83,6 @@ include __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <script>
-const BASE = '<?= BASE_URL ?>';
 
 async function loadUsers() {
     const d = await Api.get(BASE + '/src/api/staff.php');

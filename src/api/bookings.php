@@ -189,8 +189,8 @@ if ($method === 'POST') {
         jsonResponse(false, 'Booking date must be at least ' . MIN_LEAD_TIME_DAYS . ' days before the event.', [], 422);
     }
     
-    $eventTime = $data['event_time'] ?? '';
-    if (!empty($eventTime)) {
+    $eventTime = !empty($data['event_time']) ? $data['event_time'] : null;
+    if ($eventTime) {
         $hour = (int)explode(':', $eventTime)[0];
         if ($hour < 8 || $hour >= 22) {
             jsonResponse(false, 'Event start time cannot be earlier than 08:00 AM or later than 09:59 PM.', [], 422);
@@ -327,8 +327,8 @@ if ($method === 'POST') {
             ':client_id'      => (int)$data['client_id'],
             ':package_id'     => (int)$pkg['id'],
             ':event_date'     => $eventDate,
-            ':event_time'     => $data['event_time']     ?? null,
-            ':event_location' => $data['event_location'] ?? null,
+            ':event_time'     => $eventTime,
+            ':event_location' => !empty($data['event_location']) ? $data['event_location'] : null,
             ':pax_count'      => $paxCount,
             ':base_pax'       => $basePax,
             ':extra_pax'      => $extraPax,
@@ -478,6 +478,10 @@ if ($method === 'PUT') {
         jsonResponse(false, 'Invalid booking status.', [], 422);
     }
 
+    $event_time = !empty($data['event_time']) ? $data['event_time'] : null;
+    $event_location = !empty($data['event_location']) ? $data['event_location'] : null;
+    $booking_status = !empty($data['booking_status']) ? $data['booking_status'] : null;
+
     $pdo->prepare("
         UPDATE bookings SET
             event_time     = COALESCE(:event_time,     event_time),
@@ -487,10 +491,10 @@ if ($method === 'PUT') {
         WHERE id = :id
     ")->execute([
         ':id'             => $bookingId,
-        ':event_time'     => $data['event_time']     ?? null,
-        ':event_location' => $data['event_location'] ?? null,
-        ':booking_status' => $newStatus,
-        ':notes'          => $data['notes']          ?? null,
+        ':event_time'     => $event_time,
+        ':event_location' => $event_location,
+        ':booking_status' => $booking_status,
+        ':notes'          => !empty($data['notes']) ? $data['notes'] : null,
     ]);
 
     // Audit the status change

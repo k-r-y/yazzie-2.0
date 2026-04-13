@@ -40,7 +40,6 @@ include __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <script>
-const BASE = '<?= BASE_URL ?>';
 
 async function loadArchive() {
     const search = document.getElementById('archiveSearch').value;

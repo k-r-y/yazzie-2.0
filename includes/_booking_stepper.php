@@ -539,7 +539,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         pax:            0,
         tierPax:        50,
         totalCost:      0,
-        basePric:       0,
+        basePrice:       0,
         extraPax:       0,
         extraCost:      0,
         // Dish selection
@@ -590,7 +590,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             available:false, clientId:null, isNewClient:false,
             status:'confirmed', notes:'',
             packageId:null, packageData:null,
-            pax:0, tierPax:50, totalCost:0, basePric:0, extraPax:0, extraCost:0,
+            pax:0, tierPax:50, totalCost:0, basePrice:0, extraPax:0, extraCost:0,
             selectedMain:[], selectedDessert:null, maxMain:5,
             dpAmount:0, dpMethod:'cash', dpRef:'', termsOk:false
         });
@@ -769,7 +769,11 @@ $stepperRole = $bookingStepperRole ?? 'admin';
 
         if (step === 5) {
             const dp = parseFloat(document.getElementById('s4_dp').value) || 0;
-            if (dp > 0 && dp < Math.ceil(state.totalCost * 0.5 * 100)/100 - 0.01) { Toast.error('Downpayment meets the minimum.'); return false; }
+            const minDP = Math.ceil(state.totalCost * 0.50 * 100) / 100;
+            if (dp > 0 && dp < minDP - 0.01) { 
+                Toast.error(`Downpayment is below the minimum (₱${minDP.toLocaleString()}).`); 
+                return false; 
+            }
             if (!document.getElementById('s4_terms').checked) { Toast.error('You must accept the Terms and Conditions.'); return false; }
             state.dpAmount = dp;
             return true;
@@ -1016,7 +1020,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         state.packageId   = pkg.id;
         state.packageData = pkg;
         state.tierPax     = tierPax;
-        state.basePric    = basePrice;
+        state.basePrice    = basePrice;
         state.extraPax    = extraPax;
         state.extraCost   = extraCost;
         state.totalCost   = total;
@@ -1207,7 +1211,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 <div style="height:0.5px; background:rgba(60,60,67,0.1); margin:2px 0;"></div>
                 <div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Package</span><strong>${pkgLabel}</strong></div>
                 <div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Guests</span><strong>${state.pax} pax</strong></div>
-                <div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Base Price</span><strong>${Format.peso(state.basePric)}</strong></div>
+                <div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Base Price</span><strong>${Format.peso(state.basePrice)}</strong></div>
                 ${state.extraPax > 0 ? `<div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Extra ${state.extraPax} pax</span><strong style="color:#FF9500;">+${Format.peso(state.extraCost)}</strong></div>` : ''}
                 <div style="height:0.5px; background:rgba(60,60,67,0.1); margin:2px 0;"></div>
                 <div style="display:flex; justify-content:space-between;"><span style="font-weight:700;">Total</span><strong style="font-size:16px; color:var(--sys-green);">${Format.peso(state.totalCost)}</strong></div>
@@ -1265,11 +1269,11 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             const isConfirmed = res.booking_status === 'confirmed';
 
             // Now assign the staff
-            if (state.staffIds && state.staffIds.length > 0 && res.booking_id) {
+            if (state.staffIds && state.staffIds.length > 0 && res.id) {
                 try {
-                    await Api.post(BASE + '/src/api/bookings.php', {
+                    await Api.post(BASE + 'src/api/bookings.php', {
                         link_staff: true,
-                        booking_id: res.booking_id,
+                        booking_id: res.id,
                         staff_roles: state.staffIds
                     });
                 } catch(e) { console.error("Staff assignment non-fatal error", e); }

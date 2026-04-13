@@ -208,7 +208,6 @@ include __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <script>
-const BASE = '<?= BASE_URL ?>';
 const preloadBookingId = <?= $preloadBookingId ?>;
 let currentBalance = 0;
 

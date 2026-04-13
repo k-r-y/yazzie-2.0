@@ -128,7 +128,6 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
 </div>
 
 <script>
-const BASE = '<?= BASE_URL ?>';
 let clients = [];
 let currentBookings = [];
 

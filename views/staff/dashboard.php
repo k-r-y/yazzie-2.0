@@ -125,7 +125,6 @@ $user = getCurrentUser();
 </div>
 
 <script>
-const BASE = '<?= BASE_URL ?>';
 let allJobs = [];
 
 function switchTab(tab, el) {

@@ -1,10 +1,11 @@
 <?php
-$pageTitle = "Recipes & Computation";
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireRole('admin');
 
-
+$pageTitle    = 'Recipes and Computation';
+$pageSubtitle = 'Compute Recipes';
+$activePage   = 'recipes';
 
 include __DIR__ . '/../../includes/header.php';
 include __DIR__ . '/../../includes/sidebar.php';
@@ -29,7 +30,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <div style="padding:16px; border-bottom:1px solid var(--border); background:var(--surface-2);">
                     <input type="text" class="form-control" id="searchDish" placeholder="Search dish recipes..." oninput="filterDishes()" style="font-size:13px; padding:8px 12px; height:auto;">
                 </div>
-                <div id="dishListWrapper" style="overflow-y:auto; height:calc(100vh - 220px);">
+                <div id="dishListWrapper" style="overflow-y:auto; height:calc(60vh - 220px);">
                 </div>
             </div>
 
@@ -229,7 +230,7 @@ window.switchTab = function(tabName) {
 // LOAD MAIN DATA
 async function loadRecipes() {
     try {
-        const d = await Api.get('http://localhost/test/src/api/recipes.php');
+        const d = await Api.get(BASE + 'src/api/recipes.php');
         recipesData = d.recipes || [];
         renderDishList(recipesData);
         populateCalcDropdown();
@@ -319,7 +320,7 @@ window.updateBasePax = async function() {
     if (bp < 1) return Toast.error('Base pax must be at least 1');
 
     try {
-        await Api.post('http://localhost/test/src/api/recipes.php', {
+        await Api.post(BASE + 'src/api/recipes.php', {
             action: 'update_base_pax',
             dish_id: currentDishId,
             base_pax: bp
@@ -374,10 +375,10 @@ window.saveIngredient = async function(e) {
     try {
         if (id) {
             payload.id = id;
-            await Api.put('http://localhost/test/src/api/recipes.php', payload);
+            await Api.put(BASE + 'src/api/recipes.php', payload);
             Toast.success('Ingredient updated');
         } else {
-            await Api.post('http://localhost/test/src/api/recipes.php', payload);
+            await Api.post(BASE + 'src/api/recipes.php', payload);
             Toast.success('Ingredient added');
         }
         Modal.close('ingredientModal');
@@ -392,7 +393,7 @@ window.saveIngredient = async function(e) {
 window.deleteIng = async function(id) {
     if(!confirm('Are you sure you want to remove this ingredient?')) return;
     try {
-        await Api.delete('http://localhost/test/src/api/recipes.php', { id });
+        await Api.delete(BASE + 'src/api/recipes.php', { id });
         Toast.success('Ingredient removed');
         await loadRecipes();
         selectDish(currentDishId);
@@ -416,7 +417,7 @@ window.computeYield = async function() {
     if (!target || target < 1) return Toast.error('Please specify a valid target pax count.');
 
     try {
-        const res = await Api.get(`http://localhost/test/src/api/recipes.php?compute_pax=${target}&dish_id=${dishId}`);
+        const res = await Api.get(BASE + `src/api/recipes.php?compute_pax=${target}&dish_id=${dishId}`);
         
         document.getElementById('calcBlank').style.display = 'none';
         const resultCard = document.getElementById('calcResultCard');
