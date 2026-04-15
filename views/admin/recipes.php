@@ -24,7 +24,7 @@ include __DIR__ . '/../../includes/sidebar.php';
     </div>
 
     <div id="recipe-builder-tab">
-        <div class="grid " style="grid-template-columns:350px 1fr; gap:200px;">
+        <div class="grid" style="grid-template-columns:350px 1fr; gap:24px;">
             
             <div class="card" style="padding:0; overflow:hidden; border:1px solid var(--border);">
                 <div style="padding:16px; border-bottom:1px solid var(--border); background:var(--surface-2);">

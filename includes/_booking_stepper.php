@@ -358,7 +358,11 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Reference No.</label>
-                                    <input type="text" class="form-control" id="s4_dpRef" placeholder="Reference no.…" pattern="\d*" maxlength="20" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+                                    <input type="text" class="form-control" id="s4_dpRef"
+                                           placeholder="e.g. GC-2026041412345"
+                                           maxlength="40"
+                                           oninput="this.value=this.value.replace(/[^a-zA-Z0-9\-_]/g,'')"
+                                           title="Alphanumeric reference (GCash, Maya, bank trace no.)">
                                 </div>
                             </div>
 
@@ -729,8 +733,8 @@ $stepperRole = $bookingStepperRole ?? 'admin';
 
         if (step === 3) {
             const num = parseInt(document.getElementById('s3_paxInput').value) || 0;
-            if (num < 50) { Toast.error('Minimum guest count is 50.'); return false; }
-            if (num > 300) { Toast.error('Maximum guest count is 300.'); return false; }
+            if (num < <?= MIN_PAX ?>) { Toast.error('Minimum guest count is <?= MIN_PAX ?>.'); return false; }
+            if (num > <?= MAX_PAX ?>) { Toast.error('Maximum guest count is <?= MAX_PAX ?>.'); return false; }
             state.pax = num;
 
             // Validate staff selection

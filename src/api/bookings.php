@@ -159,13 +159,16 @@ if ($method === 'POST') {
             
             if ($u && $b && !empty($u['email'])) {
                 try {
-                    sendStaffAssignmentEmail($u['email'], $u['name'], [
-                        'event_date' => $b['event_date'],
-                        'event_time' => $b['event_time'] ?? 'TBA',
-                        'event_location' => $b['event_location'] ?? 'TBA',
-                        'client_name' => $b['client_name'],
-                        'role' => $s['role']
-                    ]);
+                    sendStaffAssignmentEmail(
+                        ['name' => $u['name'], 'email' => $u['email']],
+                        [
+                            'event_date'     => $b['event_date'],
+                            'event_time'     => $b['event_time'] ?? 'TBA',
+                            'event_location' => $b['event_location'] ?? 'TBA',
+                            'pax_count'      => $b['pax_count'],
+                            'staff_role'     => $s['role']
+                        ]
+                    );
                 } catch (\Throwable $e) {
                     error_log("Non-fatal: Email assignment dispatch failed for staff ID " . $u['id']);
                 }
@@ -198,11 +201,11 @@ if ($method === 'POST') {
     }
 
     $paxCount = (int)$data['pax_count'];
-    if ($paxCount < 50) {
-        jsonResponse(false, 'Minimum of 50 guests is required.', ['min_pax' => 50], 422);
+    if ($paxCount < MIN_PAX) {
+        jsonResponse(false, 'Minimum of ' . MIN_PAX . ' guests is required.', ['min_pax' => MIN_PAX], 422);
     }
-    if ($paxCount > 300) {
-        jsonResponse(false, 'Maximum of 300 guests is allowed.', ['max_pax' => 300], 422);
+    if ($paxCount > MAX_PAX) {
+        jsonResponse(false, 'Maximum of ' . MAX_PAX . ' guests is allowed.', ['max_pax' => MAX_PAX], 422);
     }
 
     // ── 2. Auto-select package tier from DB ────────────────────────
@@ -395,8 +398,9 @@ if ($method === 'POST') {
                 ':id'      => $newId,
             ]);
 
-            // Audit: downpayment recorded
-            auditLog($pdo, 'payment_recorded', 'payment', (int)$pdo->lastInsertId(),
+            // Audit: downpayment recorded — capture the payment ID immediately after INSERT
+            $newPaymentId = (int)$pdo->lastInsertId();
+            auditLog($pdo, 'payment_recorded', 'payment', $newPaymentId,
                 null,
                 ['booking_id' => $newId, 'amount' => round($downpayment,2), 'notes' => 'Downpayment']
             );
@@ -420,17 +424,22 @@ if ($method === 'POST') {
         $client = $clientStmt->fetch();
         if ($client && !empty($client['email'])) {
             try {
+                // Fetch package name for the confirmation email
+                $pkgStmt = $pdo->prepare("SELECT set_name FROM packages WHERE id = :pid");
+                $pkgStmt->execute([':pid' => $packageId]);
+                $pkgRow = $pkgStmt->fetch();
+
                 sendBookingConfirmation([
                     'client_email' => $client['email'],
-                    'client_name' => $client['name'],
-                    'event_date' => $eventDate,
-                   
-                    'pax_count' => $paxCount,
-                    'total_cost' => $totalCost,
-                    'amount_paid' => $amountPaid
+                    'client_name'  => $client['name'],
+                    'event_date'   => $eventDate,
+                    'menu_name'    => $pkgRow ? $pkgRow['set_name'] : 'Catering Package',
+                    'pax_count'    => $paxCount,
+                    'total_cost'   => $totalCost,
+                    'amount_paid'  => $amountPaid,
                 ]);
             } catch (\Throwable $e) {
-                error_log("Non-fatal: Email dispatch failed for booking " . $newId);
+                error_log("Non-fatal: Email dispatch failed for booking $newId: " . $e->getMessage());
             }
         }
 
@@ -466,8 +475,8 @@ if ($method === 'PUT') {
 
     $bookingId = (int)$data['id'];
 
-    // Fetch current state for audit trail
-    $cur = $pdo->prepare("SELECT booking_status, notes FROM bookings WHERE id = :id");
+    // Fetch current state for audit pattern and actual date change detection
+    $cur = $pdo->prepare("SELECT booking_status, notes, event_date, pax_count, package_id, base_pax, base_price, extra_pax, extra_cost, total_cost, amount_paid FROM bookings WHERE id = :id");
     $cur->execute([':id' => $bookingId]);
     $current = $cur->fetch();
 
@@ -482,20 +491,169 @@ if ($method === 'PUT') {
     $event_location = !empty($data['event_location']) ? $data['event_location'] : null;
     $booking_status = !empty($data['booking_status']) ? $data['booking_status'] : null;
 
-    $pdo->prepare("
-        UPDATE bookings SET
-            event_time     = COALESCE(:event_time,     event_time),
-            event_location = COALESCE(:event_location, event_location),
-            booking_status = COALESCE(:booking_status, booking_status),
-            notes          = :notes
-        WHERE id = :id
-    ")->execute([
-        ':id'             => $bookingId,
-        ':event_time'     => $event_time,
-        ':event_location' => $event_location,
-        ':booking_status' => $booking_status,
-        ':notes'          => !empty($data['notes']) ? $data['notes'] : null,
-    ]);
+    // ── P1-02: Re-validate date ONLY if it's actually being changed ─────────────────────────────
+    $newDate = !empty($data['event_date']) ? trim($data['event_date']) : null;
+    $dateChanged = ($newDate && $current && $newDate !== $current['event_date']);
+
+    if ($dateChanged) {
+        $parsedNew = \DateTime::createFromFormat('Y-m-d', $newDate);
+        if (!$parsedNew || $parsedNew->format('Y-m-d') !== $newDate) {
+            jsonResponse(false, 'Invalid event date format. Use YYYY-MM-DD.', [], 422);
+        }
+        // Check lead time
+        if ($newDate < date('Y-m-d', strtotime('+' . MIN_LEAD_TIME_DAYS . ' days'))) {
+            jsonResponse(false, 'Rescheduled date must be at least ' . MIN_LEAD_TIME_DAYS . ' days from today.', [], 422);
+        }
+        // Check one-booking-per-date (exclude self, though we know it changed)
+        $avail = $pdo->prepare("
+            SELECT COUNT(*) FROM bookings
+            WHERE event_date = :date
+              AND id != :self
+              AND booking_status NOT IN ('cancelled')
+        ");
+        $avail->execute([':date' => $newDate, ':self' => $bookingId]);
+        if ((int)$avail->fetchColumn() > 0) {
+            jsonResponse(false, 'The chosen reschedule date is already booked by another event. Please select a different date.', ['field' => 'event_date'], 409);
+        }
+    }
+
+    $newPax = !empty($data['pax_count']) ? (int)$data['pax_count'] : (int)$current['pax_count'];
+    $paxChanged = ($newPax !== (int)$current['pax_count']);
+    
+    $package_id = $current['package_id'];
+    $base_pax   = $current['base_pax'];
+    $base_price = $current['base_price'];
+    $extra_pax  = $current['extra_pax'];
+    $extra_cost = $current['extra_cost'];
+    $total_cost = $current['total_cost'];
+    
+    if ($paxChanged) {
+        if ($newPax < MIN_PAX) jsonResponse(false, 'Minimum of ' . MIN_PAX . ' guests is required.', [], 422);
+        if ($newPax > MAX_PAX) jsonResponse(false, 'Maximum of ' . MAX_PAX . ' guests is allowed.', [], 422);
+        
+        $TIER_STEP = 50;
+        $tierPax   = (int)(floor($newPax / $TIER_STEP) * $TIER_STEP);
+        if ($tierPax < 50) $tierPax = 50;
+        
+        $pkgStmt = $pdo->prepare("SELECT id, set_name, pax_count, price, max_main_dishes, max_desserts FROM packages WHERE pax_count = :tier AND is_active = 1");
+        $pkgStmt->execute([':tier' => $tierPax]);
+        $pkg = $pkgStmt->fetch();
+        
+        if (!$pkg) {
+            $pkg = $pdo->query("SELECT id, set_name, pax_count, price, max_main_dishes, max_desserts FROM packages WHERE is_active = 1 ORDER BY pax_count DESC LIMIT 1")->fetch();
+            $tierPax = (int)$pkg['pax_count'];
+        }
+        
+        $package_id = (int)$pkg['id'];
+        $base_pax   = (int)$pkg['pax_count'];
+        $base_price = (float)$pkg['price'];
+        $ratePerPax = $base_price / $base_pax;
+        $extra_pax  = max(0, $newPax - $tierPax);
+        $extra_cost = round($extra_pax * $ratePerPax, 2);
+        $total_cost = round($base_price + $extra_cost, 2);
+    }
+    
+    $p = $newPax;
+    if ($p < 100) { $maxMain = 5; $maxDesserts = 1; }
+    elseif ($p < 150) { $maxMain = 6; $maxDesserts = 1; }
+    elseif ($p < 200) { $maxMain = 7; $maxDesserts = 2; }
+    elseif ($p < 250) { $maxMain = 8; $maxDesserts = 2; }
+    elseif ($p < 300) { $maxMain = 9; $maxDesserts = 3; }
+    else { $maxMain = 10; $maxDesserts = 3; }
+
+    $dishesUpdated = false;
+    if (isset($data['selected_dishes'])) {
+        $selectedDishIds = array_map('intval', (array)$data['selected_dishes']);
+        $mainDishIds = [];
+        $dessertIds  = [];
+        if (!empty($selectedDishIds)) {
+            $placeholders = implode(',', array_fill(0, count($selectedDishIds), '?'));
+            $dishStmt = $pdo->prepare("SELECT id, category FROM dishes WHERE id IN ($placeholders) AND is_active = 1");
+            $dishStmt->execute($selectedDishIds);
+            foreach ($dishStmt->fetchAll() as $d2) {
+                if ($d2['category'] === 'main') $mainDishIds[] = (int)$d2['id'];
+                if ($d2['category'] === 'dessert') $dessertIds[] = (int)$d2['id'];
+            }
+            if (count($mainDishIds) > $maxMain) jsonResponse(false, "You can select a maximum of $maxMain main dishes for $newPax pax.", [], 422);
+            if (count($dessertIds) > $maxDesserts) jsonResponse(false, "You can select a maximum of $maxDesserts dessert(s) for $newPax pax.", [], 422);
+        }
+        $dishesUpdated = true;
+    }
+
+    // Wrap in transaction just in case
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("
+            UPDATE bookings SET
+                event_date     = COALESCE(:event_date,     event_date),
+                event_time     = COALESCE(:event_time,     event_time),
+                event_location = COALESCE(:event_location, event_location),
+                booking_status = COALESCE(:booking_status, booking_status),
+                notes          = :notes,
+                pax_count      = :pax_count,
+                package_id     = :package_id,
+                base_pax       = :base_pax,
+                base_price     = :base_price,
+                extra_pax      = :extra_pax,
+                extra_cost     = :extra_cost,
+                total_cost     = :total_cost
+            WHERE id = :id
+        ")->execute([
+            ':id'             => $bookingId,
+            ':event_date'     => $newDate,
+            ':event_time'     => $event_time,
+            ':event_location' => $event_location,
+            ':booking_status' => $booking_status,
+            ':notes'          => !empty($data['notes']) ? $data['notes'] : null,
+            ':pax_count'      => $newPax,
+            ':package_id'     => $package_id,
+            ':base_pax'       => $base_pax,
+            ':base_price'     => $base_price,
+            ':extra_pax'      => $extra_pax,
+            ':extra_cost'     => $extra_cost,
+            ':total_cost'     => $total_cost,
+        ]);
+
+        if ($dishesUpdated) {
+            $pdo->prepare("DELETE FROM booking_dishes WHERE booking_id = :bid")->execute([':bid' => $bookingId]);
+            $allDishIds = array_merge($mainDishIds ?? [], $dessertIds ?? []);
+            if (!empty($allDishIds)) {
+                $dInsert = $pdo->prepare("INSERT INTO booking_dishes (booking_id, dish_id) VALUES (:bid, :did)");
+                foreach ($allDishIds as $did) $dInsert->execute([':bid' => $bookingId, ':did' => $did]);
+            }
+        }
+        $pdo->commit();
+    } catch (\Exception $e) {
+        $pdo->rollBack();
+        jsonResponse(false, 'Failed to update booking: ' . $e->getMessage(), [], 500);
+    }
+
+    // Notify assigned staff if rescheduled safely using the dateChanged flag
+    if ($dateChanged) {
+        // Update job order notifications
+        $assignedStmt = $pdo->prepare("
+            SELECT jo.staff_id, u.name AS staff_name, u.email AS staff_email
+            FROM job_orders jo
+            JOIN users u ON u.id = jo.staff_id
+            WHERE jo.booking_id = :bid AND jo.status IN ('pending','accepted')
+        ");
+        $assignedStmt->execute([':bid' => $bookingId]);
+        $assignedStaff = $assignedStmt->fetchAll();
+        foreach ($assignedStaff as $staff) {
+            try {
+                $notif = $pdo->prepare("
+                    INSERT INTO notifications (user_id, type, title, body)
+                    VALUES (:uid, 'general', 'Booking Rescheduled', :body)
+                ");
+                $notif->execute([
+                    ':uid'  => $staff['staff_id'],
+                    ':body' => 'A booking you are assigned to has been rescheduled to ' . date('F j, Y', strtotime($newDate)) . '. Please check your assignments.',
+                ]);
+            } catch (\Exception $e) {
+                // Ignore enum restriction error if user hasn't run the migration yet, fallback works
+            }
+        }
+    }
 
     // Audit the status change
     if ($newStatus && $current && $newStatus !== $current['booking_status']) {
@@ -516,7 +674,41 @@ if ($method === 'DELETE') {
     $data = json_decode(file_get_contents('php://input'), true) ?? [];
     if (empty($data['id'])) jsonResponse(false, 'Booking ID is required.', [], 422);
 
-    $pdo->prepare("DELETE FROM bookings WHERE id = :id")->execute([':id' => (int)$data['id']]);
+    $bookingId = (int)$data['id'];
+
+    // Fetch booking details for guard check
+    $bRow = $pdo->prepare("SELECT booking_status, amount_paid, total_cost FROM bookings WHERE id = :id");
+    $bRow->execute([':id' => $bookingId]);
+    $booking = $bRow->fetch();
+    if (!$booking) jsonResponse(false, 'Booking not found.', [], 404);
+
+    // ── P1-03: Block hard-delete if the booking has payment records ──
+    $payCount = (int)$pdo->prepare("SELECT COUNT(*) FROM payments WHERE booking_id = :id")
+        ->execute([':id' => $bookingId]) ? $pdo->query("SELECT COUNT(*) FROM payments WHERE booking_id = $bookingId")->fetchColumn() : 0;
+
+    // Re-query properly
+    $payCountStmt = $pdo->prepare("SELECT COUNT(*) FROM payments WHERE booking_id = :id");
+    $payCountStmt->execute([':id' => $bookingId]);
+    $payCount = (int)$payCountStmt->fetchColumn();
+
+    if ($payCount > 0) {
+        jsonResponse(false,
+            'Cannot delete a booking that has payment records. ' .
+            'To permanently remove it, first archive it (if completed) or set it to cancelled and remove payments individually.',
+            ['payments_count' => $payCount], 422
+        );
+    }
+
+    if ($booking['booking_status'] !== 'cancelled') {
+        jsonResponse(false,
+            'Only cancelled bookings with no payment records can be deleted. ' .
+            'Change the status to "cancelled" first.',
+            [], 422
+        );
+    }
+
+    auditLog($pdo, 'booking_deleted', 'booking', $bookingId, $booking, null);
+    $pdo->prepare("DELETE FROM bookings WHERE id = :id")->execute([':id' => $bookingId]);
     jsonResponse(true, 'Booking deleted.');
 }
 

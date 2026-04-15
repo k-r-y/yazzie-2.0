@@ -1382,3 +1382,22 @@ body { overflow-x: hidden; }
     .modal-content { padding-bottom: env(safe-area-inset-bottom); }
   }
 }
+
+
+/* ================================================================
+   SWEETALERT2 BENTO THEME
+   ================================================================ */
+div.swal2-bento {
+  border-radius: var(--r-xl) !important;
+  border: 0.5px solid rgba(255,255,255,0.8) !important;
+  box-shadow: var(--shadow-lg), 0 0 0 0.5px rgba(60,60,67,0.10) !important;
+  font-family: inherit !important;
+}
+
+div.swal2-bento-toast {
+  border-radius: var(--r-sm) !important;
+  font-size: 14px !important;
+  border: 0.5px solid rgba(255,255,255,0.6) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+

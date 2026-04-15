@@ -60,10 +60,9 @@ if ($type === 'revenue_chart') {
 if ($type === 'menu_popularity') {
     $stmt = $pdo->query("
         SELECT
-            COALESCE(pk.set_name, m.name, 'Other') AS label,
+            COALESCE(pk.set_name, 'Other') AS label,
             COUNT(b.id) AS count
         FROM bookings b
-        LEFT JOIN menus    m  ON m.id  = b.menu_id
         LEFT JOIN packages pk ON pk.id = b.package_id
         WHERE b.booking_status NOT IN ('cancelled')
         GROUP BY label
@@ -119,11 +118,17 @@ if ($type === 'kpis') {
         AND booking_status IN ('pending','confirmed')
     ")->fetchColumn();
 
-    // Outstanding balance
+    // Outstanding balance — computed from live payment SUM (not the cached bookings.amount_paid)
     $outstanding = $pdo->query("
-        SELECT COALESCE(SUM(total_cost - amount_paid), 0) FROM bookings
-        WHERE payment_status IN ('unpaid','partial')
-        AND booking_status NOT IN ('cancelled','completed')
+        SELECT COALESCE(SUM(b.total_cost - COALESCE(p_sum.paid, 0)), 0)
+        FROM bookings b
+        LEFT JOIN (
+            SELECT booking_id, SUM(amount) AS paid
+            FROM payments
+            GROUP BY booking_id
+        ) p_sum ON p_sum.booking_id = b.id
+        WHERE b.booking_status NOT IN ('cancelled', 'completed')
+          AND (b.total_cost - COALESCE(p_sum.paid, 0)) > 0
     ")->fetchColumn();
 
     jsonResponse(true, '', [

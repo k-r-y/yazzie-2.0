@@ -111,39 +111,75 @@ async function loadGroceryList() {
     // Show booking details
     document.getElementById('detail-client').textContent = booking.client_name;
     document.getElementById('detail-date').textContent   = Format.dateShort(booking.event_date) + (booking.event_time ? ' ' + Format.time(booking.event_time) : '');
-    document.getElementById('detail-menu').textContent   = booking.menu_name;
+    document.getElementById('detail-menu').textContent   = booking.menu_name || booking.package_name || '—';
     document.getElementById('detail-pax').textContent    = booking.pax_count + ' guests';
     document.getElementById('bookingDetails').style.display = 'block';
     document.getElementById('printBtn').href = BASE + '/templates/grocery_list.php?booking_id=' + bookingId;
 
-    // Update subtitle
     document.getElementById('grocerySubtitle').textContent =
-        `${booking.pax_count} pax × recipe quantities — ${booking.menu_name}`;
+        `${booking.pax_count} pax × recipe quantities`;
 
-    // Load ingredients
     document.getElementById('groceryContent').innerHTML = '<div class="spinner"></div>';
-    try {
-        const d    = await Api.get(BASE + '/src/api/ingredients.php', { menu_id: booking.menu_id });
-        const ings = d.ingredients || [];
 
-        if (ings.length === 0) {
+    try {
+        const pax = parseInt(booking.pax_count);
+
+        // Step 1: Get the dishes selected for this booking
+        const dishData = await Api.get(BASE + '/src/api/bookings.php', {
+            id: bookingId, dishes: 1
+        });
+        const dishes = dishData.dishes || [];
+
+        if (dishes.length === 0) {
             document.getElementById('groceryContent').innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-list-ul" style="font-size:36px;color:var(--text-muted);display:block;margin-bottom:12px;"></i>
-                    <p>No ingredients defined for this menu package.<br>Ask the Admin to add ingredients in Menu Manager.</p>
+                    <p>No dishes selected for this booking, or no recipes defined.<br>
+                    Ask the Admin to assign dishes and add ingredients in Recipe Manager.</p>
                 </div>`;
             return;
         }
 
-        const pax    = parseInt(booking.pax_count);
-        const rows   = ings.map(ing => {
-            const qty = (parseFloat(ing.quantity_per_pax) * pax).toFixed(3).replace(/\.?0+$/, '');
+        // Step 2: For each dish, fetch the scaled recipe. Aggregate totals.
+        const aggregated = {}; // { "Ingredient (unit)": { name, unit, total } }
+
+        await Promise.all(dishes.map(async (dish) => {
+            try {
+                const res = await Api.get(BASE + `/src/api/recipes.php`, {
+                    compute_pax: pax,
+                    dish_id: dish.dish_id
+                });
+                (res.ingredients || []).forEach(ing => {
+                    const key = ing.ingredient_name + '|' + ing.unit;
+                    if (!aggregated[key]) {
+                        aggregated[key] = { name: ing.ingredient_name, unit: ing.unit, total: 0, basePax: res.base_pax };
+                    }
+                    aggregated[key].total += parseFloat(ing.computed_quantity);
+                });
+            } catch (e) {
+                // Dish has no recipe yet — skip silently, it'll show in empty-ingredient warning
+                console.warn('No recipe for dish ' + dish.dish_id + ':', e.message);
+            }
+        }));
+
+        const rows = Object.values(aggregated);
+
+        if (!rows.length) {
+            document.getElementById('groceryContent').innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle" style="font-size:36px;color:var(--sys-orange,#FF9500);display:block;margin-bottom:12px;"></i>
+                    <p>Dishes are selected but none have recipe ingredients defined yet.<br>
+                    Go to <strong>Recipes &amp; Computation</strong> to add ingredients to each dish.</p>
+                </div>`;
+            return;
+        }
+
+        const tableRows = rows.map(r => {
+            const qty = r.total.toFixed(3).replace(/\.?0+$/, '');
             return `<tr>
-                <td class="td-name">${ing.item_name}</td>
-                <td class="text-center text-xs text-muted">${ing.quantity_per_pax} ${ing.unit}/pax</td>
-                <td class="text-center">× ${pax}</td>
+                <td class="td-name">${r.name}</td>
                 <td class="text-right text-bold" style="font-size:16px;">${qty}</td>
-                <td class="text-muted">${ing.unit}</td>
+                <td class="text-muted">${r.unit}</td>
                 <td><div style="width:18px;height:18px;border:2px solid var(--border);border-radius:4px;"></div></td>
             </tr>`;
         }).join('');
@@ -154,20 +190,18 @@ async function loadGroceryList() {
                     <thead>
                         <tr>
                             <th>Ingredient</th>
-                            <th class="text-center">Per Pax</th>
-                            <th class="text-center">Multiplied By</th>
-                            <th class="text-right">Total Qty</th>
+                            <th class="text-right">Total Qty (${pax} pax)</th>
                             <th>Unit</th>
                             <th>✓</th>
                         </tr>
                     </thead>
-                    <tbody>${rows}</tbody>
+                    <tbody>${tableRows}</tbody>
                     <tfoot>
                         <tr>
-                            <td colspan="6" style="padding:12px 16px;font-size:13px;color:var(--text-muted);">
+                            <td colspan="4" style="padding:12px 16px;font-size:13px;color:var(--text-muted);">
                                 <i class="fas fa-circle-info me-1"></i>
-                                Quantities calculated for <strong>${pax} guests</strong> using the
-                                <strong>${booking.menu_name}</strong> recipe.
+                                Quantities aggregated across <strong>${dishes.length} dish(es)</strong> for
+                                <strong>${pax} guests</strong>.
                             </td>
                         </tr>
                     </tfoot>
@@ -175,7 +209,7 @@ async function loadGroceryList() {
             </div>
         `;
     } catch (e) {
-        Toast.error('Failed to load ingredients: ' + e.message);
+        Toast.error('Failed to generate grocery list: ' + e.message);
     }
 }
 

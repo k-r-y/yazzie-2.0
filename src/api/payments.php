@@ -52,12 +52,11 @@ if ($method === 'GET') {
     $stmt = $pdo->prepare("
         SELECT p.*, b.event_date, b.total_cost, b.payment_status,
                c.name AS client_name,
-               COALESCE(pk.set_name, m.name, '—') AS menu_name,
+               COALESCE(pk.set_name, '—') AS menu_name,
                u.name AS recorded_by_name
         FROM payments p
         JOIN bookings b  ON b.id  = p.booking_id
         JOIN clients  c  ON c.id  = b.client_id
-        LEFT JOIN menus    m  ON m.id  = b.menu_id
         LEFT JOIN packages pk ON pk.id = b.package_id
         JOIN users    u  ON u.id  = p.recorded_by
         WHERE $whereClause

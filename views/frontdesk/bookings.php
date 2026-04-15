@@ -69,8 +69,12 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="editStatusForm">
+                 <form id="editStatusForm">
                     <input type="hidden" name="id" id="edit_id">
+                    <div class="form-group">
+                        <label class="form-label">Event Date</label>
+                        <input type="date" class="form-control" name="event_date" id="edit_event_date">
+                    </div>
                     <div class="form-group">
                         <label class="form-label">Booking Status</label>
                         <select class="form-control" name="booking_status" id="edit_bs">
@@ -79,6 +83,15 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                             <option value="completed">Completed</option>
                             <option value="cancelled">Cancelled</option>
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Guest Count (Pax)</label>
+                        <input type="number" class="form-control" name="pax_count" id="edit_pax_count" min="50">
+                    </div>
+                    <div class="form-group mt-3" style="border:1px solid #e1e4e8; border-radius:8px; padding:12px;">
+                        <label class="form-label" style="margin-bottom:8px;">Menu Selection</label>
+                        <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:12px;" id="editDishGridMains"></div>
+                        <div style="display:flex; flex-wrap:wrap; gap:12px;" id="editDishGridDesserts"></div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Notes</label>
@@ -125,11 +138,20 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
 <script>
 const BASE = '<?= BASE_URL ?>';
 let menusFD = [], allBookings = [];
+let allDishes = { mains: [], desserts: [] };
 
 async function initFD() {
+    await loadDishes();
     await loadBookingsFD();
 }
 
+async function loadDishes() {
+    try {
+        const d = await Api.get(BASE + '/src/api/packages.php', { dishes: 1 });
+        allDishes.mains = d.mainDishes || [];
+        allDishes.desserts = d.desserts || [];
+    } catch(e) {}
+}
 
 async function loadBookingsFD() {
     const status = document.getElementById('filterStatus').value;
@@ -155,7 +177,7 @@ async function loadBookingsFD() {
             <td>${Format.bookingBadge(b.booking_status)}</td>
             <td>${Format.paymentBadge(b.payment_status)}</td>
             <td class="td-actions">
-                <button class="btn btn-outline-primary btn-sm" onclick="openEdit(${b.id},'${b.booking_status}','${(b.notes||'').replace(/'/g,"\\'")}')">
+                <button class="btn btn-outline-primary btn-sm" onclick="openEdit(${b.id})">
                     <i class="fas fa-edit"></i>
                 </button>
                 <a href="${BASE}/views/frontdesk/costing.php?booking_id=${b.id}" class="btn btn-outline-secondary btn-sm" title="Grocery">
@@ -171,12 +193,34 @@ async function loadBookingsFD() {
 function openAddBooking() { openBookingStepper(); }
 
 
-function openEdit(id, status, notes) {
-    document.getElementById('edit_id').value = id;
-    document.getElementById('editIdLabel').textContent = id;
-    document.getElementById('edit_bs').value = status;
-    document.getElementById('edit_notes').value = notes;
-    Modal.open('editStatusModal');
+async function openEdit(id) {
+    try {
+        const d = await Api.get(BASE + '/src/api/bookings.php', { id });
+        const b = d.booking;
+        document.getElementById('edit_id').value = id;
+        document.getElementById('editIdLabel').textContent = id;
+        document.getElementById('edit_event_date').value = b.event_date;
+        document.getElementById('edit_bs').value = b.booking_status;
+        document.getElementById('edit_pax_count').value = b.pax_count;
+        document.getElementById('edit_notes').value = b.notes || '';
+
+        const selectedDishIds = (b.dishes || []).map(ds => ds.id);
+        document.getElementById('editDishGridMains').innerHTML = allDishes.mains.map(dish => `
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; background:#f8f9fa; padding:4px 8px; border-radius:4px; border:1px solid #eee;">
+                <input type="checkbox" name="selected_dishes[]" value="${dish.id}" ${selectedDishIds.includes(dish.id) ? 'checked' : ''}>
+                🍲 ${dish.name}
+            </label>
+        `).join('');
+
+        document.getElementById('editDishGridDesserts').innerHTML = allDishes.desserts.map(dish => `
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; background:#fff2cc; padding:4px 8px; border-radius:4px; border:1px solid #ffe699;">
+                <input type="checkbox" name="selected_dishes[]" value="${dish.id}" ${selectedDishIds.includes(dish.id) ? 'checked' : ''}>
+                🍮 ${dish.name}
+            </label>
+        `).join('');
+
+        Modal.open('editStatusModal');
+    } catch (e) { Toast.error(e.message); }
 }
 
 async function saveStatusFD() {

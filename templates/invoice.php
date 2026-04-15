@@ -13,16 +13,25 @@ $bookingId = (int)($_GET['booking_id'] ?? 0);
 if (!$bookingId) die('Invalid booking ID.');
 
 $stmt = $pdo->prepare("
-    SELECT b.*, c.name AS client_name, c.phone AS client_phone, c.email AS client_email,
-           m.name AS menu_name, m.price_per_pax
+    SELECT b.*,
+           c.name  AS client_name,
+           c.phone AS client_phone,
+           c.email AS client_email,
+           COALESCE(pk.set_name, 'Catering Package') AS menu_name,
+           pk.price AS pkg_price
     FROM bookings b
-    JOIN clients c ON c.id = b.client_id
-    JOIN menus   m ON m.id = b.menu_id
+    JOIN clients   c  ON c.id  = b.client_id
+    LEFT JOIN packages pk ON pk.id = b.package_id
     WHERE b.id = :id
 ");
 $stmt->execute([':id' => $bookingId]);
 $b = $stmt->fetch();
 if (!$b) die('Booking not found.');
+
+// Compute display price per pax from whichever source is available
+$displayPricePerPax = $b['base_pax'] > 0
+    ? round($b['base_price'] / $b['base_pax'], 2)
+    : 0;
 
 if (!$isAuth) {
     $token = $_GET['token'] ?? null;
@@ -96,9 +105,17 @@ $eventDate = date('F j, Y', strtotime($b['event_date']));
                 <td><?= htmlspecialchars($b['menu_name']) ?><br>
                     <small style="color:#888;">Catering services for event on <?= $eventDate ?></small></td>
                 <td class="text-right"><?= $b['pax_count'] ?> pax</td>
-                <td class="text-right">₱<?= number_format($b['price_per_pax'], 2) ?></td>
+                <td class="text-right">₱<?= number_format($displayPricePerPax, 2) ?>/pax</td>
                 <td class="text-right" style="font-weight:700;">₱<?= number_format($b['total_cost'], 2) ?></td>
             </tr>
+            <?php if ((float)$b['extra_cost'] > 0): ?>
+            <tr>
+                <td><small style="color:#888;">Extra guests (<?= $b['extra_pax'] ?> pax × ₱<?= number_format($displayPricePerPax, 2) ?>)</small></td>
+                <td class="text-right"><?= $b['extra_pax'] ?> pax</td>
+                <td class="text-right">₱<?= number_format($displayPricePerPax, 2) ?></td>
+                <td class="text-right">₱<?= number_format($b['extra_cost'], 2) ?></td>
+            </tr>
+            <?php endif; ?>
         </tbody>
     </table>
 

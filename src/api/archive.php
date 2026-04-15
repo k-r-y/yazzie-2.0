@@ -16,10 +16,10 @@ if ($method === 'GET') {
     $like   = "%$search%";
     $stmt = $pdo->prepare("
         SELECT * FROM archived_bookings
-        WHERE client_name LIKE :s1 OR menu_name LIKE :s2 OR event_location LIKE :s3
+        WHERE client_name LIKE :s1 OR event_location LIKE :s2
         ORDER BY event_date DESC, archived_at DESC
     ");
-    $stmt->execute([':s1' => $like, ':s2' => $like, ':s3' => $like]);
+    $stmt->execute([':s1' => $like, ':s2' => $like]);
     jsonResponse(true, '', ['archived' => $stmt->fetchAll()]);
 }
 
@@ -31,12 +31,11 @@ if ($method === 'POST') {
 
     // ── Get full booking details (LEFT JOIN so package-only bookings are found) ──
     $stmt = $pdo->prepare("
-        SELECT b.*, c.name AS client_name, c.phone AS client_phone,
-               COALESCE(pk.set_name, m.name, 'Package Booking') AS menu_name
+        SELECT b.*,
+               c.name AS client_name,
+               c.phone AS client_phone
         FROM bookings b
-        JOIN clients  c  ON c.id  = b.client_id
-        LEFT JOIN menus    m  ON m.id  = b.menu_id
-        LEFT JOIN packages pk ON pk.id = b.package_id
+        JOIN clients   c  ON c.id  = b.client_id
         WHERE b.id = :id
     ");
     $stmt->execute([':id' => $bookingId]);
@@ -63,10 +62,10 @@ if ($method === 'POST') {
     try {
         $archStmt = $pdo->prepare("
             INSERT INTO archived_bookings
-              (original_id, client_name, client_phone, menu_name, event_date, event_time,
+              (original_id, client_name, client_phone, event_date, event_time,
                event_location, pax_count, total_cost, amount_paid, payment_status, notes, archived_by)
             VALUES
-              (:original_id, :client_name, :client_phone, :menu_name, :event_date, :event_time,
+              (:original_id, :client_name, :client_phone, :event_date, :event_time,
                :event_location, :pax_count, :total_cost, :amount_paid, :payment_status, :notes, :archived_by)
         ");
 
@@ -74,7 +73,6 @@ if ($method === 'POST') {
             ':original_id'    => $booking['id'],
             ':client_name'    => $booking['client_name'],
             ':client_phone'   => $booking['client_phone'],
-            ':menu_name'      => $booking['menu_name'],
             ':event_date'     => $booking['event_date'],
             ':event_time'     => $booking['event_time'],
             ':event_location' => $booking['event_location'],

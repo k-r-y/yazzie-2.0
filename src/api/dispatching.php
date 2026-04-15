@@ -84,24 +84,30 @@ if ($method === 'POST') {
         $count++;
     }
 
-    // Email broadcast (Non-blocking)
+    // Email broadcast — batch fetch all staff in one query (avoids N+1)
     if ($count > 0 && MAIL_ENABLED) {
         require_once __DIR__ . '/../../includes/mailer.php';
-        $uStmt = $pdo->prepare("SELECT name, email FROM users WHERE id = ?");
-        foreach ($staffIds as $sid) {
-            $uStmt->execute([$sid]);
-            $u = $uStmt->fetch();
-            if ($u && !empty($u['email'])) {
-                try {
-                    sendStaffAssignmentEmail($u['email'], $u['name'], [
-                        'event_date'     => $booking['event_date'],
-                        'event_time'     => $booking['event_time'] ?? 'TBA',
-                        'event_location' => $booking['event_location'] ?? 'TBA',
-                        'client_name'    => $booking['client_name'],
-                        'role'           => $role
-                    ]);
-                } catch (\Throwable $e) {
-                    error_log("Email fail on dispatch: " . $e->getMessage());
+        if (!empty($staffIds)) {
+            $placeholders = implode(',', array_fill(0, count($staffIds), '?'));
+            $uStmt = $pdo->prepare("SELECT id, name, email FROM users WHERE id IN ($placeholders) AND is_active = 1");
+            $uStmt->execute($staffIds);
+            $staffUsers = $uStmt->fetchAll();
+            foreach ($staffUsers as $staffUser) {
+                if (!empty($staffUser['email'])) {
+                    try {
+                        sendStaffAssignmentEmail(
+                            ['name' => $staffUser['name'], 'email' => $staffUser['email']],
+                            [
+                                'event_date'     => $booking['event_date'],
+                                'event_time'     => $booking['event_time'] ?? '',
+                                'event_location' => $booking['event_location'] ?? 'TBA',
+                                'pax_count'      => $booking['pax_count'],
+                                'staff_role'     => $role,
+                            ]
+                        );
+                    } catch (\Throwable $e) {
+                        error_log("Email fail on dispatch for user {$staffUser['id']}: " . $e->getMessage());
+                    }
                 }
             }
         }

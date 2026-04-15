@@ -31,7 +31,7 @@ include __DIR__ . '/../../includes/sidebar.php';
     <div class="table-wrapper">
         <table class="data-table" id="archiveTable">
             <thead>
-                <tr><th>Event Date</th><th>Client</th><th>Menu</th><th>Pax</th>
+                <tr><th>Event Date</th><th>Client</th><th>Pax</th>
                     <th>Total Cost</th><th>Amount Paid</th><th>Payment</th><th>Archived On</th></tr>
             </thead>
             <tbody id="archiveBody"><tr><td colspan="8"><div class="spinner"></div></td></tr></tbody>
@@ -57,7 +57,7 @@ async function loadArchive() {
         <tr>
             <td class="fw-600">${Format.dateShort(r.event_date)}</td>
             <td class="td-name">${r.client_name}<br><small class="text-muted">${r.client_phone||''}</small></td>
-            <td>${r.menu_name}</td>
+            <td>${r.package_name || '—'}</td>
             <td>${r.pax_count}</td>
             <td>${Format.peso(r.total_cost)}</td>
             <td class="text-success fw-600">${Format.peso(r.amount_paid)}</td>

@@ -42,6 +42,9 @@ $extraCss     = $extraCss     ?? [];
     <!-- Chart.js 4 -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 
+    <!-- SweetAlert2 (Rich notification feedback) -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <!-- Yazzies Shared Utilities (Api, Format, Toast, Modal, Form, etc.) -->
     <!-- MUST load here so inline view scripts can use Api.get(), Format.peso(), etc. -->
     <script src="<?= BASE_URL ?>/assets/js/main.js"></script>

@@ -36,14 +36,15 @@ if ($method === 'GET') {
         $onLeaveStmt->execute([':d' => $date]);
         $onLeave = array_column($onLeaveStmt->fetchAll(), 'staff_id');
 
-        // Staff already assigned to a different booking that day
+        // Staff already confirmed for a different booking that day (via job_orders)
         $bookedStmt = $pdo->prepare("
-            SELECT DISTINCT bs.staff_id
-            FROM booking_staff bs
-            JOIN bookings b ON b.id = bs.booking_id
+            SELECT DISTINCT jo.staff_id
+            FROM job_orders jo
+            JOIN bookings b ON b.id = jo.booking_id
             WHERE b.event_date = :d
               AND b.booking_status NOT IN ('cancelled')
-              AND (:excl = 0 OR bs.booking_id != :excl2)
+              AND jo.status IN ('pending', 'accepted')
+              AND (:excl = 0 OR jo.booking_id != :excl2)
         ");
         $bookedStmt->execute([':d' => $date, ':excl' => $excludeBookingId, ':excl2' => $excludeBookingId]);
         $alreadyBooked = array_column($bookedStmt->fetchAll(), 'staff_id');

@@ -3,53 +3,47 @@
  */
 
 /* ================================================================
-   TOAST NOTIFICATIONS
+   SWEETALERT / TOAST NOTIFICATIONS
    ================================================================ */
 const Toast = {
-    container: null,
-
-    init() {
-        if (!this.container) {
-            this.container = document.createElement('div');
-            this.container.className = 'toast-container';
-            document.body.appendChild(this.container);
+    show(message, type = 'info', duration = 3000) {
+        // Render success messages as a beautiful center popup
+        if (type === 'success') {
+            return Swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: message,
+                showConfirmButton: false,
+                timer: 2000,
+                timerProgressBar: true,
+                padding: '1em',
+                color: 'var(--label)',
+                background: 'var(--glass-ultra)',
+                backdrop: `rgba(0,0,0,0.4)`,
+                customClass: { popup: 'swal2-bento' }
+            });
         }
-    },
-
-    show(message, type = 'info', duration = 4000) {
-        this.init();
-        const icons = {
-            success: 'fa-check-circle',
-            error:   'fa-exclamation-circle',
-            warning: 'fa-triangle-exclamation',
-            info:    'fa-circle-info',
-        };
-        const toast = document.createElement('div');
-        const icon = document.createElement('i');
-        icon.className = `fas ${icons[type] || icons.info}`;
-        const msg  = document.createElement('span');
-        msg.textContent = message;   // textContent = XSS-safe (no HTML parsing)
-        toast.className = `toast-notification ${type}`;
-        toast.appendChild(icon);
-        toast.appendChild(msg);
-        toast.addEventListener('click', () => this._remove(toast));
-        this.container.appendChild(toast);
-
-        if (duration > 0) {
-            setTimeout(() => this._remove(toast), duration);
-        }
-        return toast;
+        
+        // Render errors/warnings as top-end toasts so it doesn't trap the user
+        return Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: type,
+            title: message,
+            showConfirmButton: false,
+            timer: duration,
+            timerProgressBar: true,
+            background: 'var(--glass-ultra)',
+            color: 'var(--label)',
+            backdrop: false,
+            customClass: { popup: 'swal2-bento-toast' }
+        });
     },
 
     success(msg, dur)  { return this.show(msg, 'success', dur); },
     error(msg, dur)    { return this.show(msg, 'error',   dur); },
     warning(msg, dur)  { return this.show(msg, 'warning', dur); },
-    info(msg, dur)     { return this.show(msg, 'info',    dur); },
-
-    _remove(toast) {
-        toast.classList.add('removing');
-        setTimeout(() => toast.remove(), 300);
-    }
+    info(msg, dur)     { return this.show(msg, 'info',    dur); }
 };
 
 /* ================================================================

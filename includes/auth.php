@@ -37,7 +37,13 @@ function requireRole(string|array $roles): void
 
     $roles = (array) $roles;
 
-    if (!in_array($_SESSION['role'], $roles, true)) {
+    // super_admin inherits all roles — they can access any admin/frontdesk page
+    $userRole = $_SESSION['role'] ?? '';
+    if ($userRole === 'super_admin' && !in_array('super_admin', $roles, true)) {
+        $roles[] = 'super_admin';
+    }
+
+    if (!in_array($userRole, $roles, true)) {
         header('Location: ' . BASE_URL . '/index.php?error=forbidden');
         exit;
     }
@@ -70,9 +76,10 @@ function getCurrentUser(): ?array
 function redirectByRole(string $role): void
 {
     $redirectMap = [
-        'admin'     => BASE_URL . '/views/admin/dashboard.php',
-        'frontdesk' => BASE_URL . '/views/frontdesk/dashboard.php',
-        'staff'     => BASE_URL . '/views/staff/dashboard.php',
+        'super_admin' => BASE_URL . '/views/admin/dashboard.php', // super_admin uses admin dashboard
+        'admin'       => BASE_URL . '/views/admin/dashboard.php',
+        'frontdesk'   => BASE_URL . '/views/frontdesk/dashboard.php',
+        'staff'       => BASE_URL . '/views/staff/dashboard.php',
     ];
 
     $url = $redirectMap[$role] ?? BASE_URL . '/index.php';
@@ -86,10 +93,11 @@ function redirectByRole(string $role): void
 function getRoleLabel(string $role): string
 {
     return match($role) {
-        'admin'     => 'Administrator',
-        'frontdesk' => 'Front Desk',
-        'staff'     => 'On-Call Staff',
-        default     => ucfirst($role),
+        'super_admin' => '⭐ Super Admin',
+        'admin'       => 'Administrator',
+        'frontdesk'   => 'Front Desk',
+        'staff'       => 'On-Call Staff',
+        default       => ucfirst($role),
     };
 }
 
@@ -138,7 +146,14 @@ function requireApiRole(string|array $roles): array
     }
 
     $roles = (array) $roles;
-    if (!in_array($_SESSION['role'], $roles, true)) {
+
+    // super_admin inherits all role permissions
+    $userRole = $_SESSION['role'] ?? '';
+    if ($userRole === 'super_admin') {
+        return getCurrentUser(); // super_admin bypasses all role checks
+    }
+
+    if (!in_array($userRole, $roles, true)) {
         jsonResponse(false, 'Forbidden. You do not have access to this resource.', [], 403);
     }
 

@@ -83,16 +83,14 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                     <input type="hidden" name="id" id="edit_id">
                     <div class="form-grid-2">
                         <div class="form-group">
-                            <label class="form-label">Event Date</label>
+                            <label class="form-label">Event Date
+                                <small class="text-muted" style="font-weight:400;"> (reschedule — checks availability)</small>
+                            </label>
                             <input type="date" class="form-control" name="event_date" id="edit_event_date">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Event Time</label>
                             <input type="time" class="form-control" name="event_time" id="edit_event_time">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Pax Count</label>
-                            <input type="number" class="form-control" name="pax_count" id="edit_pax_count" min="1">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Booking Status</label>
@@ -103,6 +101,15 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                                 <option value="cancelled">Cancelled</option>
                             </select>
                         </div>
+                        <div class="form-group">
+                            <label class="form-label">Guest Count (Pax)</label>
+                            <input type="number" class="form-control" name="pax_count" id="edit_pax_count" min="50">
+                        </div>
+                    </div>
+                    <div class="form-group mt-3" style="border:1px solid #e1e4e8; border-radius:8px; padding:12px;">
+                        <label class="form-label" style="margin-bottom:8px;">Menu Selection</label>
+                        <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:12px;" id="editDishGridMains"></div>
+                        <div style="display:flex; flex-wrap:wrap; gap:12px;" id="editDishGridDesserts"></div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Event Location</label>
@@ -130,11 +137,20 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
 <script>
 let clients = [];
 let currentBookings = [];
+let allDishes = { mains: [], desserts: [] };
 
 async function init() {
+    await loadDishes();
     await loadBookings();
 }
 
+async function loadDishes() {
+    try {
+        const d = await Api.get(BASE + '/src/api/packages.php', { dishes: 1 });
+        allDishes.mains = d.mainDishes || [];
+        allDishes.desserts = d.desserts || [];
+    } catch(e) {}
+}
 
 async function loadBookings() {
     const status  = document.getElementById('filterStatus').value;
@@ -209,6 +225,24 @@ async function openEdit(id) {
         document.getElementById('edit_booking_status').value = b.booking_status;
         document.getElementById('edit_event_location').value = b.event_location || '';
         document.getElementById('edit_notes').value = b.notes || '';
+
+        // Extract already selected dishes
+        const selectedDishIds = (b.dishes || []).map(ds => ds.id);
+
+        // Build dish checkboxes
+        document.getElementById('editDishGridMains').innerHTML = allDishes.mains.map(dish => `
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; background:#f8f9fa; padding:4px 8px; border-radius:4px; border:1px solid #eee;">
+                <input type="checkbox" name="selected_dishes[]" value="${dish.id}" ${selectedDishIds.includes(dish.id) ? 'checked' : ''}>
+                🍲 ${dish.name}
+            </label>
+        `).join('');
+
+        document.getElementById('editDishGridDesserts').innerHTML = allDishes.desserts.map(dish => `
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; background:#fff2cc; padding:4px 8px; border-radius:4px; border:1px solid #ffe699;">
+                <input type="checkbox" name="selected_dishes[]" value="${dish.id}" ${selectedDishIds.includes(dish.id) ? 'checked' : ''}>
+                🍮 ${dish.name}
+            </label>
+        `).join('');
 
         // Show archive button only for completed bookings
         document.getElementById('archiveBtn').style.display =

@@ -144,6 +144,33 @@ if ($method === 'PUT') {
         jsonResponse(false, "This request has already been {$leave['status']}.", [], 409);
     }
 
+    // ── Conflict guard: block approval if staff has active job order on same date ──
+    if ($d['status'] === 'approved') {
+        $conflict = $pdo->prepare("
+            SELECT jo.id, b.event_date, c.name AS client_name
+            FROM job_orders jo
+            JOIN bookings b  ON b.id  = jo.booking_id
+            JOIN clients  c  ON c.id  = b.client_id
+            WHERE jo.staff_id = :sid
+              AND b.event_date = :date
+              AND jo.status   IN ('pending', 'accepted')
+              AND b.booking_status NOT IN ('cancelled')
+            LIMIT 1
+        ");
+        $conflict->execute([':sid' => $leave['staff_id'], ':date' => $leave['leave_date']]);
+        $conflictRow = $conflict->fetch();
+
+        if ($conflictRow) {
+            jsonResponse(false,
+                "Cannot approve: this staff member has an active job order for " .
+                htmlspecialchars($conflictRow['client_name']) . "'s event on " .
+                date('F j, Y', strtotime($conflictRow['event_date'])) .
+                ". Please cancel or reassign that job order first.",
+                ['conflict_job_order_id' => $conflictRow['id']], 409
+            );
+        }
+    }
+
     $pdo->prepare("
         UPDATE leave_requests
         SET status = :status, reviewed_by = :by, reviewed_at = NOW()
