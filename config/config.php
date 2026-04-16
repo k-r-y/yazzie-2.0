@@ -73,6 +73,9 @@ try {
     $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
 } catch (\PDOException $e) {
     $isApiRequest = (strpos($_SERVER['PHP_SELF'] ?? '', '/api/') !== false);
+    if (php_sapi_name() === 'cli') {
+        die("Database connection failed: " . $e->getMessage() . "\n");
+    }
     if ($isApiRequest) {
         header('Content-Type: application/json');
         http_response_code(503);
@@ -80,6 +83,57 @@ try {
     }
     http_response_code(503);
     die('<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:60px;"><h2>Database Unavailable</h2><p>' . htmlspecialchars($e->getMessage()) . '</p><p>Run <a href="/test/database/setup.php">/test/database/setup.php</a> to initialize the database.</p></body></html>');
+}
+
+// ============================================================
+// Settings (dynamic business rules from DB)
+// ============================================================
+/**
+ * Read application settings from `settings` table (if present).
+ * Falls back to provided default when table/key is missing.
+ *
+ * NOTE: This is intentionally lightweight for this codebase (no framework).
+ */
+function appSetting(string $key, mixed $default = null): mixed
+{
+    global $pdo;
+    static $cache = null;
+
+    if ($cache === null) {
+        $cache = [];
+        try {
+            // If the table doesn't exist yet, this will throw and we fallback to defaults.
+            $rows = $pdo->query("SELECT `key`, `value`, `type` FROM settings")->fetchAll();
+            foreach ($rows as $r) {
+                $k = (string)($r['key'] ?? '');
+                if ($k === '') continue;
+                $cache[$k] = ['value' => $r['value'] ?? null, 'type' => $r['type'] ?? 'string'];
+            }
+        } catch (Throwable $e) {
+            // ignore: defaults will be used
+        }
+    }
+
+    if (!array_key_exists($key, $cache)) return $default;
+    $v = $cache[$key]['value'];
+    $t = $cache[$key]['type'];
+
+    return match ($t) {
+        'int'  => (int)$v,
+        'bool' => filter_var($v, FILTER_VALIDATE_BOOLEAN),
+        'json' => (json_decode((string)$v, true) ?: $default),
+        default => $v,
+    };
+}
+
+function appSettingInt(string $key, int $default): int {
+    $v = appSetting($key, $default);
+    return is_numeric($v) ? (int)$v : $default;
+}
+
+function appSettingFloat(string $key, float $default): float {
+    $v = appSetting($key, $default);
+    return is_numeric($v) ? (float)$v : $default;
 }
 
 // ── Global exception handler for API routes ──────────────────────

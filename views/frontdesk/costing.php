@@ -128,7 +128,38 @@ async function loadGroceryList() {
         const dishData = await Api.get(BASE + '/src/api/bookings.php', {
             id: bookingId, dishes: 1
         });
-        const dishes = dishData.dishes || [];
+        const allDishes   = dishData.dishes || [];
+        const dishes       = allDishes.filter(d => !d.is_custom);
+        const customDishes = allDishes.filter(d => d.is_custom);
+
+        // Build custom dish warning if any exist
+        const customWarningHtml = customDishes.length > 0 ? `
+            <div style="display:flex; gap:10px; align-items:flex-start; background:rgba(255,149,0,0.08);
+                        border:1px solid rgba(255,149,0,0.3); border-radius:12px; padding:14px 16px; margin-bottom:16px;">
+                <span style="font-size:20px; flex-shrink:0;">⚠️</span>
+                <div>
+                    <div style="font-size:13px; font-weight:700; color:#9A5400; margin-bottom:4px;">
+                        ${customDishes.length} Custom Dish${customDishes.length > 1 ? 'es' : ''} — No Recipe Data
+                    </div>
+                    <div style="font-size:12px; color:rgba(60,60,67,0.7); margin-bottom:6px;">
+                        The following items have no recipe/ingredient data and are <strong>excluded from this grocery list</strong>.
+                        Add them manually or go to Recipes & Computation to define their ingredients.
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:5px;">
+                        ${customDishes.map(d => `<span style="background:rgba(255,149,0,0.12); color:#9A5400; border-radius:6px; padding:3px 10px; font-size:11.5px; font-weight:600;">${d.name}</span>`).join('')}
+                    </div>
+                </div>
+            </div>` : '';
+
+        if (dishes.length === 0 && customDishes.length > 0) {
+            document.getElementById('groceryContent').innerHTML = customWarningHtml + `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle" style="font-size:36px;color:#FF9500;display:block;margin-bottom:12px;"></i>
+                    <p>All dishes for this booking are custom items with no recipe data.<br>
+                    Add ingredients in <strong>Recipes &amp; Computation</strong> or list them manually.</p>
+                </div>`;
+            return;
+        }
 
         if (dishes.length === 0) {
             document.getElementById('groceryContent').innerHTML = `
@@ -147,7 +178,7 @@ async function loadGroceryList() {
             try {
                 const res = await Api.get(BASE + `/src/api/recipes.php`, {
                     compute_pax: pax,
-                    dish_id: dish.dish_id
+                    dish_id: dish.dish_id || dish.id
                 });
                 (res.ingredients || []).forEach(ing => {
                     const key = ing.ingredient_name + '|' + ing.unit;
@@ -158,7 +189,7 @@ async function loadGroceryList() {
                 });
             } catch (e) {
                 // Dish has no recipe yet — skip silently, it'll show in empty-ingredient warning
-                console.warn('No recipe for dish ' + dish.dish_id + ':', e.message);
+                console.warn('No recipe for dish ' + (dish.dish_id || dish.id) + ':', e.message);
             }
         }));
 
@@ -185,6 +216,7 @@ async function loadGroceryList() {
         }).join('');
 
         document.getElementById('groceryContent').innerHTML = `
+            ${customWarningHtml}
             <div style="overflow-x:auto;">
                 <table class="data-table">
                     <thead>
@@ -202,6 +234,7 @@ async function loadGroceryList() {
                                 <i class="fas fa-circle-info me-1"></i>
                                 Quantities aggregated across <strong>${dishes.length} dish(es)</strong> for
                                 <strong>${pax} guests</strong>.
+                                ${customDishes.length > 0 ? `<br><span style="color:#9A5400;">⚠️ ${customDishes.length} custom dish(es) not included — see warning above.</span>` : ''}
                             </td>
                         </tr>
                     </tfoot>

@@ -21,7 +21,8 @@ if ($method === 'GET') {
 
         // Get all active staff
         $staffStmt = $pdo->query("
-            SELECT id, name, email, phone, role
+            SELECT id, name, email, phone, role, job_class,
+                   DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s') AS created_at
             FROM users
             WHERE role = 'staff' AND is_active = 1
             ORDER BY name ASC
@@ -36,14 +37,14 @@ if ($method === 'GET') {
         $onLeaveStmt->execute([':d' => $date]);
         $onLeave = array_column($onLeaveStmt->fetchAll(), 'staff_id');
 
-        // Staff already confirmed for a different booking that day (via job_orders)
+        // Staff already accepted for a different booking that day (via job_orders)
         $bookedStmt = $pdo->prepare("
             SELECT DISTINCT jo.staff_id
             FROM job_orders jo
             JOIN bookings b ON b.id = jo.booking_id
             WHERE b.event_date = :d
               AND b.booking_status NOT IN ('cancelled')
-              AND jo.status IN ('pending', 'accepted')
+              AND jo.status = 'accepted'
               AND (:excl = 0 OR jo.booking_id != :excl2)
         ");
         $bookedStmt->execute([':d' => $date, ':excl' => $excludeBookingId, ':excl2' => $excludeBookingId]);
@@ -85,7 +86,8 @@ if ($method === 'GET') {
 
     $whereClause = implode(' AND ', $where);
     $stmt = $pdo->prepare("
-        SELECT id, name, email, role, phone, is_active, created_at
+        SELECT id, name, email, role, phone, job_class, is_active,
+               DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s') AS created_at
         FROM users
         WHERE $whereClause
         ORDER BY role ASC, name ASC
@@ -106,12 +108,47 @@ if ($method === 'POST') {
         jsonResponse(false, 'Invalid email address.', [], 422);
     }
 
-    if (!in_array($d['role'], ['admin', 'frontdesk', 'staff'], true)) {
-        jsonResponse(false, 'Invalid role specified.', [], 422);
+    $requestedRole  = $d['role'];
+    $callerRole     = $currentUser['role'] ?? '';
+
+    // ── SUPERADMIN QUOTA ENFORCEMENT ────────────────────────────
+    if ($requestedRole === 'super_admin') {
+        $countStmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'super_admin' AND is_active = 1");
+        if ((int)$countStmt->fetchColumn() >= 1) {
+            jsonResponse(false, 'Only one Super Admin can exist. Please downgrade an existing Super Admin before creating a new one.', [], 409);
+        }
+    }
+
+    // Role creation rules:
+    // - super_admin  → can create any role
+    // - admin        → can only create 'staff' or 'frontdesk'
+    // - frontdesk    → cannot reach this endpoint (requireApiRole blocks them)
+    if ($callerRole === 'super_admin') {
+        $allowedRoles = ['super_admin', 'admin', 'frontdesk', 'staff'];
+    } else {
+        // Regular admin: cannot create admin or super_admin
+        $allowedRoles = ['frontdesk', 'staff'];
+    }
+
+    if (!in_array($requestedRole, $allowedRoles, true)) {
+        jsonResponse(false,
+            $callerRole === 'admin'
+                ? 'Administrators can only create Staff or Front Desk accounts. Contact the Super Admin to create admin-level accounts.'
+                : 'Invalid role specified.',
+            [], 403
+        );
     }
 
     if (strlen($d['password']) < 8) {
         jsonResponse(false, 'Password must be at least 8 characters.', [], 422);
+    }
+
+    // Phone validation — PH mobile format (09XXXXXXXXX or +639XXXXXXXXX)
+    if (!empty($d['phone'])) {
+        $phone = preg_replace('/\s+/', '', (string)$d['phone']);
+        if (!preg_match('/^(09|\+639)\d{9}$/', $phone)) {
+            jsonResponse(false, 'Invalid phone number. Use PH format: 09XXXXXXXXX or +639XXXXXXXXX.', [], 422);
+        }
     }
 
     // Check duplicate email
@@ -120,15 +157,20 @@ if ($method === 'POST') {
     if ($dup->fetch()) jsonResponse(false, 'Email address is already in use.', [], 409);
 
     $stmt = $pdo->prepare("
-        INSERT INTO users (name, email, password, role, phone)
-        VALUES (:name, :email, :password, :role, :phone)
+        INSERT INTO users (name, email, password, role, phone, job_class)
+        VALUES (:name, :email, :password, :role, :phone, :job_class)
     ");
+
+    $validJobClasses = ['head_cook','cook','waiter','server','helper','any'];
+    $jobClass = in_array($d['job_class'] ?? '', $validJobClasses, true) ? $d['job_class'] : 'any';
+
     $stmt->execute([
-        ':name'     => trim($d['name']),
-        ':email'    => trim($d['email']),
-        ':password' => password_hash($d['password'], PASSWORD_BCRYPT),
-        ':role'     => $d['role'],
-        ':phone'    => trim($d['phone'] ?? ''),
+        ':name'      => trim($d['name']),
+        ':email'     => trim($d['email']),
+        ':password'  => password_hash($d['password'], PASSWORD_BCRYPT),
+        ':role'      => $requestedRole,
+        ':phone'     => !empty($d['phone']) ? trim($d['phone']) : null,
+        ':job_class' => $jobClass,
     ]);
     jsonResponse(true, 'User account created.', ['id' => $pdo->lastInsertId()], 201);
 }
@@ -140,11 +182,27 @@ if ($method === 'PUT') {
 
     // Update password only if supplied
     $pwSql = "";
+    // Role updates: only super_admin may assign super_admin
+    $newRole = $d['role'] ?? null;
+    if ($newRole === 'super_admin' && ($currentUser['role'] ?? '') !== 'super_admin') {
+        jsonResponse(false, 'Only Super Admin can assign the Super Admin role.', [], 403);
+    }
+
+    // If changing to super_admin, verify quota
+    if ($newRole === 'super_admin') {
+        $checkStmt = $pdo->prepare("SELECT id FROM users WHERE role = 'super_admin' AND is_active = 1 LIMIT 1");
+        $checkStmt->execute();
+        $existing = $checkStmt->fetch();
+        if ($existing && (int)$existing['id'] !== (int)$d['id']) {
+            jsonResponse(false, 'Cannot promote to Super Admin. Only one Super Admin account is permitted.', [], 409);
+        }
+    }
+
     $params = [
         ':id'        => (int)$d['id'],
         ':name'      => $d['name']      ?? null,
         ':email'     => $d['email']     ?? null,
-        ':role'      => $d['role']      ?? null,
+        ':role'      => $newRole,
         ':phone'     => $d['phone']     ?? null,
         ':is_active' => isset($d['is_active']) ? (int)$d['is_active'] : null,
     ];
@@ -155,6 +213,24 @@ if ($method === 'PUT') {
         $params[':pw'] = password_hash($d['password'], PASSWORD_BCRYPT);
     }
 
+    // Phone validation on update
+    if (!empty($d['phone'])) {
+        $phone = preg_replace('/\s+/', '', (string)$d['phone']);
+        if (!preg_match('/^(09|\+639)\d{9}$/', $phone)) {
+            jsonResponse(false, 'Invalid phone number. Use PH format: 09XXXXXXXXX or +639XXXXXXXXX.', [], 422);
+        }
+        $params[':phone'] = $phone;
+    }
+
+    // job_class update (staff only)
+    $jobClassSql = '';
+    if (isset($d['job_class'])) {
+        $validJobClasses = ['head_cook','cook','waiter','server','helper','any'];
+        $jc = in_array($d['job_class'], $validJobClasses, true) ? $d['job_class'] : 'any';
+        $jobClassSql = ', job_class = :job_class';
+        $params[':job_class'] = $jc;
+    }
+
     $stmt = $pdo->prepare("
         UPDATE users SET
             name      = COALESCE(:name, name),
@@ -163,6 +239,7 @@ if ($method === 'PUT') {
             phone     = :phone,
             is_active = COALESCE(:is_active, is_active)
             $pwSql
+            $jobClassSql
         WHERE id = :id
     ");
     $stmt->execute($params);

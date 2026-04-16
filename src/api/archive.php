@@ -60,6 +60,14 @@ if ($method === 'POST') {
     // ── Wrap INSERT + DELETE in a transaction to prevent partial archive ─────
     $pdo->beginTransaction();
     try {
+        // Prevent duplicate archive snapshot
+        $dup = $pdo->prepare("SELECT id FROM archived_bookings WHERE original_id = :oid LIMIT 1");
+        $dup->execute([':oid' => $bookingId]);
+        if ($dup->fetch()) {
+            $pdo->rollBack();
+            jsonResponse(false, 'This booking has already been archived.', [], 409);
+        }
+
         $archStmt = $pdo->prepare("
             INSERT INTO archived_bookings
               (original_id, client_name, client_phone, event_date, event_time,
@@ -86,8 +94,17 @@ if ($method === 'POST') {
 
         $archId = $pdo->lastInsertId();
 
-        // Delete from active bookings (cascade deletes payments + job_orders + booking_dishes)
-        $pdo->prepare("DELETE FROM bookings WHERE id = :id")->execute([':id' => $bookingId]);
+        // Mark booking as archived (preserves payments history)
+        $pdo->prepare("
+            UPDATE bookings
+            SET is_archived = 1,
+                archived_at = NOW(),
+                archived_by = :by
+            WHERE id = :id
+        ")->execute([
+            ':id' => $bookingId,
+            ':by' => (int)$_SESSION['user_id'],
+        ]);
 
         $pdo->commit();
 

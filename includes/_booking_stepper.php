@@ -74,17 +74,42 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             <div class="form-group">
                                 <label class="form-label">Event Date <span class="required">*</span></label>
                                 <input type="date" class="form-control" id="s1_date"
-                                       min="<?= date('Y-m-d', strtotime('+3 days')) ?>" oninput="checkAvailability()">
+                                       min="<?= date('Y-m-d', strtotime('+3 days')) ?>" 
+                                       oninput="state.date = this.value; checkAvailability();">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Event Time <span class="required">*</span></label>
-                                <input type="time" class="form-control" id="s1_time" min="08:00" max="21:59" onchange="let h = this.value ? parseInt(this.value.split(':')[0]) : 0; if(this.value && (h < 8 || h >= 22)) { Toast.error('Operating hours are from 08:00 AM to 09:59 PM.'); this.value=''; }">
+                                <input type="time" class="form-control" id="s1_time" min="08:00" max="21:59" 
+                                       onchange="state.time = this.value; let h = this.value ? parseInt(this.value.split(':')[0]) : 0; if(this.value && (h < 8 || h >= 22)) { Toast.error('Operating hours are from 08:00 AM to 09:59 PM.'); this.value=''; state.time=''; }">
                             </div>
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">Event Venue / Location <span class="required">*</span></label>
-                            <input type="text" class="form-control" id="s1_location" placeholder="Full address of the venue…" required>
+                            <label class="form-label">Event Type <span class="required">*</span></label>
+                            <select class="form-control" id="s1_type" onchange="state.eventType = this.value; updateStaffMin();">
+                                <option value="Birthday">Birthday / Debut</option>
+                                <option value="Wedding" selected>Wedding</option>
+                                <option value="Corporate">Corporate / Seminar</option>
+                                <option value="Christening">Christening</option>
+                                <option value="Other">Other Occasion</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Event Venue / Address <span class="required">*</span></label>
+                            <textarea class="form-control" id="s1_location"
+                                      placeholder="Enter full address of the venue…"
+                                      oninput="onLocationChange(this.value)" rows="3"></textarea>
+                            <div id="transportFeePanel" style="display:none; margin-top:10px; padding:10px 12px; background:rgba(0,122,255,0.05); border-radius:10px; border:0.5px solid rgba(0,122,255,0.2);">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    <span style="font-size:12px; font-weight:600; color:#007AFF;">🏠 Outside Dasma Transport Fee</span>
+                                    <div class="input-group" style="width:120px;">
+                                        <span class="input-prefix" style="font-size:12px;">₱</span>
+                                        <input type="number" class="form-control" id="s1_transport" value="0" style="font-size:13px; font-weight:700;" oninput="onTransportInput()">
+                                    </div>
+                                </div>
+                                <div style="font-size:10px; color:rgba(60,60,67,0.45); margin-top:4px;">Address is outside Dasmariñas. Please enter transport fee manually.</div>
+                            </div>
                         </div>
 
                         <!-- Availability status -->
@@ -144,6 +169,18 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             <label class="form-label">Event Notes (Optional)</label>
                             <textarea class="form-control" id="s2_notes" rows="2" placeholder="e.g. VIP guest attending..."></textarea>
                         </div>
+
+                        <!-- Dietary / Allergy Notes -->
+                        <div class="form-group" style="margin-top:14px; margin-bottom:0;">
+                            <label class="form-label" style="display:flex; align-items:center; gap:6px;">
+                                <span style="font-size:15px;">⚠️</span> Allergy & Dietary Restrictions
+                                <span style="font-size:11px; font-weight:400; color:rgba(60,60,67,0.4);">(Optional)</span>
+                            </label>
+                            <textarea class="form-control" id="s2_dietaryNotes" rows="2"
+                                      placeholder="e.g. 2 guests are lactose intolerant; no pork for 5 guests; less salt for the elderly…"
+                                      style="border-color: rgba(255,149,0,0.4); background: rgba(255,149,0,0.03);"></textarea>
+                            <div class="form-hint" style="color: rgba(180, 100, 0, 0.7);">This will be flagged on the grocery list and staff briefing.</div>
+                        </div>
                     </div>
                 </div>
 
@@ -156,7 +193,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
 
                         <div class="form-group">
                             <label class="form-label">How many guests are expected? <span class="required">*</span></label>
-                            <input class="form-control" type="number" id="s3_paxInput" min="50" max="300" step="1" value="50" oninput="updateStaffMin()">
+                            <input class="form-control" type="number" id="s3_paxInput" min="50" max="300" step="5" value="50" oninput="updateStaffMin()">
                         </div>
 
                         <div style="background:var(--surface-2); border-radius:12px; padding:16px; margin-bottom:16px; border:1px solid var(--border);">
@@ -192,12 +229,12 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                 <div class="input-group">
                                     <span class="input-prefix" style="font-weight:700;">👥</span>
                                     <input type="number" class="form-control" id="s3_pax"
-                                           min="50" step="1" placeholder="e.g. 75"
+                                           min="50" step="5" placeholder="e.g. 75"
                                            style="font-size:20px; font-weight:700; letter-spacing:-0.3px;"
                                            oninput="calcPricing()">
                                 </div>
                                 <div style="font-size:11.5px; color:rgba(60,60,67,0.4); margin-top:4px;">
-                                    Minimum 50 guests &middot; Packages increment every 50 pax
+                                    Minimum 50 guests &middot; 5-pax increments (e.g. 75, 80)
                                 </div>
                                 <div id="s3_paxError" style="font-size:11.5px; color:#C0392B; margin-top:4px; display:none;"></div>
                             </div>
@@ -242,6 +279,13 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                 </div>
                                 <span id="pr_extraCost" style="font-size:13px; font-weight:700; color:#FF9500;"></span>
                             </div>
+                            <div id="pr_transportRow" style="display:none; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+                                <div>
+                                    <div style="font-size:12px; font-weight:600; color:rgba(0,0,0,0.75);">Transport Fee</div>
+                                    <div style="font-size:11px; color:rgba(60,60,67,0.45);">Manual entry</div>
+                                </div>
+                                <span id="pr_transportCost" style="font-size:13px; font-weight:700; color:#007AFF;"></span>
+                            </div>
                             <div style="height:0.5px; background:rgba(60,60,67,0.1); margin:12px 0;"></div>
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
                                 <span style="font-size:14px; font-weight:800;">Total</span>
@@ -252,7 +296,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                 <span id="pr_perPax" style="font-size:11px; font-weight:600; color:rgba(60,60,67,0.45);"></span>
                             </div>
                             <div id="pr_dpNotice" style="display:none; margin-top:12px; padding:10px 12px; background:rgba(255,149,0,0.08); border-radius:9px; border:0.5px solid rgba(255,149,0,0.2);">
-                                <div style="font-size:11px; font-weight:700; color:#9A5400; margin-bottom:2px;">Minimum Downpayment (50%)</div>
+                                <div style="font-size:11px; font-weight:700; color:#9A5400; margin-bottom:2px;">Minimum Downpayment (30%)</div>
                                 <div id="pr_minDP" style="font-size:15px; font-weight:800; color:#9A5400;"></div>
                             </div>
                         </div>
@@ -322,7 +366,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                     <span style="font-weight:700;" id="s4_total">—</span>
                                 </div>
                                 <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                                    <span style="font-size:13px; color:rgba(60,60,67,0.6);">Minimum Downpayment (50%)</span>
+                                    <span style="font-size:13px; color:rgba(60,60,67,0.6);">Minimum Downpayment (30%)</span>
                                     <span style="font-weight:700; color:#9A5400;" id="s4_minDP">—</span>
                                 </div>
                                 <div style="height:0.5px; background:rgba(60,60,67,0.1); margin:10px 0;"></div>
@@ -333,9 +377,9 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             </div>
 
                             <div class="form-group">
-                                <label class="form-label">
+                                <label class="form-label" id="dpLabel">
                                     Downpayment Amount (₱)
-                                    <span style="font-size:11px; font-weight:400; color:rgba(60,60,67,0.4);"> — minimum 50% required</span>
+                                    <span style="font-size:11px; font-weight:400; color:rgba(60,60,67,0.4);"> — minimum 30% required</span>
                                 </label>
                                 <div class="input-group">
                                     <span class="input-prefix">₱</span>
@@ -373,7 +417,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                     <button type="button" onclick="Modal.open('termsModal')" style="background:none; border:none; padding:0; color:#C0392B; font-size:11.5px; font-weight:600; cursor:pointer; text-decoration:underline;">View Terms</button>
                                 </div>
                                 <p style="font-size:11.5px; color:rgba(60,60,67,0.65); line-height:1.7; margin-bottom:10px;">
-                                    The client acknowledges full liability for any missing, damaged, or unreturned equipment and supplies provided by Yazzies Catering. A minimum downpayment of <strong>50%</strong> is required to confirm the booking. The remaining balance must be settled on or before the event date.
+                                    The client acknowledges full liability for any missing, damaged, or unreturned equipment and supplies provided by Yazzies Catering. A minimum downpayment of <strong>30%</strong> is required to confirm the booking. The remaining balance must be settled on or before the event date.
                                 </p>
                                 <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
                                     <input type="checkbox" id="s4_terms" onchange="onTermsChange()"
@@ -511,7 +555,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             <button class="modal-close" onclick="Modal.close('termsModal')"><i class="fas fa-times"></i></button>
         </div>
         <div class="modal-body" style="padding:24px; max-height:60vh; overflow-y:auto; font-size:13px; color:#444; line-height:1.6;">
-            <p style="margin-bottom:12px;"><strong>1. Reservation & Downpayment</strong><br>A non-refundable 50% downpayment is required to officially lock in the date. The remaining balance must be settled on or before the event date.</p>
+            <p style="margin-bottom:12px;"><strong>1. Reservation & Downpayment</strong><br>A non-refundable 30% downpayment is required to officially lock in the date. The remaining balance must be settled on or before the event date.</p>
             <p style="margin-bottom:12px;"><strong>2. Cancellations</strong><br>Any cancellations made less than 7 days prior to the event will forfeit the entire downpayment to cover material preparations.</p>
             <p style="margin-bottom:12px;"><strong>3. Time Exceedance</strong><br>Standard staffing and catering services run for a maximum of 4 hours. Extensions are subject to an hourly charge.</p>
             <p style="margin-bottom:12px;"><strong>4. Venue Regulations</strong><br>The client is responsible for acquiring all necessary permits and clearances required by the event venue.</p>
@@ -532,7 +576,9 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         date:           '',
         time:           '',
         location:       '',
-        available:      false,
+        available:      true,
+        eventType:      'Wedding',
+        transportFee:   0,
         clientId:       null,
         isNewClient:    false,
         status:         'confirmed',
@@ -556,6 +602,8 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         dpMethod:       'cash',
         dpRef:          '',
         termsOk:        false,
+        // Dietary
+        dietaryNotes:   '',
     };
 
     let allPackages = [];
@@ -591,7 +639,8 @@ $stepperRole = $bookingStepperRole ?? 'admin';
     function resetStepper() {
         Object.assign(state, {
             step:1, date:'', time:'', location:'',
-            available:false, clientId:null, isNewClient:false,
+            available:true, eventType:'Wedding', transportFee:0,
+            clientId:null, isNewClient:false,
             status:'confirmed', notes:'',
             packageId:null, packageData:null,
             pax:0, tierPax:50, totalCost:0, basePrice:0, extraPax:0, extraCost:0,
@@ -601,7 +650,12 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         document.getElementById('s1_date').value     = '';
         document.getElementById('s1_time').value     = '';
         document.getElementById('s1_location').value = '';
+        document.getElementById('s1_type').value     = 'Wedding';
+        document.getElementById('s1_transport').value = 0;
+        document.getElementById('transportFeePanel').style.display = 'none';
         document.getElementById('s2_notes').value    = '';
+        const dietaryEl = document.getElementById('s2_dietaryNotes');
+        if (dietaryEl) dietaryEl.value = '';
         document.getElementById('s3_pax').value      = '';
         document.getElementById('s4_dp').value       = '';
         document.getElementById('s4_terms').checked  = false;
@@ -726,15 +780,20 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 if (!cid) { Toast.error('Please select a client.'); return false; }
                 state.clientId = cid;
             }
-            state.status = 'pending'; // default to pending until DP is confirmed
-            state.notes  = document.getElementById('s2_notes').value;
+            state.status       = 'pending'; // default to pending until DP is confirmed
+            state.notes        = document.getElementById('s2_notes').value;
+            state.eventType    = document.getElementById('s1_type').value;
+            state.transportFee = parseFloat(document.getElementById('s1_transport').value) || 0;
+            state.dietaryNotes = (document.getElementById('s2_dietaryNotes')?.value || '').trim();
             return true;
         }
 
         if (step === 3) {
             const num = parseInt(document.getElementById('s3_paxInput').value) || 0;
-            if (num < <?= MIN_PAX ?>) { Toast.error('Minimum guest count is <?= MIN_PAX ?>.'); return false; }
-            if (num > <?= MAX_PAX ?>) { Toast.error('Maximum guest count is <?= MAX_PAX ?>.'); return false; }
+            const minPax = <?= (int)appSettingInt('min_pax', MIN_PAX) ?>;
+            const maxPax = <?= (int)appSettingInt('max_pax', MAX_PAX) ?>;
+            if (num < minPax) { Toast.error('Minimum guest count is ' + minPax + '.'); return false; }
+            if (num > maxPax) { Toast.error('Maximum guest count is ' + maxPax + '.'); return false; }
             state.pax = num;
 
             // Validate staff selection
@@ -855,6 +914,24 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             state.isNewClient ? '← Use existing client instead' : '+ Add new client instead';
     }
 
+    /* ── TRANSPORT FEE LOGIC ── */
+    window.onLocationChange = function (val) {
+        state.location = val;
+        const panel = document.getElementById('transportFeePanel');
+        const isOutside = val.length > 3 && !val.toLowerCase().includes('dasmariñas') && !val.toLowerCase().includes('dasmarinas');
+        panel.style.display = isOutside ? 'block' : 'none';
+        if (!isOutside) {
+            document.getElementById('s1_transport').value = 0;
+            state.transportFee = 0;
+            calcPricing();
+        }
+    }
+
+    window.onTransportInput = function () {
+        state.transportFee = parseFloat(document.getElementById('s1_transport').value) || 0;
+        calcPricing();
+    }
+
     // Update staff min logic when pax changes
     window.updateStaffMin = function() {
         let p = parseInt(document.getElementById('s3_paxInput').value) || 0;
@@ -865,12 +942,27 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         }
 
         document.getElementById('s3_paxCount').textContent = p;
-        if (p < 100) { requiredStaffCount = 5; state.maxMain = 5; state.maxDessert = 1; }
-        else if (p < 150) { requiredStaffCount = 7; state.maxMain = 6; state.maxDessert = 1; }
-        else if (p < 200) { requiredStaffCount = 7; state.maxMain = 7; state.maxDessert = 2; }
-        else if (p < 250) { requiredStaffCount = 8; state.maxMain = 8; state.maxDessert = 2; }
-        else if (p < 300) { requiredStaffCount = 8; state.maxMain = 9; state.maxDessert = 3; }
-        else { requiredStaffCount = 8; state.maxMain = 10; state.maxDessert = 3; }
+        state.pax = p;
+        if (document.getElementById('s3_pax')) {
+            document.getElementById('s3_pax').value = p;
+        }
+        
+        // Trigger pricing calculation
+        if (typeof calcPricing === 'function') calcPricing();
+        
+        // ── Automated Staffing Ratios (Step 4) ──────────────────────
+        // Wedding/Corporate: 1 per 10 pax
+        // Birthday/Other: 1 per 20 pax
+        const type = state.eventType || 'Wedding';
+        const ratio = (type === 'Wedding' || type === 'Corporate') ? 10 : 20;
+        requiredStaffCount = Math.max(5, Math.ceil(p / ratio)); // Always at least 5
+
+        if (p < 100) { state.maxMain = 5; state.maxDessert = 1; }
+        else if (p < 150) { state.maxMain = 6; state.maxDessert = 1; }
+        else if (p < 200) { state.maxMain = 7; state.maxDessert = 2; }
+        else if (p < 250) { state.maxMain = 8; state.maxDessert = 2; }
+        else if (p < 300) { state.maxMain = 9; state.maxDessert = 3; }
+        else { state.maxMain = 10; state.maxDessert = 3; }
         
         document.getElementById('s3_minStaffCount').textContent = requiredStaffCount;
         
@@ -978,7 +1070,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         const tierRow = document.getElementById('pr_tierRow');
         const dishPanel = document.getElementById('dishSelectionPanel');
 
-        if (!pax) {
+        if (!pax || !state.date) {
             badge.style.display    = 'none';
             tierRow.style.display  = 'none';
             dishPanel.style.display = 'none';
@@ -988,6 +1080,12 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             state.packageData = null;
             return;
         }
+
+        const eventDate = new Date(state.date);
+        if (isNaN(eventDate.getTime())) return;
+        const now = new Date();
+        const diffHours = (eventDate - now) / (1000 * 60 * 60);
+        const isLastMinute = (diffHours < 48);
         if (pax < 50) {
             errEl.textContent   = 'Minimum of 50 guests is required.';
             errEl.style.display = 'block';
@@ -1018,7 +1116,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         const ratePerPax = basePrice / basePax;
         const extraPax   = Math.max(0, pax - tierPax);
         const extraCost  = Math.round(extraPax * ratePerPax * 100) / 100;
-        const total      = Math.round((basePrice + extraCost) * 100) / 100;
+        const total      = Math.round((basePrice + extraCost + state.transportFee) * 100) / 100;
         const perPax     = Math.round((total / pax) * 100) / 100;
 
         state.packageId   = pkg.id;
@@ -1061,13 +1159,41 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             document.getElementById('pr_extraRow').style.display = 'none';
         }
 
+        if (state.transportFee > 0) {
+            document.getElementById('pr_transportRow').style.display = 'flex';
+            document.getElementById('pr_transportCost').textContent = `+₱${state.transportFee.toLocaleString('en-PH',{minimumFractionDigits:2})}`;
+        } else {
+            document.getElementById('pr_transportRow').style.display = 'none';
+        }
+
         document.getElementById('pr_total').textContent  = '₱' + total.toLocaleString('en-PH',{minimumFractionDigits:2});
         document.getElementById('pr_perPax').textContent = '₱' + perPax.toLocaleString('en-PH',{minimumFractionDigits:2}) + '/pax';
 
-        const minDP = Math.ceil(total * 0.50);
+        // ── 30% DP or 100% if < 48h ───────────────────────────────────
+        const eventDate = new Date(state.date);
+        const now       = new Date();
+        const diffHours = (eventDate - now) / (1000 * 60 * 60);
+        const isLastMinute = diffHours < 48;
+        const dpPct        = isLastMinute ? 1.0 : 0.3;
+
+        const minDP = Math.ceil(total * dpPct);
         document.getElementById('pr_dpNotice').style.display = 'flex';
         document.getElementById('pr_minDP').textContent =
             '₱' + minDP.toLocaleString('en-PH',{minimumFractionDigits:2});
+        
+        if (isLastMinute) {
+             document.getElementById('pr_dpNotice').style.background = 'rgba(255,59,48,0.08)';
+             document.getElementById('pr_dpNotice').style.borderColor = 'rgba(255,59,48,0.2)';
+             document.getElementById('pr_minDP').style.color = '#C0392B';
+             document.querySelector('#pr_dpNotice div:first-child').textContent = 'Full Payment Required (<48h)';
+             document.querySelector('#pr_dpNotice div:first-child').style.color = '#C0392B';
+        } else {
+             document.getElementById('pr_dpNotice').style.background = 'rgba(255,149,0,0.08)';
+             document.getElementById('pr_dpNotice').style.borderColor = 'rgba(255,149,0,0.2)';
+             document.getElementById('pr_minDP').style.color = '#9A5400';
+             document.querySelector('#pr_dpNotice div:first-child').textContent = 'Minimum Downpayment (30%)';
+             document.querySelector('#pr_dpNotice div:first-child').style.color = '#9A5400';
+        }
 
         // Update counters
         document.getElementById('maxMainLabel').textContent = state.maxMain;
@@ -1150,7 +1276,14 @@ $stepperRole = $bookingStepperRole ?? 'admin';
     function updateSummaryBalances() {
         const total  = state.totalCost;
         const dp     = parseFloat(document.getElementById('s4_dp').value) || 0;
-        const minDP  = Math.ceil(total * 0.50 * 100) / 100;
+        
+        const eventDate = new Date(state.date);
+        const now       = new Date();
+        const diffHours = (eventDate - now) / (1000 * 60 * 60);
+        const isLastMinute = diffHours < 48;
+        const dpPct        = isLastMinute ? 1.0 : 0.3;
+
+        const minDP  = Math.ceil(total * dpPct * 100) / 100;
         const balance = Math.max(0, total - dp);
         const errEl  = document.getElementById('s4_dpError');
         const subBtn = document.getElementById('stepSubmitBtn');
@@ -1158,11 +1291,15 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         document.getElementById('s4_total').textContent   = Format.peso(total);
         document.getElementById('s4_minDP').textContent   = Format.peso(minDP);
         document.getElementById('s4_balance').textContent = Format.peso(balance);
+        
+        const minLabel = isLastMinute ? 'Full Payment Required' : 'Minimum Downpayment (30%)';
+        document.querySelector('#s4_minDP').previousElementSibling.textContent = minLabel;
+        document.getElementById('dpLabel').querySelector('span').textContent = isLastMinute ? ' — full payment required' : ' — minimum 30% required';
 
         state.dpAmount = dp;
 
         if (dp > 0 && dp < minDP - 0.01) {
-            errEl.textContent   = `Minimum downpayment is 50% of total (${Format.peso(minDP)}).`;
+            errEl.textContent   = isLastMinute ? `Full payment is required for last-minute bookings.` : `Minimum downpayment is 30% of total (${Format.peso(minDP)}).`;
             errEl.style.display = 'block';
             subBtn.disabled     = true;
         } else if (dp > total + 0.01) {
@@ -1176,10 +1313,17 @@ $stepperRole = $bookingStepperRole ?? 'admin';
     }
 
     window.onTermsChange = function () {
+        const total  = state.totalCost;
+        const eventDate = new Date(state.date);
+        const now       = new Date();
+        const diffHours = (eventDate - now) / (1000 * 60 * 60);
+        const isLastMinute = diffHours < 48;
+        const dpPct        = isLastMinute ? 1.0 : 0.3;
+
         state.termsOk     = document.getElementById('s4_terms').checked;
         const dp          = parseFloat(document.getElementById('s4_dp').value) || 0;
-        const minDP       = Math.ceil(state.totalCost * 0.50 * 100) / 100;
-        const dpOk        = dp === 0 || (dp >= minDP - 0.01 && dp <= state.totalCost + 0.01);
+        const minDP       = Math.ceil(total * dpPct * 100) / 100;
+        const dpOk        = dp === 0 || (dp >= minDP - 0.01 && dp <= total + 0.01);
         document.getElementById('stepSubmitBtn').disabled = !(state.termsOk && dpOk);
     };
 
@@ -1230,6 +1374,12 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 ${dessertNames.length > 0 ? `
                 <div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Desserts (${dessertNames.length})</span><strong style="text-align:right;">${dessertNames.join(', ')}</strong></div>` : ''}
                 <div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Rice</span><strong>🍚 Included</strong></div>
+                ${state.dietaryNotes ? `
+                <div style="height:0.5px; background:rgba(60,60,67,0.1); margin:4px 0;"></div>
+                <div style="background:rgba(255,149,0,0.07); border:0.5px solid rgba(255,149,0,0.3); border-radius:9px; padding:10px 12px;">
+                    <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; color:#9A5400; margin-bottom:4px;">⚠️ Dietary / Allergy Notes</div>
+                    <div style="font-size:12px; color:rgba(60,60,67,0.8); line-height:1.5;">${state.dietaryNotes}</div>
+                </div>` : ''}
             </div>
         `;
 
@@ -1244,9 +1394,19 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         const btn = document.getElementById('stepSubmitBtn');
         if (!state.termsOk) { Toast.error('Please agree to the Terms & Conditions.'); return; }
 
+        const total = state.totalCost;
+        const eventDate = new Date(state.date);
+        const now       = new Date();
+        const diffHours = (eventDate - now) / (1000 * 60 * 60);
+        const isLastMinute = diffHours < 48;
+        const dpPct        = isLastMinute ? 1.0 : 0.3;
+
         const dp    = parseFloat(document.getElementById('s4_dp').value) || 0;
-        const minDP = Math.ceil(state.totalCost * 0.50 * 100) / 100;
-        if (dp > 0 && dp < minDP - 0.01) { Toast.error('Downpayment is below the 50% minimum.'); return; }
+        const minDP = Math.ceil(total * dpPct * 100) / 100;
+        if (dp > 0 && dp < minDP - 0.01) { 
+            Toast.error(isLastMinute ? 'Full payment is required for last-minute bookings.' : 'Downpayment is below the 30% minimum.'); 
+            return; 
+        }
 
         const allSelectedDishes = [
             ...state.selectedMain,
@@ -1259,10 +1419,13 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 client_id:          state.clientId,
                 event_date:         state.date,
                 event_time:         state.time        || null,
+                event_type:         state.eventType   || 'Wedding',
                 event_location:     state.location    || null,
+                transport_fee:      state.transportFee || 0,
                 pax_count:          state.pax,
                 booking_status:     'confirmed',
-                notes:              state.notes   || null,
+                notes:              state.notes        || null,
+                dietary_notes:      state.dietaryNotes || null,
                 selected_dishes:    allSelectedDishes,
                 downpayment:        dp > 0 ? dp : null,
                 downpayment_method: document.getElementById('s4_dpMethod').value,

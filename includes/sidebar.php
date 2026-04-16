@@ -22,11 +22,11 @@ $nav = [
         ['section' => 'Manage'],
         ['bookings',    'Bookings',     'fa-calendar-days','/views/admin/bookings.php'],
         ['recipes',     'Recipes & Costing', 'fa-flask',         '/views/admin/recipes.php'],
+        ['inventory',   'Inventory Items',   'fa-boxes-stacked', '/views/admin/inventory.php'],
         ['financial',   'Financials',   'fa-coins',        '/views/admin/financial.php'],
         ['section' => 'Human Resources'],
         ['staff',       'Staff',        'fa-id-badge',     '/views/admin/staff.php'],
         ['section' => 'System'],
-        ['users',       'User Accounts','fa-users',        '/views/admin/users.php'],
         ['archive',     'Archive',      'fa-box-archive',  '/views/admin/archive.php'],
     ],
     'frontdesk' => [
@@ -35,7 +35,6 @@ $nav = [
         ['section' => 'Operations'],
         ['bookings',    'Bookings',     'fa-calendar-days','/views/frontdesk/bookings.php'],
         ['costing',     'Grocery List', 'fa-cart-shopping','/views/frontdesk/costing.php'],
-        ['dispatching', 'Dispatching',  'fa-bullhorn',     '/views/frontdesk/dispatching.php'],
     ],
     'staff' => [
         ['section' => 'My Jobs'],
@@ -44,6 +43,25 @@ $nav = [
 ];
 
 $items = $nav[$role] ?? $nav['staff'];
+
+// ── Superadmin specific additions ───────────────────────────
+if ($role === 'super_admin') {
+    // Ensure we start with the admin list if we don't have a dedicated super_admin entry
+    if ($role === 'super_admin' && !isset($nav['super_admin'])) {
+        $items = $nav['admin']; 
+        
+        // Add Superadmin Console at the very beginning
+        array_unshift($items, ['section' => 'Super Admin Control']);
+        array_splice($items, 1, 0, [['superadmin', 'Superadmin Console', 'fa-shield-halved', '/views/admin/superadmin.php']]);
+
+        // Add User Management before Archive
+        $archiveIdx = -1;
+        foreach($items as $idx => $item) { if(($item[0] ?? '') === 'archive') $archiveIdx = $idx; }
+        if($archiveIdx !== -1) {
+            array_splice($items, $archiveIdx, 0, [['users', 'User Accounts', 'fa-users', '/views/admin/users.php']]);
+        }
+    }
+}
 ?>
 
 <!-- Sidebar Overlay (mobile) -->
@@ -120,7 +138,7 @@ $items = $nav[$role] ?? $nav['staff'];
                     <span id="notifBadge" style="display:none;position:absolute;top:2px;right:2px;min-width:15px;height:15px;border-radius:99px;background:#FF3B30;color:#fff;font-size:9px;font-weight:800;line-height:15px;text-align:center;padding:0 4px;"></span>
                 </button>
                 <!-- Dropdown panel -->
-                <div id="notifPanel" style="display:none;position:absolute;right:0;top:calc(100% + 6px);width:300px;background:var(--glass-bg);backdrop-filter:blur(20px);border:0.5px solid var(--glass-sep);border-radius:14px;box-shadow:var(--shadow-xl);z-index:200;overflow:hidden;">
+                <div id="notifPanel" style="display:none;position:absolute;right:0;top:calc(100% + 6px);width:300px;background:var(--glass-bg);backdrop-filter:blur(20px);border:0.5px solid var(--glass-sep);border-radius:14px;box-shadow:var(--shadow-xl);z-index:1050;overflow:hidden;">
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:0.5px solid var(--glass-sep);">
                         <span style="font-size:13px;font-weight:700;">Notifications</span>
                         <button onclick="markAllRead()" style="font-size:11px;font-weight:600;color:var(--sys-green-dark);background:none;border:none;cursor:pointer;">Mark all read</button>
@@ -223,8 +241,28 @@ $items = $nav[$role] ?? $nav['staff'];
                 return;
             }
             const typeIcon = { job_assigned: '📋', leave_approved: '✅', leave_rejected: '❌', general: 'ℹ️' };
-            list.innerHTML = notifs.map(n => `
-                <div onclick="markRead(${n.id}, this)"
+            list.innerHTML = notifs.map(n => {
+                // Build destination URL for click-to-navigate
+                const BASE_URL_JS = '<?= BASE_URL ?>';
+                let destUrl = null;
+                if (n.link_url) {
+                    destUrl = n.link_url;
+                } else if (n.type === 'job_assigned' || n.type === 'job_declined') {
+                    destUrl = BASE_URL_JS + '/views/staff/dashboard.php';
+                } else if (n.type === 'leave_approved' || n.type === 'leave_rejected' || n.type === 'leave_reviewed') {
+                    destUrl = BASE_URL_JS + '/views/staff/dashboard.php';
+                } else if (n.type === 'general' && n.booking_id) {
+                    // Admin/Frontdesk: route to booking details
+                    const role = '<?= $_SESSION["role"] ?? "staff" ?>';
+                    destUrl = role === 'staff'
+                        ? BASE_URL_JS + '/views/staff/dashboard.php'
+                        : BASE_URL_JS + '/views/admin/bookings.php?highlight=' + n.booking_id;
+                }
+                const clickAttr = destUrl
+                    ? `onclick="markReadAndNavigate(${n.id}, '${destUrl}', this)"`
+                    : `onclick="markRead(${n.id}, this)"`;
+                return `
+                <div ${clickAttr}
                      style="padding:11px 14px;border-bottom:0.5px solid var(--glass-sep);cursor:pointer;transition:background .15s;background:${n.is_read ? 'transparent' : 'rgba(48,209,88,0.04)'};"
                      onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='${n.is_read ? 'transparent' : 'rgba(48,209,88,0.04)'}'">
                     <div style="display:flex;gap:8px;align-items:flex-start;">
@@ -236,8 +274,8 @@ $items = $nav[$role] ?? $nav['staff'];
                         </div>
                         ${!n.is_read ? '<span style="width:7px;height:7px;border-radius:50%;background:#30D158;flex-shrink:0;margin-top:4px;"></span>' : ''}
                     </div>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         } catch(e) { list.innerHTML = '<p style="text-align:center;font-size:12px;color:#9ca3af;padding:16px;">Failed to load.</p>'; }
     }
 
@@ -258,6 +296,23 @@ $items = $nav[$role] ?? $nav['staff'];
             });
             fetchCount();
         } catch(e) {}
+    };
+
+    // Click notification → mark read THEN navigate to the relevant page
+    window.markReadAndNavigate = async function(id, url, el) {
+        el.style.background = 'transparent';
+        el.querySelector('span[style*="30D158"]')?.remove();
+        try {
+            await fetch(BASE_URL + '/src/api/notifications.php', {
+                method: 'PUT', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+        } catch(e) {}
+        // Close panel and navigate
+        panelOpen = false;
+        panel.style.display = 'none';
+        window.location.href = url;
     };
 
     window.markAllRead = async function() {

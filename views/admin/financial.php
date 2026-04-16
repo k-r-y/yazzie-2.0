@@ -54,11 +54,22 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <div class="card-subtitle">Per-booking view of total cost, paid, and remaining</div>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
+                    <!-- Tab Toggle -->
+                    <div class="btn-group me-2">
+                        <button class="btn btn-outline-primary btn-sm active" id="tabLedgerBtn" onclick="showTab('ledger')">
+                            <i class="fas fa-list"></i> Payments
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" id="tabRefundBtn" onclick="showTab('refunds')">
+                            <i class="fas fa-hand-holding-dollar"></i> Refunds
+                        </button>
+                    </div>
+
                     <select class="form-control" id="filterStatus" style="min-width:130px; flex:1;">
                         <option value="">All Statuses</option>
                         <option value="pending">⏳ Pending DP</option>
                         <option value="confirmed">Confirmed</option>
                         <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
                     </select>
                     <select class="form-control" id="filterPayment" style="min-width:120px; flex:1;">
                         <option value="">All Payments</option>
@@ -68,13 +79,12 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </select>
                 </div>
             </div>
-            <div class="table-wrapper">
+            <div class="table-wrapper" id="ledgerWrapper">
                 <table class="data-table" id="ledgerTable">
                     <thead>
                         <tr>
-                            <th>#</th>
                             <th>Client</th>
-                            <th>Event Date</th>
+                            <th>Event Details</th>
                             <th>Total Cost</th>
                             <th>Paid</th>
                             <th>Balance Due</th>
@@ -84,6 +94,25 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </thead>
                     <tbody id="ledgerBody">
                         <tr><td colspan="8"><div class="spinner"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="table-wrapper" id="refundsWrapper" style="display:none;">
+                <table class="data-table" id="refundsTable">
+                    <thead>
+                        <tr>
+                            <th>Client / Event</th>
+                            <th>Total Paid</th>
+                            <th>Forfeited</th>
+                            <th>Refund Amount</th>
+                            <th>Reason</th>
+                            <th>Status</th>
+                            <th class="td-actions">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="refundsBody">
+                        <tr><td colspan="7"><div class="spinner"></div></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -240,7 +269,7 @@ async function refreshBookingSelector() {
             return `<option value="${b.id}"
                 data-total="${total}" data-paid="${paid}" data-status="${b.payment_status}"
                 ${b.id == cur ? 'selected' : ''}>
-                #${b.id} — ${b.client_name} (${Format.dateShort(b.event_date)})${balStr}
+             ${b.client_name} (${Format.dateShort(b.event_date)})${balStr}
             </option>`;
         }).join('');
 }
@@ -271,18 +300,23 @@ async function onBookingChange() {
         // Re-compute from the SUM of actual payments returned
         const payments      = d.payments || [];
         const livePaid      = payments.reduce((s, p) => s + parseFloat(p.amount), 0);
-        const total         = parseFloat(b.total_cost);
-        const remaining     = Math.max(0, total - livePaid);
+        const breakageTotal = parseFloat(b.breakage_total || 0);
+        const eventTotal    = parseFloat(b.total_cost);
+        const grandTotal    = eventTotal + breakageTotal;
+        const remaining     = Math.max(0, grandTotal - livePaid);
         currentBalance      = remaining;
 
-        document.getElementById('bi-total').textContent     = Format.peso(total);
+        document.getElementById('bi-total').innerHTML = `
+            ${Format.peso(eventTotal)}
+            ${breakageTotal > 0 ? `<div style="font-size:11px; color:var(--sys-orange); font-weight:600;">+ ${Format.peso(breakageTotal)} Breakage</div>` : ''}
+        `;
         document.getElementById('bi-paid').textContent      = Format.peso(livePaid);
         document.getElementById('bi-remaining').textContent = Format.peso(remaining);
         document.getElementById('bi-remaining').style.color = remaining > 0.005 ? '#C0392B' : '#1A7A32';
 
         // Status badge — derive from live data
-        const liveStatus = livePaid >= total - 0.01 ? 'paid'
-                         : livePaid > 0             ? 'partial' : 'unpaid';
+        const liveStatus = livePaid >= grandTotal - 0.01 ? 'paid'
+                         : livePaid > 0                  ? 'partial' : 'unpaid';
         document.getElementById('bi-status-wrap').innerHTML = Format.paymentBadge(liveStatus);
 
         // Hide fill button if fully paid
@@ -349,19 +383,24 @@ async function loadLedger() {
         }
 
         tbody.innerHTML = bookings.map(b => {
-            const total   = parseFloat(b.total_cost);
-            const paid    = parseFloat(b.amount_paid);
-            const balance = total - paid;
-            const paidPct = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
+            const eventCost = parseFloat(b.total_cost);
+            const breakage  = parseFloat(b.breakage_total || 0);
+            const total     = eventCost + breakage;
+            const paid      = parseFloat(b.amount_paid);
+            const balance   = total - paid;
+            const paidPct   = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
+            const isCancelled = b.booking_status === 'cancelled';
 
             const balColor = balance <= 0 ? '#1A7A32' : (paid > 0 ? '#9A5400' : '#C0392B');
 
             return `
             <tr>
-                <td class="text-muted text-xs">#${b.id}</td>
                 <td class="td-name">${b.client_name}<br><small class="text-muted">${Format.dateShort(b.event_date)}</small></td>
-                <td>${b.menu_name}<br><small class="text-muted">${b.pax_count} pax</small></td>
-                <td class="fw-600">${Format.peso(total)}</td>
+                <td>${b.package_name ?? b.menu_name ?? '—'}<br><small class="text-muted">${b.pax_count} pax</small></td>
+                <td>
+                    <div class="fw-600">${Format.peso(total)}</div>
+                    ${breakage > 0 ? `<div style="font-size:10px; color:var(--sys-orange); font-weight:700;">Incl. ${Format.peso(breakage)} Loss</div>` : ''}
+                </td>
                 <td>
                     <span style="color:#1A7A32; font-weight:600;">${Format.peso(paid)}</span>
                     <div style="height:3px; background:rgba(60,60,67,0.08); border-radius:2px; margin-top:4px; width:70px;">
@@ -371,7 +410,7 @@ async function loadLedger() {
                 <td><span style="font-weight:700; color:${balColor};">${balance > 0 ? Format.peso(balance) : '✓ Fully Paid'}</span></td>
                 <td>${Format.paymentBadge(b.payment_status)}<br>${Format.bookingBadge(b.booking_status)}</td>
                 <td class="td-actions">
-                    ${balance > 0 ? `
+                    ${balance > 0 && !isCancelled ? `
                     <button class="btn btn-primary btn-sm" onclick="quickPay(${b.id})" title="Add Payment">
                         <i class="fas fa-plus"></i>
                     </button>` : ''}
@@ -400,12 +439,17 @@ async function loadPaymentHistory(bookingId, bookingInfo) {
     tbody.innerHTML = '<tr><td colspan="6"><div class="spinner"></div></td></tr>';
 
     if (bookingInfo) {
-        const total   = parseFloat(bookingInfo.total_cost);
-        const paid    = parseFloat(bookingInfo.amount_paid);
-        const balance = total - paid;
-        document.getElementById('historyTitle').textContent  = `Payment History — #${bookingId}`;
-        document.getElementById('historySubtitle').textContent =
-            `Total: ${Format.peso(total)} | Paid: ${Format.peso(paid)} | Balance: ${Format.peso(Math.max(0, balance))}`;
+        const eventCost = parseFloat(bookingInfo.total_cost);
+        const breakage  = parseFloat(bookingInfo.breakage_total || 0);
+        const total     = eventCost + breakage;
+        const paid      = parseFloat(bookingInfo.amount_paid);
+        const balance   = total - paid;
+        
+        let sub = `Event: ${Format.peso(eventCost)}`;
+        if (breakage > 0) sub += ` + Loss: ${Format.peso(breakage)}`;
+        sub += ` | Paid: ${Format.peso(paid)} | Balance: ${Format.peso(Math.max(0, balance))}`;
+        
+        document.getElementById('historySubtitle').textContent = sub;
     }
 
     try {
@@ -522,6 +566,105 @@ document.getElementById('paymentForm').addEventListener('submit', async function
 ['filterStatus','filterPayment'].forEach(id => {
     document.getElementById(id).addEventListener('change', loadLedger);
 });
+
+function showTab(tab) {
+    document.getElementById('ledgerWrapper').style.display  = tab === 'ledger' ? 'block' : 'none';
+    document.getElementById('refundsWrapper').style.display = tab === 'refunds' ? 'block' : 'none';
+    document.getElementById('tabLedgerBtn').classList.toggle('active', tab === 'ledger');
+    document.getElementById('tabRefundBtn').classList.toggle('active', tab === 'refunds');
+    
+    if (tab === 'refunds') loadRefunds();
+}
+
+async function loadRefunds() {
+    try {
+        const d = await Api.get(BASE + '/src/api/cancellations.php');
+        const refunds = d.cancellations || [];
+        const tbody   = document.getElementById('refundsBody');
+
+        if (refunds.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7"><div class="table-empty"><i class="fas fa-hand-holding-dollar"></i><p>No refund requests found.</p></div></td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = refunds.map(r => {
+            let statusBadge = '';
+            if (r.refund_status === 'pending') statusBadge = '<span class="badge badge-warning">⏳ Pending</span>';
+            else if (r.refund_status === 'processed') statusBadge = '<span class="badge badge-success">✅ Processed</span>';
+            else statusBadge = '<span class="badge badge-secondary">⚪ Waived</span>';
+
+            return `
+                <tr>
+                    <td class="td-name">${r.client_name}<br><small class="text-muted">${Format.dateShort(r.event_date)}</small></td>
+                    <td class="fw-600">${Format.peso(r.total_paid)}</td>
+                    <td style="color:#C0392B;">${Format.peso(r.forfeited_amount)}</td>
+                    <td style="font-weight:700; color:#1A7A32;">${Format.peso(r.refundable_amount)}</td>
+                    <td><small class="text-muted">${r.reason || '—'}</small></td>
+                    <td>${statusBadge}</td>
+                    <td class="td-actions">
+                        ${r.refund_status === 'pending' ? `
+                            <button class="btn btn-success btn-sm" onclick="processRefund(${r.id}, ${r.refundable_amount})" title="Process Refund">
+                                <i class="fas fa-check"></i>
+                            </button>
+                        ` : `
+                            <button class="btn btn-outline-secondary btn-sm" disabled>
+                                <i class="fas fa-lock"></i>
+                            </button>
+                        `}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch(e) {
+        document.getElementById('refundsBody').innerHTML = '<tr><td colspan="7" class="text-center text-muted">Failed to load refunds.</td></tr>';
+    }
+}
+
+async function processRefund(id, amount) {
+    let html = `
+        <div style="text-align:left;">
+            <p>You are about to mark a refund of <b>${Format.peso(amount)}</b> as processed. Keep a manual record of this transaction (GCash, Bank, etc.).</p>
+            <div class="form-group mb-3">
+                <label class="form-label">Refund Method</label>
+                <select class="form-control" id="rf_method">
+                    <option value="cash">💵 Cash</option>
+                    <option value="gcash">📱 GCash</option>
+                    <option value="maya">📱 Maya</option>
+                    <option value="bank_transfer">🏦 Bank Transfer</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Reference Number</label>
+                <input type="text" class="form-control" id="rf_ref" placeholder="GCash Ref ID, Bank Trace, etc.">
+            </div>
+        </div>
+    `;
+
+    const ok = await CustomConfirm.show({
+        title: 'Process Refund',
+        html: html,
+        confirmText: 'Mark as Processed',
+        confirmColor: 'var(--sys-green)'
+    });
+
+    if (!ok) return;
+
+    try {
+        const method = document.getElementById('rf_method').value;
+        const ref    = document.getElementById('rf_ref').value;
+        
+        await Api.put(BASE + '/src/api/cancellations.php', {
+            id: id,
+            refund_status: 'processed',
+            refund_method: method,
+            refund_reference: ref
+        });
+        
+        Toast.success('Refund marked as processed.');
+        loadRefunds();
+        loadKPIs(); // Refresh outstanding balance if applicable
+    } catch(e) { Toast.error(e.message); }
+}
 
 initFinancial();
 </script>

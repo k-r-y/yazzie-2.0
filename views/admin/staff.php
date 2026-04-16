@@ -71,7 +71,6 @@ include __DIR__ . '/../../includes/sidebar.php';
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>#</th>
                         <th>Name</th>
                         <th>Email</th>
                         <th>Phone</th>
@@ -285,7 +284,6 @@ async function loadRoster() {
                 : '<span class="badge badge-cancelled">Inactive</span>';
             return `
             <tr>
-                <td class="text-xs text-muted">#${s.id}</td>
                 <td class="td-name">${htmlEsc(s.name)}</td>
                 <td class="text-sm text-muted">${htmlEsc(s.email)}</td>
                 <td class="text-sm">${htmlEsc(s.phone || '—')}</td>

@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
-requireRole('admin');
+requireRole('super_admin');
 
 $pageTitle    = 'User Accounts';
 $pageSubtitle = 'Manage system users and their roles';
@@ -53,13 +53,35 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <div class="form-group"><label class="form-label">Email Address <span class="required">*</span></label>
                         <input class="form-control" name="email" id="u_email" type="email" required></div>
                     <div class="form-group"><label class="form-label">Role <span class="required">*</span></label>
-                        <select class="form-control" name="role" id="u_role" required>
-                            <option value="admin">Administrator</option>
+                        <select class="form-control" name="role" id="u_role" required onchange="onRoleChange()">
+                            <?php if (($_SESSION['role'] ?? '') === 'super_admin'): ?>
+                                <option value="super_admin">⭐ Super Admin</option>
+                                <option value="admin">Administrator</option>
+                            <?php endif; ?>
+                            <?php if (($_SESSION['role'] ?? '') !== 'admin'): ?>
+                                <!-- admin role only visible to super_admin (handled above) -->
+                            <?php endif; ?>
                             <option value="frontdesk">Front Desk</option>
                             <option value="staff" selected>On-Call Staff</option>
                         </select></div>
+                    <!-- Job Class: visible only for staff role -->
+                    <div class="form-group" id="jobClassGroup">
+                        <label class="form-label">Job Classification <span class="required">*</span></label>
+                        <select class="form-control" name="job_class" id="u_job_class">
+                            <option value="any">— Any / Not Specified —</option>
+                            <option value="head_cook">👨‍🍳 Head Cook</option>
+                            <option value="cook">🍳 Cook</option>
+                            <option value="waiter">🤵 Waiter</option>
+                            <option value="server">🍽️ Food Server</option>
+                            <option value="helper">🙋 Helper</option>
+                        </select>
+                        <div class="form-hint">Used to enforce booking lineup structure (e.g. 1 Head Cook required).</div>
+                    </div>
                     <div class="form-group"><label class="form-label">Phone (for SMS alerts)</label>
-                        <input class="form-control" name="phone" id="u_phone" placeholder="09XXXXXXXXX"></div>
+                        <input class="form-control" name="phone" id="u_phone"
+                               placeholder="09XXXXXXXXX"
+                               pattern="^(09|\+639)\d{9}$"
+                               title="Enter a valid PH mobile number (e.g. 09XXXXXXXXX or +639XXXXXXXXX)"></div>
                     <div class="form-group">
                         <label class="form-label">Password <span class="required" id="pwReq">*</span></label>
                         <input class="form-control" name="password" id="u_pw" type="password" placeholder="Min 8 characters">
@@ -88,8 +110,9 @@ async function loadUsers() {
     const d = await Api.get(BASE + '/src/api/staff.php');
     const users = d.users || [];
     const tbody = document.getElementById('userBody');
-    const roleLabel = { admin: 'Administrator', frontdesk: 'Front Desk', staff: 'On-Call Staff' };
-    const roleBadge = { admin: 'badge-admin', frontdesk: 'badge-frontdesk', staff: 'badge-staff' };
+    const roleLabel = { super_admin: '⭐ Super Admin', admin: 'Administrator', frontdesk: 'Front Desk', staff: 'On-Call Staff' };
+    const roleBadge = { super_admin: 'badge-admin', admin: 'badge-admin', frontdesk: 'badge-frontdesk', staff: 'badge-staff' };
+    const jobClassLabel = { head_cook: '👨‍🍳 Head Cook', cook: '🍳 Cook', waiter: '🤵 Waiter', server: '🍽️ Server', helper: '🙋 Helper', any: '—' };
 
     if (!users.length) {
         tbody.innerHTML = `<tr><td colspan="7"><div class="table-empty"><i class="fas fa-users"></i><p>No users found.</p></div></td></tr>`;
@@ -101,11 +124,11 @@ async function loadUsers() {
             <td class="td-name">${u.name}</td>
             <td>${u.email}</td>
             <td><span class="badge ${roleBadge[u.role]||''}">${roleLabel[u.role]||u.role}</span></td>
-            <td>${u.phone || '—'}</td>
+            <td>${u.phone || '—'} ${u.role === 'staff' && u.job_class && u.job_class !== 'any' ? `<br><small class="text-muted">${jobClassLabel[u.job_class] || u.job_class}</small>` : ''}</td>
             <td><span class="badge ${u.is_active ? 'badge-success' : 'badge-cancelled'}">${u.is_active ? 'Active' : 'Inactive'}</span></td>
             <td class="text-xs text-muted">${Format.dateShort(u.created_at)}</td>
             <td class="td-actions">
-                <button class="btn btn-outline-primary btn-sm" onclick="openEditUser(${u.id},'${u.name.replace(/'/g,"\\'")}','${u.email}','${u.role}','${u.phone||''}',${u.is_active})">
+                <button class="btn btn-outline-primary btn-sm" onclick="openEditUser(${u.id},'${u.name.replace(/'/g,"\\'")}','${u.email}','${u.role}','${u.phone||''}',${u.is_active},'${u.job_class||'any'}')">
                     <i class="fas fa-edit"></i>
                 </button>
                 ${u.is_active ? `<button class="btn btn-danger btn-sm" onclick="deactivateUser(${u.id})"><i class="fas fa-user-slash"></i></button>` : ''}
@@ -122,10 +145,17 @@ function openAddUser() {
     document.getElementById('pwHint').style.display = 'none';
     document.getElementById('statusGroup').style.display = 'none';
     document.getElementById('u_pw').required = true;
+    onRoleChange();
     Modal.open('userModal');
 }
 
-function openEditUser(id, name, email, role, phone, active) {
+function onRoleChange() {
+    const role = document.getElementById('u_role').value;
+    const jcGroup = document.getElementById('jobClassGroup');
+    if (jcGroup) jcGroup.style.display = (role === 'staff') ? '' : 'none';
+}
+
+function openEditUser(id, name, email, role, phone, active, jobClass = 'any') {
     document.getElementById('userModalTitle').textContent = 'Edit User';
     document.getElementById('user_id').value  = id;
     document.getElementById('u_name').value   = name;
@@ -133,11 +163,15 @@ function openEditUser(id, name, email, role, phone, active) {
     document.getElementById('u_role').value   = role;
     document.getElementById('u_phone').value  = phone;
     document.getElementById('u_active').value = active;
+    if (document.getElementById('u_job_class')) {
+        document.getElementById('u_job_class').value = jobClass || 'any';
+    }
     document.getElementById('pwReq').style.display    = 'none';
     document.getElementById('pwHint').style.display   = '';
     document.getElementById('statusGroup').style.display = '';
     document.getElementById('u_pw').required = false;
     document.getElementById('u_pw').value = '';
+    onRoleChange();
     Modal.open('userModal');
 }
 

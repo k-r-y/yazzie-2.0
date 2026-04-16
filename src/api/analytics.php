@@ -118,17 +118,22 @@ if ($type === 'kpis') {
         AND booking_status IN ('pending','confirmed')
     ")->fetchColumn();
 
-    // Outstanding balance — computed from live payment SUM (not the cached bookings.amount_paid)
+    // Outstanding balance — include breakages + event cost - live payments
     $outstanding = $pdo->query("
-        SELECT COALESCE(SUM(b.total_cost - COALESCE(p_sum.paid, 0)), 0)
+        SELECT COALESCE(SUM( (b.total_cost + COALESCE(br_sum.total, 0)) - COALESCE(p_sum.paid, 0) ), 0)
         FROM bookings b
+        LEFT JOIN (
+            SELECT booking_id, SUM(total_cost) AS total
+            FROM booking_breakages
+            GROUP BY booking_id
+        ) br_sum ON br_sum.booking_id = b.id
         LEFT JOIN (
             SELECT booking_id, SUM(amount) AS paid
             FROM payments
             GROUP BY booking_id
         ) p_sum ON p_sum.booking_id = b.id
         WHERE b.booking_status NOT IN ('cancelled', 'completed')
-          AND (b.total_cost - COALESCE(p_sum.paid, 0)) > 0
+          AND ((b.total_cost + COALESCE(br_sum.total, 0)) - COALESCE(p_sum.paid, 0)) > 0
     ")->fetchColumn();
 
     jsonResponse(true, '', [

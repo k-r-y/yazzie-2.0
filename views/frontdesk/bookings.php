@@ -46,7 +46,7 @@ include __DIR__ . '/../../includes/sidebar.php';
         <table class="data-table" id="bookingTable">
             <thead>
                 <tr>
-                    <th>#</th><th>Client</th><th>Event Date</th><th>Menu</th>
+                    <th>Client</th><th>Event Date</th><th>Menu</th>
                     <th>Pax</th><th>Status</th><th>Payment</th><th class="td-actions">Actions</th>
                 </tr>
             </thead>
@@ -169,7 +169,6 @@ async function loadBookingsFD() {
     }
     tbody.innerHTML = allBookings.map(b => `
         <tr>
-            <td class="text-muted text-xs">#${b.id}</td>
             <td class="td-name">${b.client_name}<br><small class="text-muted">${b.client_phone}</small></td>
             <td>${Format.dateShort(b.event_date)}<br><small class="text-muted">${b.event_time ? Format.time(b.event_time) : ''}</small></td>
             <td>${b.menu_name}</td>

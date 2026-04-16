@@ -57,7 +57,6 @@ async function loadArchive() {
         <tr>
             <td class="fw-600">${Format.dateShort(r.event_date)}</td>
             <td class="td-name">${r.client_name}<br><small class="text-muted">${r.client_phone||''}</small></td>
-            <td>${r.package_name || '—'}</td>
             <td>${r.pax_count}</td>
             <td>${Format.peso(r.total_cost)}</td>
             <td class="text-success fw-600">${Format.peso(r.amount_paid)}</td>

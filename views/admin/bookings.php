@@ -48,7 +48,6 @@ include __DIR__ . '/../../includes/sidebar.php';
         <table class="data-table" id="bookingsTable">
             <thead>
                 <tr>
-                    <th>#</th>
                     <th>Client</th>
                     <th>Event Date</th>
                     <th>Pax</th>
@@ -122,9 +121,13 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                 </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-danger btn-sm me-auto" id="archiveBtn" onclick="archiveBooking()">
-                    <i class="fas fa-box-archive"></i> Archive
+                <button class="btn btn-outline-danger btn-sm me-2" id="cancelReqBtn" onclick="requestCancellation()">
+                    <i class="fas fa-ban"></i> Request Cancellation
                 </button>
+                <button class="btn btn-outline-warning btn-sm me-2" id="breakageLogBtn" onclick="openBreakageModal()">
+                    <i class="fas fa-shrimp"></i> Breakage Log
+                </button>
+                <div style="flex:1;"></div>
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button class="btn btn-primary" onclick="updateBooking()">
                     <i class="fas fa-save"></i> Save Changes
@@ -182,7 +185,6 @@ function renderTable(bookings) {
     }
     tbody.innerHTML = bookings.map((b, i) => `
         <tr>
-            <td class="text-muted text-xs">#${b.id}</td>
             <td class="td-name">${b.client_name}<br><small class="text-muted">${b.client_phone}</small></td>
             <td>${Format.dateShort(b.event_date)}<br><small class="text-muted">${b.event_time ? Format.time(b.event_time) : ''}</small></td>
             <td>${b.pax_count}</td>
@@ -244,9 +246,15 @@ async function openEdit(id) {
             </label>
         `).join('');
 
-        // Show archive button only for completed bookings
+        // Show archive/cancel buttons logic
         document.getElementById('archiveBtn').style.display =
             b.booking_status === 'completed' ? 'flex' : 'none';
+        
+        document.getElementById('cancelReqBtn').style.display =
+            (b.booking_status !== 'completed' && b.booking_status !== 'cancelled') ? 'flex' : 'none';
+        
+        document.getElementById('breakageLogBtn').style.display =
+            (b.booking_status !== 'cancelled') ? 'flex' : 'none';
 
         Modal.open('editBookingModal');
     } catch (e) { Toast.error(e.message); }
@@ -273,11 +281,162 @@ async function archiveBooking() {
     } catch (e) { Toast.error(e.message); }
 }
 
+async function requestCancellation() {
+    const id    = document.getElementById('edit_id').value;
+    const b     = currentBookings.find(x => x.id == id);
+    if (!b) return;
+
+    const totalPaid = parseFloat(b.amount_paid) || 0;
+    const totalCost = parseFloat(b.total_cost) || 0;
+    const isConfirmed = (b.booking_status === 'confirmed');
+    
+    // Preview the logic
+    const forfeit = isConfirmed ? (totalCost * 0.5) : 0;
+    const refund  = Math.max(0, totalPaid - forfeit);
+    
+    let html = `
+        <div style="text-align:left;">
+            <p>Are you sure you want to cancel this booking? This action cannot be undone.</p>
+            <div style="background:#f8f9fa; border-radius:10px; padding:15px; font-size:14px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                    <span>Total Paid:</span>
+                    <span style="font-weight:700; color:#1A7A32;">${Format.peso(totalPaid)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                    <span>Forfeiture Fee (50%):</span>
+                    <span style="font-weight:700; color:#C0392B;">${Format.peso(forfeit)}</span>
+                </div>
+                <hr style="margin:10px 0;">
+                <div style="display:flex; justify-content:space-between; font-weight:800;">
+                    <span>Estimated Refund:</span>
+                    <span>${Format.peso(refund)}</span>
+                </div>
+            </div>
+            <div class="form-group mt-3">
+                <label class="form-label">Cancellation Reason</label>
+                <textarea class="form-control" id="cancel_reason" placeholder="Client family emergency, etc."></textarea>
+            </div>
+        </div>
+    `;
+
+    const ok = await CustomConfirm.show({
+        title: 'Cancel Booking',
+        html: html,
+        confirmText: 'Confirm Cancellation',
+        confirmColor: 'var(--sys-red)'
+    });
+
+    if (!ok) return;
+
+    const reason = document.getElementById('cancel_reason').value;
+    try {
+        await Api.post(BASE + '/src/api/cancellations.php', { 
+            booking_id: id, 
+            reason: reason 
+        });
+        Toast.success('Booking cancelled and refund record created.');
+        Modal.close('editBookingModal');
+        await loadBookings();
+    } catch (e) { Toast.error(e.message); }
+}
+
 // Wire up filters
 ['filterStatus','filterPayment'].forEach(id => {
     document.getElementById(id).addEventListener('change', loadBookings);
 });
 document.getElementById('searchInput').addEventListener('input', debounce(loadBookings, 400));
+
+// ── BREAKAGE LOGGING ─────────────────────────────────────────────
+let inventory = [];
+
+async function openBreakageModal() {
+    const id = document.getElementById('edit_id').value;
+    const b  = currentBookings.find(x => x.id == id);
+    if (!b) return;
+
+    // Fetch catalog first if empty
+    if (inventory.length === 0) {
+        const d = await Api.get(BASE + '/src/api/inventory.php');
+        inventory = d.equipment || [];
+    }
+
+    // Load existing breakages
+    const res = await Api.get(BASE + '/src/api/breakages.php', { booking_id: id });
+    const logs = res.items || [];
+
+    let html = `
+        <div style="text-align:left;">
+            <p class="text-xs text-muted mb-3">Log damaged or missing equipment for this event. These charges will be added to the final balance.</p>
+            
+            <div id="breakageList" class="mb-3" style="max-height:200px; overflow-y:auto; background:#f8f9fa; border-radius:10px; padding:10px;">
+                ${logs.length === 0 ? '<div class="text-center py-3 text-muted">No losses logged.</div>' : logs.map(l => `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:13px; border-bottom:1px solid #eee; padding-bottom:5px;">
+                        <span>${l.equipment_name} (x${l.quantity})</span>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span class="fw-700">${Format.peso(l.total_cost)}</span>
+                            <button class="btn-icon text-danger" onclick="deleteBreakage(${l.id})"><i class="fas fa-times"></i></button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+
+            <div class="card p-3" style="background:#fff2f0; border:1px solid #ffccc7;">
+                <div class="row g-2">
+                    <div class="col-8">
+                        <label class="form-label text-xs">Item</label>
+                        <select class="form-control form-control-sm" id="bb_item">
+                            <option value="">Select equipment...</option>
+                            ${inventory.map(i => `<option value="${i.id}">${i.name} (${Format.peso(i.replacement_cost)})</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label text-xs">Qty</label>
+                        <input type="number" class="form-control form-control-sm" id="bb_qty" value="1" min="1">
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <label class="form-label text-xs">Internal Note (optional)</label>
+                    <input type="text" class="form-control form-control-sm" id="bb_note" placeholder="Table 4 breakage...">
+                </div>
+            </div>
+        </div>
+    `;
+
+    const ok = await CustomConfirm.show({
+        title: 'Breakage & Loss Log: #' + id,
+        html: html,
+        confirmText: 'Add Loss Log',
+        confirmColor: 'var(--sys-orange)'
+    });
+
+    if (!ok) return;
+
+    const itemId = document.getElementById('bb_item').value;
+    const qty    = document.getElementById('bb_qty').value;
+    const note   = document.getElementById('bb_note').value;
+
+    if (!itemId) return Toast.error('Please select an item.');
+
+    try {
+        await Api.post(BASE + '/src/api/breakages.php', {
+            booking_id: id,
+            equipment_id: itemId,
+            quantity: qty,
+            notes: note
+        });
+        Toast.success('Loss logged.');
+        openBreakageModal(); // Re-open to show updated list
+    } catch(e) { Toast.error(e.message); }
+}
+
+async function deleteBreakage(id) {
+    if (!await confirmDialog('Remove this breakage entry?')) return;
+    try {
+        await Api.delete(BASE + '/src/api/breakages.php', { id });
+        Toast.success('Entry removed.');
+        openBreakageModal(); // Re-open
+    } catch(e) { Toast.error(e.message); }
+}
 
 init();
 </script>

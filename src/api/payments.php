@@ -50,15 +50,16 @@ if ($method === 'GET') {
     $whereClause = implode(' AND ', $where);
 
     $stmt = $pdo->prepare("
-        SELECT p.*, b.event_date, b.total_cost, b.payment_status,
+        SELECT p.*,
+               b.event_date, b.total_cost, b.payment_status, b.booking_status,
+               b.base_pax,
+               CONCAT('Pax Tier ', IFNULL(b.base_pax, b.pax_count)) AS menu_name,
                c.name AS client_name,
-               COALESCE(pk.set_name, '—') AS menu_name,
                u.name AS recorded_by_name
         FROM payments p
-        JOIN bookings b  ON b.id  = p.booking_id
-        JOIN clients  c  ON c.id  = b.client_id
-        LEFT JOIN packages pk ON pk.id = b.package_id
-        JOIN users    u  ON u.id  = p.recorded_by
+        JOIN bookings b ON b.id  = p.booking_id
+        JOIN clients  c ON c.id  = b.client_id
+        JOIN users    u ON u.id  = p.recorded_by
         WHERE $whereClause
         ORDER BY p.payment_date DESC, p.id DESC
     ");
