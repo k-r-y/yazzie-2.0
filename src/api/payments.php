@@ -12,6 +12,7 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/audit.php';
 
 requireApiRole('admin');
+requireCsrf(); // CSRF protection for all state-changing methods
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
@@ -90,49 +91,51 @@ if ($method === 'POST') {
     $booking = $bStmt->fetch();
     if (!$booking) jsonResponse(false, 'Booking not found.', [], 404);
 
-    $currentBookingStatus = $booking['booking_status'] ?? 'confirmed';
-
-    // ── Live balance: SUM directly from payments table (don't trust trigger cache) ──
-    $paidStmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE booking_id = :bid");
-    $paidStmt->execute([':bid' => $bookingId]);
-    $totalAlreadyPaid = (float)$paidStmt->fetchColumn();
-
-    $totalCost   = (float)$booking['total_cost'];
-    $maxAllowed  = round($totalCost - $totalAlreadyPaid, 2);
-
-    // Validation: must be > 0 and not negative
-    if ($amount <= 0) {
-        jsonResponse(false, 'Payment amount must be greater than ₱0.', [], 422);
-    }
-
-    // Validation: payment_method whitelist
-    $validMethods = ['cash', 'bank_transfer', 'gcash', 'maya'];
-    if (!in_array($d['payment_method'], $validMethods, true)) {
-        jsonResponse(false, 'Invalid payment method. Allowed: cash, gcash, maya, bank_transfer.', [], 422);
-    }
-
-    // Validation: cannot go below zero balance
-    if ($maxAllowed <= 0) {
-        jsonResponse(false, 'This booking is already fully paid. No further payments are needed.', [
-            'total_cost'  => $totalCost,
-            'amount_paid' => $totalAlreadyPaid,
-        ], 422);
-    }
-
-    // Validation: cannot exceed remaining balance
-    if ($amount > $maxAllowed + 0.01) {
-        jsonResponse(false,
-            'Payment of ₱' . number_format($amount, 2) .
-            ' exceeds the remaining balance of ₱' . number_format($maxAllowed, 2) . '.' .
-            ' Total paid so far: ₱' . number_format($totalAlreadyPaid, 2) . '.',
-            ['max_allowed'       => $maxAllowed,
-             'total_already_paid'=> $totalAlreadyPaid,
-             'total_cost'        => $totalCost], 422);
-    }
-
-    // ── Wrap INSERT + sync UPDATE in a single transaction ────────────
+    // ── Wrap balance check + INSERT in a single transaction with row locking ──
+    // This prevents the race condition where two admins record payments simultaneously
     $pdo->beginTransaction();
     try {
+        // ── Live balance under row lock: prevents TOCTOU race condition ──
+        $paidStmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE booking_id = :bid FOR UPDATE");
+        $paidStmt->execute([':bid' => $bookingId]);
+        $totalAlreadyPaid = (float)$paidStmt->fetchColumn();
+
+        $totalCost   = (float)$booking['total_cost'];
+        $maxAllowed  = round($totalCost - $totalAlreadyPaid, 2);
+
+        // Validation: must be > 0 and not negative
+        if ($amount <= 0) {
+            $pdo->rollBack();
+            jsonResponse(false, 'Payment amount must be greater than ₱0.', [], 422);
+        }
+
+        // Validation: payment_method whitelist
+        $validMethods = ['cash', 'bank_transfer', 'gcash', 'maya'];
+        if (!in_array($d['payment_method'], $validMethods, true)) {
+            $pdo->rollBack();
+            jsonResponse(false, 'Invalid payment method. Allowed: cash, gcash, maya, bank_transfer.', [], 422);
+        }
+
+        // Validation: cannot go below zero balance
+        if ($maxAllowed <= 0) {
+            $pdo->rollBack();
+            jsonResponse(false, 'This booking is already fully paid. No further payments are needed.', [
+                'total_cost'  => $totalCost,
+                'amount_paid' => $totalAlreadyPaid,
+            ], 422);
+        }
+
+        // Validation: cannot exceed remaining balance
+        if ($amount > $maxAllowed + 0.01) {
+            $pdo->rollBack();
+            jsonResponse(false,
+                'Payment of ₱' . number_format($amount, 2) .
+                ' exceeds the remaining balance of ₱' . number_format($maxAllowed, 2) . '.' .
+                ' Total paid so far: ₱' . number_format($totalAlreadyPaid, 2) . '.',
+                ['max_allowed'       => $maxAllowed,
+                 'total_already_paid'=> $totalAlreadyPaid,
+                 'total_cost'        => $totalCost], 422);
+        }
         $stmt = $pdo->prepare("
             INSERT INTO payments (booking_id, amount, payment_method, reference_no, payment_date, notes, recorded_by)
             VALUES (:booking_id, :amount, :method, :ref, :date, :notes, :recorded_by)
@@ -164,16 +167,18 @@ if ($method === 'POST') {
             ':id'     => $bookingId,
         ]);
 
-        // ── Auto-promote: pending → confirmed when cumulative paid >= 50% ──────
-        $minDP50     = round($totalCost * 0.50, 2);
+        // ── Auto-promote: pending → confirmed when cumulative paid >= 30% (MIN_DP_PERCENT) ──
+        $currentBookingStatus = $booking['booking_status'];
+        $dpPercent   = defined('MIN_DP_PERCENT') ? MIN_DP_PERCENT : 0.30;
+        $minDPThresh = round($totalCost * $dpPercent, 2);
         $finalStatus = $currentBookingStatus;
-        if ($currentBookingStatus === 'pending' && $newPaid >= $minDP50 - 0.01) {
+        if ($currentBookingStatus === 'pending' && $newPaid >= $minDPThresh - 0.01) {
             $finalStatus = 'confirmed';
             $pdo->prepare("UPDATE bookings SET booking_status = 'confirmed' WHERE id = :id")
                 ->execute([':id' => $bookingId]);
             auditLog($pdo, 'booking_confirmed', 'booking', $bookingId,
                 ['booking_status' => 'pending'],
-                ['booking_status' => 'confirmed', 'trigger' => 'payment_reached_50pct']
+                ['booking_status' => 'confirmed', 'trigger' => 'payment_reached_dp_threshold']
             );
         }
 
@@ -209,6 +214,12 @@ if ($method === 'DELETE') {
     if (!$pay) jsonResponse(false, 'Payment not found.', [], 404);
 
     $pdo->prepare("DELETE FROM payments WHERE id = :id")->execute([':id' => (int)$d['id']]);
+
+    // ── Audit: payment deleted (critical financial event) ──
+    auditLog($pdo, 'payment_deleted', 'payment', (int)$d['id'],
+        ['booking_id' => (int)$pay['booking_id']],
+        null
+    );
 
     // ── Force re-sync bookings.amount_paid after deletion ────────────────
     $bookingId = (int)$pay['booking_id'];

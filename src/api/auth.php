@@ -7,11 +7,15 @@
 header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/rate_limiter.php';
 
 // Only POST allowed
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     jsonResponse(false, 'Method Not Allowed.', [], 405);
 }
+
+// ── Rate Limiting: block brute-force attacks ──
+checkLoginRateLimit($pdo);
 
 // Parse JSON body
 $input    = json_decode(file_get_contents('php://input'), true);
@@ -37,14 +41,19 @@ $stmt = $pdo->prepare("
 $stmt->execute([':email' => $email]);
 $user = $stmt->fetch();
 
-// Verify user and password
+// Verify user and password — generic message to prevent enumeration
 if (!$user || !password_verify($password, $user['password'])) {
+    recordFailedLogin($pdo, $email);
     jsonResponse(false, 'Invalid email or password. Please try again.', [], 401);
 }
 
 if (!$user['is_active']) {
+    recordFailedLogin($pdo, $email);
     jsonResponse(false, 'Your account has been deactivated. Please contact the Administrator.', [], 403);
 }
+
+// ── Successful login: clear rate limit counters ──
+clearLoginAttempts($pdo);
 
 // Create session
 startSession();
@@ -58,12 +67,16 @@ $_SESSION['phone']   = $user['phone'];
 
 // Determine redirect URL
 $redirectMap = [
-    'admin'     => BASE_URL . '/views/admin/dashboard.php',
-    'frontdesk' => BASE_URL . '/views/frontdesk/dashboard.php',
-    'staff'     => BASE_URL . '/views/staff/dashboard.php',
+    'super_admin' => BASE_URL . '/views/admin/dashboard.php',
+    'admin'       => BASE_URL . '/views/admin/dashboard.php',
+    'frontdesk'   => BASE_URL . '/views/frontdesk/dashboard.php',
+    'staff'       => BASE_URL . '/views/staff/dashboard.php',
 ];
 
 $redirect = $redirectMap[$user['role']] ?? BASE_URL . '/index.php';
+
+// Ensure session is written and closed before sending response
+session_write_close();
 
 jsonResponse(true, 'Login successful.', [
     'redirect' => $redirect,

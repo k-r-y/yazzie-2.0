@@ -14,6 +14,7 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/mailer.php';
 
 $currentUser = requireApiRole(['admin', 'frontdesk', 'staff']);
+requireCsrf();
 $method      = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {

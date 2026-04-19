@@ -121,7 +121,7 @@ async function loadUsers() {
 
     tbody.innerHTML = users.map(u => `
         <tr>
-            <td class="td-name">${u.name}</td>
+            <td class="td-name">${esc(u.name)}</td>
             <td>${u.email}</td>
             <td><span class="badge ${roleBadge[u.role]||''}">${roleLabel[u.role]||u.role}</span></td>
             <td>${u.phone || '—'} ${u.role === 'staff' && u.job_class && u.job_class !== 'any' ? `<br><small class="text-muted">${jobClassLabel[u.job_class] || u.job_class}</small>` : ''}</td>

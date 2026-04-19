@@ -9,8 +9,10 @@
 header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/audit.php';
 
 $user   = requireApiRole(['admin', 'frontdesk']);
+requireCsrf();
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
@@ -55,27 +57,39 @@ if ($method === 'POST') {
     }
     
     $stmt = $pdo->prepare("
-        INSERT INTO clients (name, email, phone, address)
-        VALUES (:name, :email, :phone, :address)
+        INSERT INTO clients (name, email, phone, address, messenger_link)
+        VALUES (:name, :email, :phone, :address, :messenger_link)
     ");
     $stmt->execute([
         ':name'    => trim($d['name']),
         ':email'   => trim($d['email'] ?? ''),
         ':phone'   => trim($d['phone']),
         ':address' => trim($d['address'] ?? ''),
+        ':messenger_link' => trim($d['messenger_link'] ?? ''),
     ]);
-    jsonResponse(true, 'Client added.', ['id' => $pdo->lastInsertId()], 201);
+    $newId = $pdo->lastInsertId();
+
+    // Audit: client created
+    auditLog($pdo, 'client_created', 'client', (int)$newId,
+        null,
+        ['name' => trim($d['name']), 'email' => trim($d['email'] ?? '')]
+    );
+
+    jsonResponse(true, 'Client added.', ['id' => $newId], 201);
 }
 
 if ($method === 'PUT') {
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
     if (empty($d['id'])) jsonResponse(false, 'Client ID required.', [], 422);
+
+    // FIX: Use COALESCE for ALL fields to prevent accidental null overwrite
     $stmt = $pdo->prepare("
         UPDATE clients SET
             name    = COALESCE(:name, name),
-            email   = :email,
+            email   = COALESCE(:email, email),
             phone   = COALESCE(:phone, phone),
-            address = :address
+            address = COALESCE(:address, address),
+            messenger_link = COALESCE(:messenger_link, messenger_link)
         WHERE id = :id
     ");
     $stmt->execute([
@@ -84,7 +98,20 @@ if ($method === 'PUT') {
         ':email'   => $d['email']   ?? null,
         ':phone'   => $d['phone']   ?? null,
         ':address' => $d['address'] ?? null,
+        ':messenger_link' => $d['messenger_link'] ?? null,
     ]);
+
+    // Audit: client updated
+    auditLog($pdo, 'client_updated', 'client', (int)$d['id'],
+        null,
+        array_filter([
+            'name'    => $d['name']    ?? null,
+            'email'   => $d['email']   ?? null,
+            'phone'   => $d['phone']   ?? null,
+            'address' => $d['address'] ?? null,
+        ], fn($v) => $v !== null)
+    );
+
     jsonResponse(true, 'Client updated.');
 }
 
@@ -92,6 +119,12 @@ if ($method === 'DELETE') {
     requireApiRole('admin');
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
     if (empty($d['id'])) jsonResponse(false, 'Client ID required.', [], 422);
+
+    // Get client info for audit before deletion
+    $clientStmt = $pdo->prepare("SELECT name, email FROM clients WHERE id = :id");
+    $clientStmt->execute([':id' => (int)$d['id']]);
+    $clientData = $clientStmt->fetch();
+
     // Check for existing bookings
     $count = $pdo->prepare("SELECT COUNT(*) FROM bookings WHERE client_id = :id");
     $count->execute([':id' => (int)$d['id']]);
@@ -99,6 +132,13 @@ if ($method === 'DELETE') {
         jsonResponse(false, 'Cannot delete a client who has existing bookings.', [], 409);
     }
     $pdo->prepare("DELETE FROM clients WHERE id = :id")->execute([':id' => (int)$d['id']]);
+
+    // Audit: client deleted
+    auditLog($pdo, 'client_deleted', 'client', (int)$d['id'],
+        $clientData ? ['name' => $clientData['name'], 'email' => $clientData['email']] : null,
+        null
+    );
+
     jsonResponse(true, 'Client removed.');
 }
 

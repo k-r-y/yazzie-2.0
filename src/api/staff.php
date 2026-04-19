@@ -9,8 +9,10 @@
 header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/audit.php';
 
 $currentUser = requireApiRole(['admin', 'frontdesk']);
+requireCsrf();
 $method      = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
@@ -139,9 +141,9 @@ if ($method === 'POST') {
         );
     }
 
-    if (strlen($d['password']) < 8) {
-        jsonResponse(false, 'Password must be at least 8 characters.', [], 422);
-    }
+    // Password policy enforcement
+    $pwError = validatePasswordPolicy($d['password']);
+    if ($pwError) jsonResponse(false, $pwError, [], 422);
 
     // Phone validation — PH mobile format (09XXXXXXXXX or +639XXXXXXXXX)
     if (!empty($d['phone'])) {
@@ -161,8 +163,12 @@ if ($method === 'POST') {
         VALUES (:name, :email, :password, :role, :phone, :job_class)
     ");
 
-    $validJobClasses = ['head_cook','cook','waiter','server','helper','any'];
-    $jobClass = in_array($d['job_class'] ?? '', $validJobClasses, true) ? $d['job_class'] : 'any';
+    if (in_array($requestedRole, ['admin', 'super_admin', 'frontdesk'], true)) {
+        $jobClass = $requestedRole;
+    } else {
+        $validJobClasses = ['head_cook','cook','waiter','server','helper'];
+        $jobClass = in_array($d['job_class'] ?? '', $validJobClasses, true) ? $d['job_class'] : 'waiter';
+    }
 
     $stmt->execute([
         ':name'      => trim($d['name']),
@@ -172,7 +178,15 @@ if ($method === 'POST') {
         ':phone'     => !empty($d['phone']) ? trim($d['phone']) : null,
         ':job_class' => $jobClass,
     ]);
-    jsonResponse(true, 'User account created.', ['id' => $pdo->lastInsertId()], 201);
+    $newId = $pdo->lastInsertId();
+
+    // Audit: user created
+    auditLog($pdo, 'user_created', 'user', (int)$newId,
+        null,
+        ['name' => trim($d['name']), 'role' => $requestedRole, 'email' => trim($d['email'])]
+    );
+
+    jsonResponse(true, 'User account created.', ['id' => $newId], 201);
 }
 
 if ($method === 'PUT') {
@@ -208,7 +222,8 @@ if ($method === 'PUT') {
     ];
 
     if (!empty($d['password'])) {
-        if (strlen($d['password']) < 8) jsonResponse(false, 'Password must be at least 8 characters.', [], 422);
+        $pwError = validatePasswordPolicy($d['password']);
+        if ($pwError) jsonResponse(false, $pwError, [], 422);
         $pwSql = ", password = :pw";
         $params[':pw'] = password_hash($d['password'], PASSWORD_BCRYPT);
     }
@@ -222,11 +237,19 @@ if ($method === 'PUT') {
         $params[':phone'] = $phone;
     }
 
-    // job_class update (staff only)
+    // job_class update
     $jobClassSql = '';
-    if (isset($d['job_class'])) {
-        $validJobClasses = ['head_cook','cook','waiter','server','helper','any'];
-        $jc = in_array($d['job_class'], $validJobClasses, true) ? $d['job_class'] : 'any';
+    
+    // Always sync job class with the new or existing role based on context
+    // If role is being changed to admin/frontdesk, or if it already is one and being updated.
+    // For simplicity, we just look at the $newRole if provided.
+    // However, PUT doesn't strictly provide $newRole if not changed, but in our UI it always does.
+    if ($newRole && in_array($newRole, ['admin', 'super_admin', 'frontdesk'], true)) {
+        $jobClassSql = ', job_class = :job_class';
+        $params[':job_class'] = $newRole;
+    } elseif ($newRole === 'staff' || (!$newRole && isset($d['job_class']))) {
+        $validJobClasses = ['head_cook','cook','waiter','server','helper'];
+        $jc = in_array($d['job_class'] ?? '', $validJobClasses, true) ? $d['job_class'] : 'waiter';
         $jobClassSql = ', job_class = :job_class';
         $params[':job_class'] = $jc;
     }
@@ -243,6 +266,17 @@ if ($method === 'PUT') {
         WHERE id = :id
     ");
     $stmt->execute($params);
+
+    // Audit: user updated
+    auditLog($pdo, 'user_updated', 'user', (int)$d['id'],
+        null,
+        array_filter([
+            'name' => $d['name'] ?? null,
+            'role' => $newRole,
+            'is_active' => $d['is_active'] ?? null,
+        ], fn($v) => $v !== null)
+    );
+
     jsonResponse(true, 'User updated.');
 }
 
@@ -256,6 +290,13 @@ if ($method === 'DELETE') {
     }
     // Soft delete (deactivate)
     $pdo->prepare("UPDATE users SET is_active = 0 WHERE id = :id")->execute([':id' => (int)$d['id']]);
+
+    // Audit: user deactivated
+    auditLog($pdo, 'user_deactivated', 'user', (int)$d['id'],
+        ['is_active' => 1],
+        ['is_active' => 0]
+    );
+
     jsonResponse(true, 'User deactivated.');
 }
 

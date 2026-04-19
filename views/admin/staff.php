@@ -158,11 +158,23 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </div>
                     <div class="form-group">
                         <label class="form-label">Role</label>
-                        <select class="form-control" name="role" id="sf-role">
+                        <select class="form-control" name="role" id="sf-role" onchange="onRoleChange()">
                             <option value="staff">Staff</option>
                             <option value="frontdesk">Front Desk</option>
                             <option value="admin">Admin</option>
                         </select>
+                    </div>
+                    <!-- Job Class: visible only for staff role -->
+                    <div class="form-group" id="jobClassGroup" style="display:none;">
+                        <label class="form-label">Job Classification <span class="required">*</span></label>
+                        <select class="form-control" name="job_class" id="sf-job-class">
+                            <option value="waiter">🤵 Waiter</option>
+                            <option value="head_cook">👨‍🍳 Head Cook</option>
+                            <option value="cook">🍳 Cook</option>
+                            <option value="server">🍽️ Food Server</option>
+                            <option value="helper">🙋 Helper</option>
+                        </select>
+                        <div class="form-hint">Used to suggest the right staff in the dispatching tool.</div>
                     </div>
                     <div class="form-group" id="sf-pw-group">
                         <label class="form-label">Password <span class="required" id="sf-pw-req">*</span></label>
@@ -282,9 +294,14 @@ async function loadRoster() {
             const statusBadge = s.is_active == 1
                 ? '<span class="badge badge-accepted">Active</span>'
                 : '<span class="badge badge-cancelled">Inactive</span>';
+            const jobClassLabel = { head_cook: '👨‍🍳 Head Cook', cook: '🍳 Cook', waiter: '🤵 Waiter', server: '🍽️ Server', helper: '🙋 Helper', admin: '⚙️ Admin', super_admin: '👑 Super Admin', frontdesk: '💻 Front Desk' };
+            const jobClassText = (s.job_class && s.job_class !== 'any') 
+                ? `<br><small class="text-muted">${jobClassLabel[s.job_class] || s.job_class}</small>` 
+                : '';
+
             return `
             <tr>
-                <td class="td-name">${htmlEsc(s.name)}</td>
+                <td class="td-name">${htmlEsc(s.name)}${jobClassText}</td>
                 <td class="text-sm text-muted">${htmlEsc(s.email)}</td>
                 <td class="text-sm">${htmlEsc(s.phone || '—')}</td>
                 <td>${statusBadge}</td>
@@ -389,7 +406,14 @@ function openAddModal() {
     document.getElementById('sf-pw-hint').style.display = 'none';
     document.getElementById('sf-pw-req').style.display  = 'inline';
     document.getElementById('sf-active-group').style.display = 'none';
+    onRoleChange();
     staffModal.show();
+}
+
+function onRoleChange() {
+    const role = document.getElementById('sf-role').value;
+    const jcGroup = document.getElementById('jobClassGroup');
+    if (jcGroup) jcGroup.style.display = (role === 'staff') ? '' : 'none';
 }
 
 function openEditModal(s) {
@@ -400,10 +424,12 @@ function openEditModal(s) {
     document.getElementById('sf-phone').value = s.phone || '';
     document.getElementById('sf-role').value  = s.role;
     document.getElementById('sf-active').value = s.is_active;
+    document.getElementById('sf-job-class').value = (s.job_class && s.job_class !== 'any') ? s.job_class : 'waiter';
     document.getElementById('sf-pw').value    = '';
     document.getElementById('sf-pw-hint').style.display = 'block';
     document.getElementById('sf-pw-req').style.display  = 'none';
     document.getElementById('sf-active-group').style.display = 'block';
+    onRoleChange();
     staffModal.show();
 }
 
@@ -415,6 +441,7 @@ async function saveStaff() {
         email:     document.getElementById('sf-email').value.trim(),
         phone:     document.getElementById('sf-phone').value.trim(),
         role:      document.getElementById('sf-role').value,
+        job_class: document.getElementById('sf-job-class').value,
         password:  document.getElementById('sf-pw').value,
     };
     if (id) {

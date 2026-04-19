@@ -72,7 +72,6 @@ include __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <script>
-const BASE = '<?= BASE_URL ?>';
 let currentBookings = [];
 
 async function init() {
@@ -86,7 +85,7 @@ async function init() {
     sel.innerHTML = '<option value="">Choose a booking…</option>' +
         currentBookings.map(b =>
             `<option value="${b.id}" ${b.id == <?= $preloadId ?> ? 'selected' : ''}>
-                #${b.id} — ${b.client_name} (${Format.dateShort(b.event_date)}, ${b.pax_count} pax)
+                #${b.id} — ${esc(b.client_name)} (${Format.dateShort(b.event_date)}, ${b.pax_count} pax)
             </option>`
         ).join('');
 
@@ -183,9 +182,11 @@ async function loadGroceryList() {
                 (res.ingredients || []).forEach(ing => {
                     const key = ing.ingredient_name + '|' + ing.unit;
                     if (!aggregated[key]) {
-                        aggregated[key] = { name: ing.ingredient_name, unit: ing.unit, total: 0, basePax: res.base_pax };
+                        aggregated[key] = { name: ing.ingredient_name, unit: ing.unit, total: 0, unitPrice: 0, estCost: 0, basePax: res.base_pax };
                     }
                     aggregated[key].total += parseFloat(ing.computed_quantity);
+                    if (ing.unit_price > 0) aggregated[key].unitPrice = ing.unit_price;
+                    aggregated[key].estCost += parseFloat(ing.estimated_cost || 0);
                 });
             } catch (e) {
                 // Dish has no recipe yet — skip silently, it'll show in empty-ingredient warning
@@ -207,33 +208,72 @@ async function loadGroceryList() {
 
         const tableRows = rows.map(r => {
             const qty = r.total.toFixed(3).replace(/\.?0+$/, '');
+            const hasPrice = r.unitPrice > 0;
+            const estCost = r.estCost || 0;
             return `<tr>
-                <td class="td-name">${r.name}</td>
+                <td class="td-name">${esc(r.name)}</td>
                 <td class="text-right text-bold" style="font-size:16px;">${qty}</td>
-                <td class="text-muted">${r.unit}</td>
+                <td class="text-muted">${esc(r.unit)}</td>
+                <td class="text-right" style="font-size:12px; color:${hasPrice ? 'rgba(60,60,67,0.6)' : '#FF9500'};">
+                    ${hasPrice ? '₱' + r.unitPrice.toFixed(2) : '<i class="fas fa-exclamation-triangle"></i>'}
+                </td>
+                <td class="text-right fw-600" style="color:${hasPrice ? '#1A7A32' : '#C0392B'};">
+                    ${hasPrice ? '₱' + estCost.toFixed(2) : '—'}
+                </td>
                 <td><div style="width:18px;height:18px;border:2px solid var(--border);border-radius:4px;"></div></td>
             </tr>`;
         }).join('');
 
+        const grandTotal = rows.reduce((s, r) => s + (r.estCost || 0), 0);
+        const missingCount = rows.filter(r => !r.unitPrice || r.unitPrice <= 0).length;
+
+        const missingWarning = missingCount > 0 ? `
+            <div style="display:flex; gap:10px; align-items:flex-start; background:rgba(255,149,0,0.08);
+                        border:1px solid rgba(255,149,0,0.3); border-radius:12px; padding:14px 16px; margin-bottom:16px;">
+                <span style="font-size:20px; flex-shrink:0;">💰</span>
+                <div>
+                    <div style="font-size:13px; font-weight:700; color:#9A5400; margin-bottom:2px;">
+                        ${missingCount} ingredient(s) missing price data
+                    </div>
+                    <div style="font-size:12px; color:rgba(60,60,67,0.7);">
+                        Go to <strong>Recipes &amp; Computation</strong> to add unit prices for accurate cost estimates.
+                    </div>
+                </div>
+            </div>` : '';
+
         document.getElementById('groceryContent').innerHTML = `
             ${customWarningHtml}
+            ${missingWarning}
             <div style="overflow-x:auto;">
                 <table class="data-table">
                     <thead>
                         <tr>
                             <th>Ingredient</th>
-                            <th class="text-right">Total Qty (${pax} pax)</th>
+                            <th class="text-right">Qty (${pax} pax)</th>
                             <th>Unit</th>
+                            <th class="text-right">Price/Unit</th>
+                            <th class="text-right">Est. Cost</th>
                             <th>✓</th>
                         </tr>
                     </thead>
                     <tbody>${tableRows}</tbody>
                     <tfoot>
+                        <tr style="background:rgba(48,209,88,0.05);">
+                            <td colspan="4" style="padding:14px 16px; font-size:14px; font-weight:700;">
+                                <i class="fas fa-calculator me-2" style="color:var(--sys-green);"></i>
+                                Estimated Total Market Cost
+                            </td>
+                            <td class="text-right" style="padding:14px 16px; font-size:16px; font-weight:800; color:#1A7A32;">
+                                ₱${grandTotal.toLocaleString('en-PH', {minimumFractionDigits:2})}
+                            </td>
+                            <td></td>
+                        </tr>
                         <tr>
-                            <td colspan="4" style="padding:12px 16px;font-size:13px;color:var(--text-muted);">
+                            <td colspan="6" style="padding:12px 16px;font-size:13px;color:var(--text-muted);">
                                 <i class="fas fa-circle-info me-1"></i>
                                 Quantities aggregated across <strong>${dishes.length} dish(es)</strong> for
                                 <strong>${pax} guests</strong>.
+                                ${missingCount > 0 ? `<br><span style="color:#9A5400;">⚠️ ${missingCount} ingredient(s) without prices — total is approximate.</span>` : ''}
                                 ${customDishes.length > 0 ? `<br><span style="color:#9A5400;">⚠️ ${customDishes.length} custom dish(es) not included — see warning above.</span>` : ''}
                             </td>
                         </tr>

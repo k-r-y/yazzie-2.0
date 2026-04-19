@@ -11,6 +11,7 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/audit.php';
 
 $user   = requireApiRole(['admin', 'frontdesk']);
+requireCsrf();
 $method = $_SERVER['REQUEST_METHOD'];
 
 // ────────────────────────────────────────────────────────────────

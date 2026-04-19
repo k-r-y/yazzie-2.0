@@ -69,26 +69,47 @@ function normalizePaymentMethod(?string $method): string {
  *  - 200 pax => base_pax=200 base_price=25000
  *  - 300 pax => base_pax=300 base_price=35000
  */
-function computePaxPricing(int $paxCount): array {
+function computePaxPricing($pdo, int $paxCount, $packageId = null): array {
     $tierStep = 50;
     $basePax  = (int)(floor($paxCount / $tierStep) * $tierStep);
     if ($basePax < 50) $basePax = 50;
+    
     $maxPaxSetting = function_exists('appSettingInt') ? appSettingInt('max_pax', MAX_PAX) : MAX_PAX;
     if ($basePax > $maxPaxSetting) $basePax = $maxPaxSetting;
 
-    $basePrice  = round(5000 + ($basePax * 100), 2);
+    $basePrice = round(5000 + ($basePax * 100), 2);
+    $pkgName = "Pax Tier {$basePax}";
+    $maxMain = 5;
+    $maxDesserts = 1;
+
+    // Use Package from DB if provided
+    if ($pdo && $packageId > 0) {
+        $stmt = $pdo->prepare("SELECT * FROM packages WHERE id = ?");
+        $stmt->execute([$packageId]);
+        $pkg = $stmt->fetch();
+        if ($pkg) {
+            $basePax = (int)$pkg['pax_count'];
+            $basePrice = (float)$pkg['price'];
+            $pkgName = $pkg['set_name'] . ' (' . $basePax . ' Pax)';
+            $maxMain = (int)$pkg['max_main_dishes'];
+            $maxDesserts = (int)$pkg['max_desserts'];
+        }
+    }
+
     $ratePerPax = $basePax > 0 ? ($basePrice / $basePax) : 0.0;
     $extraPax   = max(0, $paxCount - $basePax);
     $extraCost  = round($extraPax * $ratePerPax, 2);
     $totalCost  = round($basePrice + $extraCost, 2);
 
-    // Dish limits by pax bracket (business rule)
-    if ($paxCount < 100)      { $maxMain = 5;  $maxDesserts = 1; }
-    elseif ($paxCount < 150)  { $maxMain = 6;  $maxDesserts = 1; }
-    elseif ($paxCount < 200)  { $maxMain = 7;  $maxDesserts = 2; }
-    elseif ($paxCount < 250)  { $maxMain = 8;  $maxDesserts = 2; }
-    elseif ($paxCount < 300)  { $maxMain = 9;  $maxDesserts = 3; }
-    else                      { $maxMain = 10; $maxDesserts = 3; }
+    // Legacy logic for max dishes if no package was provided
+    if (!$packageId || empty($pkg)) {
+        if ($paxCount < 100)      { $maxMain = 5;  $maxDesserts = 1; }
+        elseif ($paxCount < 150)  { $maxMain = 6;  $maxDesserts = 1; }
+        elseif ($paxCount < 200)  { $maxMain = 7;  $maxDesserts = 2; }
+        elseif ($paxCount < 250)  { $maxMain = 8;  $maxDesserts = 2; }
+        elseif ($paxCount < 300)  { $maxMain = 9;  $maxDesserts = 3; }
+        else                      { $maxMain = 10; $maxDesserts = 3; }
+    }
 
     return [
         'base_pax'       => $basePax,
@@ -99,34 +120,45 @@ function computePaxPricing(int $paxCount): array {
         'total_cost'     => $totalCost,
         'max_main'       => $maxMain,
         'max_desserts'   => $maxDesserts,
-        'pricing_label'  => "Pax Tier {$basePax}",
+        'pricing_label'  => $pkgName,
     ];
 }
 
 function validateSelectedDishes(PDO $pdo, array $selectedDishIds, int $maxMain, int $maxDesserts): array {
     $selectedDishIds = array_values(array_filter(array_map('intval', $selectedDishIds), fn($v) => $v > 0));
-    if (empty($selectedDishIds)) return [[], [], []];
+    if (empty($selectedDishIds)) return [[], 0.0];
 
     $placeholders = implode(',', array_fill(0, count($selectedDishIds), '?'));
-    $dishStmt = $pdo->prepare("SELECT id, category FROM dishes WHERE id IN ($placeholders) AND is_active = 1");
+    $dishStmt = $pdo->prepare("SELECT id, category, custom_fee FROM dishes WHERE id IN ($placeholders) AND is_active = 1");
     $dishStmt->execute($selectedDishIds);
     $valid = $dishStmt->fetchAll();
 
-    $main = [];
-    $dessert = [];
+    $mainCount = 0;
+    $dessertCount = 0;
+    $customFees = 0.0;
+    $validIds = [];
+    $mainCategories = ['beef', 'pork', 'chicken', 'seafood', 'vegetables', 'pasta', 'main'];
+
     foreach ($valid as $d) {
-        if ($d['category'] === 'main') $main[] = (int)$d['id'];
-        if ($d['category'] === 'dessert') $dessert[] = (int)$d['id'];
+        $validIds[] = (int)$d['id'];
+        $cat = strtolower($d['category']);
+        $isMain = in_array($cat, $mainCategories);
+        if ($isMain) {
+            $mainCount++;
+        } elseif ($cat === 'dessert') {
+            $dessertCount++;
+        }
+        $customFees += (float)($d['custom_fee'] ?? 0);
     }
 
-    if (count($main) > $maxMain) {
+    if ($mainCount > $maxMain) {
         jsonResponse(false, "You can select a maximum of $maxMain main dishes for this package.", [], 422);
     }
-    if (count($dessert) > $maxDesserts) {
+    if ($dessertCount > $maxDesserts) {
         jsonResponse(false, "You can select a maximum of $maxDesserts dessert(s) for this package.", [], 422);
     }
 
-    return [$selectedDishIds, $main, $dessert];
+    return [$validIds, $customFees];
 }
 
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
@@ -142,6 +174,7 @@ if ($method === 'GET' && isset($_GET['count_active'])) {
 }
 
 $user = requireApiRole(['admin', 'frontdesk']);
+requireCsrf();
 
 // ────────────────────────────────────────────────────────────────
 // GET
@@ -190,6 +223,7 @@ if ($method === 'GET') {
 
         // Package-less computed label
         $booking['package_name'] = !empty($booking['base_pax']) ? ('Pax Tier ' . (int)$booking['base_pax']) : 'Pax Tier';
+        $booking['menu_name']    = $booking['package_name']; // Shared alias for frontend compatibility
 
         // Backward-compatible dish list for grocery/costing module: ?dishes=1
         if (isset($_GET['dishes'])) {
@@ -263,6 +297,7 @@ if ($method === 'GET') {
     $rows = $stmt->fetchAll();
     foreach ($rows as &$r) {
         $r['package_name'] = !empty($r['base_pax']) ? ('Pax Tier ' . (int)$r['base_pax']) : 'Pax Tier';
+        $r['menu_name']    = $r['package_name']; // Shared alias for frontend compatibility
     }
     unset($r);
     jsonResponse(true, '', ['bookings' => $rows]);
@@ -384,8 +419,14 @@ if ($method === 'POST') {
     $maxPax = function_exists('appSettingInt') ? appSettingInt('max_pax', MAX_PAX) : MAX_PAX;
 
     $eventDate = validateYmdDate((string)$data['event_date'], 'event date');
-    if ($eventDate < date('Y-m-d', strtotime('+' . $minLeadDays . ' days'))) {
-        jsonResponse(false, 'Booking date must be at least ' . $minLeadDays . ' days before the event.', [], 422);
+    $minAllowedDate = date('Y-m-d', strtotime('+' . $minLeadDays . ' days'));
+    $maxAllowedDate = date('Y-m-d', strtotime('+1 year'));
+
+    if ($eventDate < $minAllowedDate) {
+        jsonResponse(false, 'Booking date must be at least ' . $minLeadDays . ' days before the event (starting from tomorrow).', [], 422);
+    }
+    if ($eventDate > $maxAllowedDate) {
+        jsonResponse(false, 'Bookings cannot be made more than 1 year in advance.', [], 422);
     }
 
     $eventTime = validateEventTime($data['event_time'] ?? null);
@@ -397,16 +438,31 @@ if ($method === 'POST') {
     if ($paxCount > $maxPax) {
         jsonResponse(false, "Maximum guest count is capped at $maxPax.", [], 422);
     }
-    if ($paxCount % 5 !== 0) {
-        jsonResponse(false, "Pax count must be in 5-pax increments (e.g. 75, 80, 85).", [], 422);
-    }
+    // Removed 5-pax check as requested
 
-    $pricing   = computePaxPricing($paxCount);
+
+    $pId       = (int)($data['package_id'] ?? 0);
+    $pricing   = computePaxPricing($pdo, $paxCount, $pId);
+    
+    // Validate dishes early to calculate total cost including custom fees
+    $maxMain = (int)$pricing['max_main'];
+    $maxDess = (int)$pricing['max_desserts'];
+    list($validDishIds, $customFees) = validateSelectedDishes($pdo, (array)($data['selected_dishes'] ?? []), $maxMain, $maxDess);
+
     $basePax   = (int)$pricing['base_pax'];
     $basePrice = (float)$pricing['base_price'];
-    $extraPax  = (int)$pricing['extra_pax'];
     $extraCost = (float)$pricing['extra_cost'];
-    $totalCost = (float)$pricing['total_cost'];
+    $transportFee = max(0, round((float)($data['transport_fee'] ?? 0), 2));
+
+    // Calculate Custom Add-ons Surcharge
+    $customItemsTotal = 0;
+    if (!empty($data['custom_items']) && is_array($data['custom_items'])) {
+        foreach ($data['custom_items'] as $ci) {
+            $customItemsTotal += max(0, (float)($ci['price'] ?? 0));
+        }
+    }
+
+    $totalCost = (float)$pricing['total_cost'] + $transportFee + $customFees + $customItemsTotal;
 
     $downpayment = round((float)($data['downpayment'] ?? 0), 2);
     if ($downpayment < 0) jsonResponse(false, 'Downpayment cannot be a negative value.', [], 422);
@@ -416,16 +472,16 @@ if ($method === 'POST') {
     $now          = new DateTime();
     $interval     = $now->diff($eventDateObj);
     $diffHours    = ($interval->days * 24) + $interval->h;
-    if (!$interval->invert && $diffHours < 48) {
-        $minDpPct = 1.0; // Last minute: force full payment
+    if (!$interval->invert && $diffHours < 72) {
+        $minDpPct = 1.0; // Last minute: force full payment (within 3 days)
     } else {
-        $minDpPct = 0.3; // Default threshold
+        $minDpPct = (float)appSetting('min_dp_percent', MIN_DP_PERCENT);
     }
 
     $minDPVal = round($totalCost * $minDpPct, 2);
     if ($downpayment > 0 && $downpayment < $minDPVal - 0.01) {
         $msg = ($minDpPct >= 1.0) 
-            ? 'Full payment is required for last-minute bookings (<48h).'
+            ? 'Full payment is required for bookings made within 3 days (72h) of the event.'
             : 'Minimum downpayment is ' . (int)round($minDpPct * 100) . '% of total cost (₱' . number_format($minDPVal, 2) . ').';
             
         jsonResponse(false, $msg, ['min_downpayment' => $minDPVal, 'total_cost' => $totalCost], 422);
@@ -437,9 +493,14 @@ if ($method === 'POST') {
         );
     }
 
-    $maxMain = (int)$pricing['max_main'];
-    $maxDess = (int)$pricing['max_desserts'];
-    [, $mainDishIds, $dessertIds] = validateSelectedDishes($pdo, (array)($data['selected_dishes'] ?? []), $maxMain, $maxDess);
+    // the validation and extraction of validDishIds is now handled before lines 450.
+
+    // ── P1-05: Ensure session is still robustly active before starting transaction ──
+    // Using a local variable prevents errors if the $_SESSION is lost during a long request.
+    $creatorId = (int)($user['id'] ?? 0);
+    if ($creatorId <= 0) {
+        jsonResponse(false, 'Your session has expired. Please log in again in a new tab to save your progress.', [], 401);
+    }
 
     // ── 6. Insert booking (in a transaction for data integrity) ────
     $pdo->beginTransaction();
@@ -463,40 +524,43 @@ if ($method === 'POST') {
 
         $bookingStmt = $pdo->prepare("
             INSERT INTO bookings
-              (client_id, package_id, event_date, event_time, event_location, pax_count,
-               base_pax, extra_pax, base_price, extra_cost,
-               total_cost, booking_status, invoice_token, notes, dietary_notes, created_by)
+              (client_id, package_id, event_date, event_time, event_location, event_type,
+               pax_count, base_pax, extra_pax, base_price, extra_cost,
+               transport_fee, surcharge_total, total_cost, booking_status, invoice_token, notes, dietary_notes, created_by)
             VALUES
-              (:client_id, :package_id, :event_date, :event_time, :event_location, :pax_count,
-               :base_pax, :extra_pax, :base_price, :extra_cost,
-               :total_cost, :booking_status, :invoice_token, :notes, :dietary_notes, :created_by)
+              (:client_id, :package_id, :event_date, :event_time, :event_location, :event_type,
+               :pax_count, :base_pax, :extra_pax, :base_price, :extra_cost,
+               :transport_fee, :surcharge_total, :total_cost, :booking_status, :invoice_token, :notes, :dietary_notes, :created_by)
         ");
         // ── Determine initial booking_status based on downpayment ────────────
-        // 'confirmed' requires meeting the threshold (30% or 100% if <48h).
+        // 'confirmed' requires meeting the threshold (30% or 100% if <72h).
         $initialStatus = ($downpayment >= $minDPVal - 0.01) ? 'confirmed' : 'pending';
 
         $bookingStmt->execute([
             ':client_id'      => (int)$data['client_id'],
-            ':package_id'     => null, // package-less system
+            ':package_id'     => $pId > 0 ? $pId : null,
             ':event_date'     => $eventDate,
             ':event_time'     => $eventTime,
             ':event_location' => !empty($data['event_location']) ? $data['event_location'] : null,
+            ':event_type'     => !empty($data['event_type']) ? trim($data['event_type']) : 'Wedding',
             ':pax_count'      => $paxCount,
             ':base_pax'       => $basePax,
             ':extra_pax'      => $extraPax,
             ':base_price'     => $basePrice,
             ':extra_cost'     => $extraCost,
+            ':transport_fee'  => $transportFee,
+            ':surcharge_total'=> $customItemsTotal,
             ':total_cost'     => $totalCost,
             ':booking_status' => $initialStatus,
             ':invoice_token'  => bin2hex(random_bytes(16)),
             ':notes'          => $data['notes'] ?? null,
             ':dietary_notes'  => !empty($data['dietary_notes']) ? trim((string)$data['dietary_notes']) : null,
-            ':created_by'     => (int)$_SESSION['user_id'],
+            ':created_by'     => $creatorId,
         ]);
         $newId = $pdo->lastInsertId();
 
         // ── 7. Save selected dishes ──────────────────────────────
-        $allDishIds = array_merge($mainDishIds, $dessertIds);
+        $allDishIds = $validDishIds;
         if (!empty($allDishIds)) {
             $dishInsert = $pdo->prepare("INSERT INTO booking_dishes (booking_id, dish_id) VALUES (:bid, :did)");
             foreach ($allDishIds as $did) {
@@ -506,25 +570,24 @@ if ($method === 'POST') {
 
         // ── 7b. Save custom items (optional) ─────────────────────
         if (!empty($data['custom_items']) && is_array($data['custom_items'])) {
-            try {
-                $insCustom = $pdo->prepare("
-                    INSERT INTO booking_custom_items (booking_id, name, category, notes)
-                    VALUES (:bid, :name, :cat, :notes)
-                ");
-                foreach ($data['custom_items'] as $ci) {
-                    $name = trim((string)($ci['name'] ?? ''));
-                    if ($name === '') continue;
-                    $cat = (string)($ci['category'] ?? 'other');
-                    if (!in_array($cat, ['main','dessert','other'], true)) $cat = 'other';
-                    $insCustom->execute([
-                        ':bid'   => $newId,
-                        ':name'  => $name,
-                        ':cat'   => $cat,
-                        ':notes' => !empty($ci['notes']) ? trim((string)$ci['notes']) : null,
-                    ]);
-                }
-            } catch (Throwable $e) {
-                // optional table; ignore if not migrated yet
+            $insCustom = $pdo->prepare("
+                INSERT INTO booking_custom_items (booking_id, name, category, price, notes)
+                VALUES (:bid, :name, :cat, :price, :notes)
+            ");
+            foreach ($data['custom_items'] as $ci) {
+                $name = trim((string)($ci['name'] ?? ''));
+                if ($name === '') continue;
+                $cat = (string)($ci['category'] ?? 'other');
+                if (!in_array($cat, ['main','dessert','other'], true)) $cat = 'other';
+                $price = max(0, (float)($ci['price'] ?? 0));
+                
+                $insCustom->execute([
+                    ':bid'   => $newId,
+                    ':name'  => $name,
+                    ':cat'   => $cat,
+                    ':price' => $price,
+                    ':notes' => !empty($ci['notes']) ? trim((string)$ci['notes']) : null,
+                ]);
             }
         }
 
@@ -546,7 +609,7 @@ if ($method === 'POST') {
                 ':meth' => $dpMethod,
                 ':ref'  => trim($data['downpayment_ref'] ?? '') ?: null,
                 ':dt'   => date('Y-m-d'),
-                ':rec'  => (int)$_SESSION['user_id'],
+                ':rec'  => $creatorId,
             ]);
 
             // ── Force-sync amount_paid and auto-promote pending → confirmed ──
@@ -589,8 +652,15 @@ if ($method === 'POST') {
 
         $pdo->commit();
 
-        // Send email to client
-        require_once __DIR__ . '/../../includes/mailer.php';
+        // Trigger the cron worker in the background (non-blocking)
+        // This ensures the email queue is processed immediately after the booking.
+        $phpPath = '/Applications/XAMPP/xamppfiles/bin/php';
+        $cronPath = escapeshellarg(__DIR__ . '/../../cron_worker.php');
+        if (file_exists($phpPath)) {
+            shell_exec("$phpPath $cronPath > /dev/null 2>&1 &");
+        }
+
+        // Send email to client (Queuing)
         $clientStmt = $pdo->prepare("SELECT * FROM clients WHERE id = :cid");
         $clientStmt->execute([':cid' => $data['client_id']]);
         $client = $clientStmt->fetch();
@@ -707,39 +777,39 @@ if ($method === 'PUT') {
         if ($newPax < $minPax) jsonResponse(false, 'Minimum of ' . $minPax . ' guests is required.', [], 422);
         if ($newPax > $maxPax) jsonResponse(false, 'Maximum of ' . $maxPax . ' guests is allowed.', [], 422);
 
-        $pricing = computePaxPricing($newPax);
+        $pId     = isset($data['package_id']) ? (int)$data['package_id'] : (int)$booking['package_id'];
+        $pricing = computePaxPricing($pdo, $newPax, $pId);
         $base_pax   = (int)$pricing['base_pax'];
         $base_price = (float)$pricing['base_price'];
         $extra_pax  = (int)$pricing['extra_pax'];
         $extra_cost = (float)$pricing['extra_cost'];
-        $total_cost = (float)$pricing['total_cost'];
+        $newTransport = isset($data['transport_fee']) ? max(0, round((float)$data['transport_fee'], 2)) : 0;
+        $total_cost = (float)$pricing['total_cost'] + $newTransport;
         $maxMain = (int)$pricing['max_main'];
         $maxDesserts = (int)$pricing['max_desserts'];
     }
     
-    if (!$paxChanged) {
-        $limits = computePaxPricing($newPax);
-        $maxMain = (int)$limits['max_main'];
-        $maxDesserts = (int)$limits['max_desserts'];
     }
-
+    
+    // Always re-calculate total cost if pax, package, transport, or dishes changed
+    // to avoid rounding drifts or double-counting surcharges
+    $finalTransport = isset($data['transport_fee']) ? max(0, round((float)$data['transport_fee'], 2)) : (float)$current['transport_fee'];
+    $finalPId = isset($data['package_id']) ? (int)$data['package_id'] : (int)$current['package_id'];
+    $finalPricing = computePaxPricing($pdo, $newPax, $finalPId);
+    
+    $total_cost = (float)$finalPricing['total_cost'] + $finalTransport;
+    
     $dishesUpdated = false;
+    $validDishIds = [];
     if (isset($data['selected_dishes'])) {
-        $selectedDishIds = array_map('intval', (array)$data['selected_dishes']);
-        $mainDishIds = [];
-        $dessertIds  = [];
-        if (!empty($selectedDishIds)) {
-            $placeholders = implode(',', array_fill(0, count($selectedDishIds), '?'));
-            $dishStmt = $pdo->prepare("SELECT id, category FROM dishes WHERE id IN ($placeholders) AND is_active = 1");
-            $dishStmt->execute($selectedDishIds);
-            foreach ($dishStmt->fetchAll() as $d2) {
-                if ($d2['category'] === 'main') $mainDishIds[] = (int)$d2['id'];
-                if ($d2['category'] === 'dessert') $dessertIds[] = (int)$d2['id'];
-            }
-            if (count($mainDishIds) > $maxMain) jsonResponse(false, "You can select a maximum of $maxMain main dishes for $newPax pax.", [], 422);
-            if (count($dessertIds) > $maxDesserts) jsonResponse(false, "You can select a maximum of $maxDesserts dessert(s) for $newPax pax.", [], 422);
-        }
+        list($validDishIds, $customFees) = validateSelectedDishes($pdo, (array)$data['selected_dishes'], $maxMain, $maxDesserts);
+        $total_cost += $customFees;
         $dishesUpdated = true;
+    } else {
+        // If dishes NOT updated, we still need current dish surcharges to keep total_cost accurate
+        $stmtOld = $pdo->prepare("SELECT SUM(custom_fee) FROM dishes d JOIN booking_dishes bd ON d.id = bd.dish_id WHERE bd.booking_id = ?");
+        $stmtOld->execute([$bookingId]);
+        $total_cost += (float)$stmtOld->fetchColumn();
     }
 
     // Wrap in transaction just in case
@@ -750,6 +820,7 @@ if ($method === 'PUT') {
                 event_date     = COALESCE(:event_date,     event_date),
                 event_time     = COALESCE(:event_time,     event_time),
                 event_location = COALESCE(:event_location, event_location),
+                event_type     = COALESCE(:event_type,     event_type),
                 booking_status = COALESCE(:booking_status, booking_status),
                 notes          = :notes,
                 pax_count      = :pax_count,
@@ -758,6 +829,7 @@ if ($method === 'PUT') {
                 base_price     = :base_price,
                 extra_pax      = :extra_pax,
                 extra_cost     = :extra_cost,
+                transport_fee  = :transport_fee,
                 total_cost     = :total_cost
             WHERE id = :id
         ")->execute([
@@ -765,6 +837,7 @@ if ($method === 'PUT') {
             ':event_date'     => $newDate,
             ':event_time'     => $event_time,
             ':event_location' => $event_location,
+            ':event_type'     => !empty($data['event_type']) ? trim($data['event_type']) : null,
             ':booking_status' => $booking_status,
             ':notes'          => !empty($data['notes']) ? $data['notes'] : null,
             ':pax_count'      => $newPax,
@@ -773,6 +846,7 @@ if ($method === 'PUT') {
             ':base_price'     => $base_price,
             ':extra_pax'      => $extra_pax,
             ':extra_cost'     => $extra_cost,
+            ':transport_fee'  => isset($data['transport_fee']) ? max(0, round((float)$data['transport_fee'], 2)) : null,
             ':total_cost'     => $total_cost,
         ]);
 
@@ -791,18 +865,20 @@ if ($method === 'PUT') {
                 $pdo->prepare("DELETE FROM booking_custom_items WHERE booking_id = :bid")
                     ->execute([':bid' => $bookingId]);
                 $insCustom = $pdo->prepare("
-                    INSERT INTO booking_custom_items (booking_id, name, category, notes)
-                    VALUES (:bid, :name, :cat, :notes)
+                    INSERT INTO booking_custom_items (booking_id, name, category, price, notes)
+                    VALUES (:bid, :name, :cat, :price, :notes)
                 ");
                 foreach ($data['custom_items'] as $ci) {
                     $name = trim((string)($ci['name'] ?? ''));
                     if ($name === '') continue;
                     $cat = (string)($ci['category'] ?? 'other');
                     if (!in_array($cat, ['main','dessert','other'], true)) $cat = 'other';
+                    $price = max(0, (float)($ci['price'] ?? 0));
                     $insCustom->execute([
                         ':bid'   => $bookingId,
                         ':name'  => $name,
                         ':cat'   => $cat,
+                        ':price' => $price,
                         ':notes' => !empty($ci['notes']) ? trim((string)$ci['notes']) : null,
                     ]);
                 }
@@ -852,7 +928,7 @@ if ($method === 'PUT') {
     }
 
     jsonResponse(true, 'Booking updated successfully.');
-}
+
 
 // ────────────────────────────────────────────────────────────────
 // DELETE — admin only

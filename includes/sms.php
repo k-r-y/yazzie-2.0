@@ -94,7 +94,7 @@ function sendJobOfferSms(string $staffPhone, string $staffName, array $jobDetail
     $message   = "Hi {$staffName}! Yazzies Catering has a job offer for you."
                . " Role: {$jobDetails['role_required']}."
                . " Event: $eventDate at {$jobDetails['event_location']}."
-               . " Log in to http://localhost/test to Accept or Decline.";
+               . " Log in to " . BASE_URL . " to Accept or Decline.";
 
     return sendSms($staffPhone, $message);
 }

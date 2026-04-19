@@ -20,13 +20,16 @@ $nav = [
         ['section' => 'Overview'],
         ['dashboard',   'Dashboard',    'fa-chart-line',   '/views/admin/dashboard.php'],
         ['section' => 'Manage'],
-        ['bookings',    'Bookings',     'fa-calendar-days','/views/admin/bookings.php'],
-        ['recipes',     'Recipes & Costing', 'fa-flask',         '/views/admin/recipes.php'],
-        ['inventory',   'Inventory Items',   'fa-boxes-stacked', '/views/admin/inventory.php'],
+        ['bookings',    'Bookings',          'fa-calendar-days',  '/views/admin/bookings.php'],
+        ['packages',    'Package Pricing',   'fa-tags',           '/views/admin/packages.php'],
+        ['dishes',      'Food & Menu',       'fa-utensils',       '/views/admin/dishes.php'],
+        ['recipes',     'Recipes & Costing', 'fa-flask',          '/views/admin/recipes.php'],
+        ['inventory',   'Inventory Items',   'fa-boxes-stacked',  '/views/admin/inventory.php'],
         ['financial',   'Financials',   'fa-coins',        '/views/admin/financial.php'],
         ['section' => 'Human Resources'],
         ['staff',       'Staff',        'fa-id-badge',     '/views/admin/staff.php'],
         ['section' => 'System'],
+        ['profit',      'Profit Guard', 'fa-chart-pie',    '/views/admin/profit.php'],
         ['archive',     'Archive',      'fa-box-archive',  '/views/admin/archive.php'],
     ],
     'frontdesk' => [
@@ -34,11 +37,13 @@ $nav = [
         ['dashboard',   'Dashboard',    'fa-house',        '/views/frontdesk/dashboard.php'],
         ['section' => 'Operations'],
         ['bookings',    'Bookings',     'fa-calendar-days','/views/frontdesk/bookings.php'],
+        ['dispatching', 'Staff Dispatching', 'fa-bullhorn',  '/views/frontdesk/dispatching.php'],
         ['costing',     'Grocery List', 'fa-cart-shopping','/views/frontdesk/costing.php'],
     ],
     'staff' => [
         ['section' => 'My Jobs'],
-        ['dashboard',   'Job Board',    'fa-briefcase',    '/views/staff/dashboard.php'],
+        ['dashboard',     'Job Board',      'fa-briefcase',        '/views/staff/dashboard.php'],
+        ['event_report',  'Event Report',   'fa-clipboard-check',  '/views/staff/event_report.php'],
     ],
 ];
 
@@ -138,7 +143,7 @@ if ($role === 'super_admin') {
                     <span id="notifBadge" style="display:none;position:absolute;top:2px;right:2px;min-width:15px;height:15px;border-radius:99px;background:#FF3B30;color:#fff;font-size:9px;font-weight:800;line-height:15px;text-align:center;padding:0 4px;"></span>
                 </button>
                 <!-- Dropdown panel -->
-                <div id="notifPanel" style="display:none;position:absolute;right:0;top:calc(100% + 6px);width:300px;background:var(--glass-bg);backdrop-filter:blur(20px);border:0.5px solid var(--glass-sep);border-radius:14px;box-shadow:var(--shadow-xl);z-index:1050;overflow:hidden;">
+                <div id="notifPanel" style="display:none;position:absolute;right:0;top:calc(100% + 8px);width:360px;background:var(--glass-ultra);backdrop-filter:var(--glass-blur-hvy);-webkit-backdrop-filter:var(--glass-blur-hvy);border:0.5px solid var(--glass-sep);border-radius:16px;box-shadow:var(--shadow-xl);z-index:9999;overflow:hidden;">
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:0.5px solid var(--glass-sep);">
                         <span style="font-size:13px;font-weight:700;">Notifications</span>
                         <button onclick="markAllRead()" style="font-size:11px;font-weight:600;color:var(--sys-green-dark);background:none;border:none;cursor:pointer;">Mark all read</button>
@@ -240,8 +245,23 @@ if ($role === 'super_admin') {
                 list.innerHTML = '<p style="text-align:center;font-size:12px;color:#9ca3af;padding:20px 16px;">No notifications yet.</p>';
                 return;
             }
-            const typeIcon = { job_assigned: '📋', leave_approved: '✅', leave_rejected: '❌', general: 'ℹ️' };
+            const typeIcon = { job_assigned: '📋', job_declined: '⚠️', leave_approved: '✅', leave_rejected: '❌', leave_reviewed: '📝', general: 'ℹ️' };
             list.innerHTML = notifs.map(n => {
+                // Determine icon dynamically and clean title
+                let icon = typeIcon[n.type] || 'ℹ️';
+                let cleanTitle = n.title || '';
+                
+                if (n.type === 'general') {
+                    if (n.title.includes('Event Reminder')) {
+                        icon = '📅';
+                        cleanTitle = cleanTitle.replace('📅', '').trim();
+                    }
+                    if (n.title.includes('Pending Balance')) {
+                        icon = '💰';
+                        cleanTitle = cleanTitle.replace('💰', '').trim();
+                    }
+                }
+
                 // Build destination URL for click-to-navigate
                 const BASE_URL_JS = '<?= BASE_URL ?>';
                 let destUrl = null;
@@ -266,10 +286,10 @@ if ($role === 'super_admin') {
                      style="padding:11px 14px;border-bottom:0.5px solid var(--glass-sep);cursor:pointer;transition:background .15s;background:${n.is_read ? 'transparent' : 'rgba(48,209,88,0.04)'};"
                      onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='${n.is_read ? 'transparent' : 'rgba(48,209,88,0.04)'}'">
                     <div style="display:flex;gap:8px;align-items:flex-start;">
-                        <span style="font-size:15px;flex-shrink:0;">${typeIcon[n.type] || 'ℹ️'}</span>
+                        <span style="font-size:15px;flex-shrink:0;">${icon}</span>
                         <div style="min-width:0;">
-                            <div style="font-size:12px;font-weight:${n.is_read ? '500' : '700'};color:var(--label-1);margin-bottom:2px;">${n.title}</div>
-                            ${n.body ? `<div style="font-size:11px;color:var(--label-3);white-space:normal;">${n.body}</div>` : ''}
+                            <div style="font-size:12px;font-weight:${n.is_read ? '500' : '700'};color:var(--label-1);margin-bottom:2px;">${esc(cleanTitle)}</div>
+                            ${n.body ? `<div style="font-size:11px;color:var(--label-3);white-space:normal;">${esc(n.body)}</div>` : ''}
                             <div style="font-size:10px;color:var(--label-4);margin-top:3px;">${new Date(n.created_at).toLocaleDateString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
                         </div>
                         ${!n.is_read ? '<span style="width:7px;height:7px;border-radius:50%;background:#30D158;flex-shrink:0;margin-top:4px;"></span>' : ''}
@@ -288,10 +308,11 @@ if ($role === 'super_admin') {
     window.markRead = async function(id, el) {
         el.style.background = 'transparent';
         el.querySelector('span[style*="30D158"]')?.remove();
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         try {
             await fetch(BASE_URL + '/src/api/notifications.php', {
                 method: 'PUT', credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
                 body: JSON.stringify({ id })
             });
             fetchCount();
@@ -302,13 +323,19 @@ if ($role === 'super_admin') {
     window.markReadAndNavigate = async function(id, url, el) {
         el.style.background = 'transparent';
         el.querySelector('span[style*="30D158"]')?.remove();
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         try {
             await fetch(BASE_URL + '/src/api/notifications.php', {
                 method: 'PUT', credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
                 body: JSON.stringify({ id })
             });
+            // Try to optimistically adjust the badge immediately so it looks fast
+            let currentUnread = parseInt(badge.textContent) || 0;
+            if (currentUnread > 1) { badge.textContent = currentUnread - 1; } 
+            else { badge.style.display = 'none'; }
         } catch(e) {}
+        
         // Close panel and navigate
         panelOpen = false;
         panel.style.display = 'none';
@@ -316,10 +343,11 @@ if ($role === 'super_admin') {
     };
 
     window.markAllRead = async function() {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         try {
             await fetch(BASE_URL + '/src/api/notifications.php', {
                 method: 'PUT', credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
                 body: JSON.stringify({ mark_all: true })
             });
             badge.style.display = 'none';

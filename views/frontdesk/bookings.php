@@ -136,7 +136,6 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
 </div>
 
 <script>
-const BASE = '<?= BASE_URL ?>';
 let menusFD = [], allBookings = [];
 let allDishes = { mains: [], desserts: [] };
 
@@ -169,7 +168,7 @@ async function loadBookingsFD() {
     }
     tbody.innerHTML = allBookings.map(b => `
         <tr>
-            <td class="td-name">${b.client_name}<br><small class="text-muted">${b.client_phone}</small></td>
+            <td class="td-name">${esc(b.client_name)}<br><small class="text-muted">${esc(b.client_phone)}</small></td>
             <td>${Format.dateShort(b.event_date)}<br><small class="text-muted">${b.event_time ? Format.time(b.event_time) : ''}</small></td>
             <td>${b.menu_name}</td>
             <td>${b.pax_count}</td>

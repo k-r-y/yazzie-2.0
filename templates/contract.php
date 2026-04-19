@@ -7,7 +7,6 @@ requireRole(['admin', 'frontdesk']);
 $bookingId = (int)($_GET['booking_id'] ?? 0);
 if (!$bookingId) die('Invalid booking ID.');
 
-// 1. Fetch the main booking and client details
 $stmt = $pdo->prepare("
     SELECT b.*, c.name AS client_name, c.phone AS client_phone, 
            c.email AS client_email, c.address AS client_address
@@ -28,7 +27,11 @@ $stmtDishes = $pdo->prepare("
     ORDER BY d.category ASC
 ");
 $stmtDishes->execute([':id' => $bookingId]);
-$selectedDishes = $stmtDishes->fetchAll(PDO::FETCH_GROUP); 
+$selectedDishes = $stmtDishes->fetchAll(PDO::FETCH_GROUP);
+
+$stmtCustom = $pdo->prepare("SELECT * FROM booking_custom_items WHERE booking_id = :id");
+$stmtCustom->execute([':id' => $bookingId]);
+$customItems = $stmtCustom->fetchAll();
 $eventDate = date('F j, Y', strtotime($b['event_date']));
 $eventTime = '';
 if ($b['event_time']) {
@@ -99,18 +102,65 @@ $balance = $b['total_cost'] - $b['amount_paid'];
             </div>
         <?php endforeach; ?>
     <?php endif; ?>
+
+    <?php if (!empty($customItems)): ?>
+        <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #ddd;">
+             <strong style="text-transform: uppercase; font-size: 12px; color: #C8501E;">Additional / Custom Items:</strong>
+             <ul style="margin: 5px 0; font-size: 14px; padding-left: 20px;">
+                <?php foreach ($customItems as $ci): ?>
+                    <li><?= htmlspecialchars($ci['name']) ?> (<?= htmlspecialchars($ci['category']) ?>)</li>
+                <?php endforeach; ?>
+             </ul>
+        </div>
+    <?php endif; ?>
 </div>
 
-    <div class="print-section-title">Payment Summary</div>
     <div class="print-total-block" style="max-width:100%;margin:0 0 16pt;">
-        <div class="print-total-row"><span>Package Rate (<?= $b['pax_count'] ?> × ₱<?= number_format($b['price_per_pax'], 2) ?>)</span><span>₱<?= number_format($b['total_cost'], 2) ?></span></div>
-        <div class="print-total-row"><span>Amount Paid</span><span style="color:#059669;">(₱<?= number_format($b['amount_paid'], 2) ?>)</span></div>
-        <div class="print-total-row grand"><span>Outstanding Balance</span><span style="color:<?= $balance > 0 ? '#DC2626' : '#059669'; ?>">₱<?= number_format(max(0, $balance), 2) ?></span></div>
+        <div class="print-total-row">
+            <span>Base Package (<?= $b['base_pax'] ?> pax)</span>
+            <span>₱<?= number_format($b['base_price'], 2) ?></span>
+        </div>
+        
+        <?php if ($b['extra_pax'] > 0): ?>
+        <div class="print-total-row">
+            <span>Extra Guests (<?= $b['extra_pax'] ?> × ₱<?= number_format(125, 2) ?>)</span>
+            <span>₱<?= number_format($b['extra_cost'], 2) ?></span>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($b['transport_fee'] > 0): ?>
+        <div class="print-total-row">
+            <span>Transport Fee / Surcharge</span>
+            <span>₱<?= number_format($b['transport_fee'], 2) ?></span>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($b['surcharge_total'] > 0): ?>
+        <div class="print-total-row">
+            <span>Additional Items / Menu Surcharges</span>
+            <span>₱<?= number_format($b['surcharge_total'], 2) ?></span>
+        </div>
+        <?php endif; ?>
+
+        <div style="height:1px; background:#ddd; margin:8px 0;"></div>
+        
+        <div class="print-total-row">
+            <span style="font-weight:700;">TOTAL CONTRACT AMOUNT</span>
+            <span style="font-weight:700;">₱<?= number_format($b['total_cost'], 2) ?></span>
+        </div>
+        <div class="print-total-row">
+            <span>Amount Paid / Downpayment</span>
+            <span style="color:#059669;">(₱<?= number_format($b['amount_paid'], 2) ?>)</span>
+        </div>
+        <div class="print-total-row grand">
+            <span>OUTSTANDING BALANCE</span>
+            <span style="color:<?= $balance > 0 ? '#DC2626' : '#059669'; ?>">₱<?= number_format(max(0, $balance), 2) ?></span>
+        </div>
     </div>
 
     <div class="print-section-title">Terms & Conditions</div>
     <div class="clause"><strong>1. Booking Confirmation.</strong> This contract is binding upon signature of both parties. The event shall be considered confirmed upon receipt of the required downpayment.</div>
-    <div class="clause"><strong>2. Downpayment Policy.</strong> A minimum downpayment of fifty percent (50%) of the total package price is required to confirm and reserve the event date.</div>
+    <div class="clause"><strong>2. Downpayment Policy.</strong> A minimum downpayment of thirty percent (30%) of the total package price is required to confirm and reserve the event date.</div>
     <div class="clause"><strong>3. Final Payment.</strong> The remaining balance must be settled in full on or before the event date. Yazzies Catering reserves the right to withhold services for unsettled accounts.</div>
     <div class="clause"><strong>4. Cancellation Policy.</strong> Cancellations made less than seven (7) days before the event date shall forfeit the paid downpayment. Cancellations prior to seven (7) days may be subject to rescheduling at the management's discretion.</div>
     <div class="clause"><strong>5. Guest Count Changes.</strong> Final guest count adjustments must be communicated no later than three (3) days before the event. Changes may affect the final billing.</div>

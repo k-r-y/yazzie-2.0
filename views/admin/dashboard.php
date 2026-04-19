@@ -207,9 +207,9 @@ async function loadUpcoming() {
         }
         tbody.innerHTML = d.bookings.slice(0, 8).map(b => `
             <tr>
-                <td class="td-name">${b.client_name}</td>
+                <td class="td-name">${esc(b.client_name)}</td>
                 <td>${Format.dateShort(b.event_date)} ${b.event_time ? '· ' + Format.time(b.event_time) : ''}</td>
-                <td>${b.menu_name}</td>
+                <td>${esc(b.menu_name)}</td>
                 <td>${b.pax_count} pax</td>
                 <td class="text-bold">${Format.peso(b.total_cost)}</td>
                 <td>${Format.paymentBadge(b.payment_status)}</td>

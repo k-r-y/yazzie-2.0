@@ -5,7 +5,7 @@ requireRole('staff');
 
 $pageTitle    = 'My Dashboard';
 $pageSubtitle = 'View jobs, schedule & manage leave requests';
-$activePage   = 'staff_dashboard';
+$activePage   = 'dashboard';
 
 include __DIR__ . '/../../includes/header.php';
 include __DIR__ . '/../../includes/sidebar.php';
@@ -141,19 +141,19 @@ function renderJob(j, showActions = true) {
     <div class="job-card ${j.status === 'pending' ? 'urgent' : ''}">
         <div class="job-card-header">
             <div>
-                <div class="job-card-role">${j.role_required}</div>
+                <div class="job-card-role">${esc(j.role_required)}</div>
                 <div class="text-sm text-muted">Job #${j.id}</div>
             </div>
             <span class="badge ${statusColor[j.status] || ''}">${j.status.charAt(0).toUpperCase() + j.status.slice(1)}</span>
         </div>
         <div class="job-card-meta">
-            <div class="job-meta-item"><i class="fas fa-user"></i>${j.client_name}</div>
+            <div class="job-meta-item"><i class="fas fa-user"></i>${esc(j.client_name)}</div>
             <div class="job-meta-item"><i class="fas fa-calendar"></i>${Format.dateShort(j.event_date)}${j.event_time ? ' · ' + Format.time(j.event_time) : ''}</div>
-            <div class="job-meta-item"><i class="fas fa-location-dot"></i>${j.event_location || '—'}</div>
-            <div class="job-meta-item"><i class="fas fa-utensils"></i>${j.menu_name}</div>
+            <div class="job-meta-item"><i class="fas fa-location-dot"></i>${esc(j.event_location || '—')}</div>
+            <div class="job-meta-item"><i class="fas fa-utensils"></i>${esc(j.menu_name)}</div>
             <div class="job-meta-item"><i class="fas fa-users"></i>${j.pax_count} guests</div>
         </div>
-        ${j.notes ? `<div class="text-sm text-muted mb-3"><i class="fas fa-note-sticky me-1"></i>${j.notes}</div>` : ''}
+        ${j.notes ? `<div class="text-sm text-muted mb-3"><i class="fas fa-note-sticky me-1"></i>${esc(j.notes)}</div>` : ''}
         ${showActions && j.status === 'pending' ? `
         <div class="job-card-actions">
             <button class="btn btn-success" onclick="respond(${j.id}, 'accepted')">

@@ -269,7 +269,7 @@ async function refreshBookingSelector() {
             return `<option value="${b.id}"
                 data-total="${total}" data-paid="${paid}" data-status="${b.payment_status}"
                 ${b.id == cur ? 'selected' : ''}>
-             ${b.client_name} (${Format.dateShort(b.event_date)})${balStr}
+             ${esc(b.client_name)} (${Format.dateShort(b.event_date)})${balStr}
             </option>`;
         }).join('');
 }
@@ -395,7 +395,7 @@ async function loadLedger() {
 
             return `
             <tr>
-                <td class="td-name">${b.client_name}<br><small class="text-muted">${Format.dateShort(b.event_date)}</small></td>
+                <td class="td-name">${esc(b.client_name)}<br><small class="text-muted">${Format.dateShort(b.event_date)}</small></td>
                 <td>${b.package_name ?? b.menu_name ?? '—'}<br><small class="text-muted">${b.pax_count} pax</small></td>
                 <td>
                     <div class="fw-600">${Format.peso(total)}</div>
@@ -468,8 +468,8 @@ async function loadPaymentHistory(bookingId, bookingInfo) {
                 <td>${Format.dateShort(p.payment_date)}</td>
                 <td class="fw-600" style="color:#1A7A32;">${Format.peso(p.amount)}</td>
                 <td>${methodLabel[p.payment_method] || p.payment_method}</td>
-                <td class="td-mono text-xs">${p.reference_no || '—'}</td>
-                <td class="text-muted text-sm">${p.notes || '—'}</td>
+                <td class="td-mono text-xs">${esc(p.reference_no || '—')}</td>
+                <td class="text-muted text-sm">${esc(p.notes || '—')}</td>
                 <td class="td-actions">
                     <button class="btn btn-danger btn-sm" onclick="deletePayment(${p.id}, ${bookingId})" title="Remove">
                         <i class="fas fa-trash-alt"></i>
@@ -595,11 +595,11 @@ async function loadRefunds() {
 
             return `
                 <tr>
-                    <td class="td-name">${r.client_name}<br><small class="text-muted">${Format.dateShort(r.event_date)}</small></td>
+                    <td class="td-name">${esc(r.client_name)}<br><small class="text-muted">${Format.dateShort(r.event_date)}</small></td>
                     <td class="fw-600">${Format.peso(r.total_paid)}</td>
                     <td style="color:#C0392B;">${Format.peso(r.forfeited_amount)}</td>
                     <td style="font-weight:700; color:#1A7A32;">${Format.peso(r.refundable_amount)}</td>
-                    <td><small class="text-muted">${r.reason || '—'}</small></td>
+                    <td><small class="text-muted">${esc(r.reason || '—')}</small></td>
                     <td>${statusBadge}</td>
                     <td class="td-actions">
                         ${r.refund_status === 'pending' ? `

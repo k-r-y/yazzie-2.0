@@ -12,6 +12,7 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 
 requireApiRole(['admin', 'frontdesk', 'staff']);
+requireCsrf();
 $method = $_SERVER['REQUEST_METHOD'];
 
 // ── GET ──────────────────────────────────────────────────────────────────
@@ -27,21 +28,26 @@ if ($method === 'GET') {
         ");
         $all = $stmt->fetchAll();
 
-        $grouped = ['main' => [], 'dessert' => []];
+        $grouped = [];
         foreach ($all as $d) {
-            $grouped[$d['category']][] = $d;
+            $cat = $d['category'];
+            if (!isset($grouped[$cat])) {
+                $grouped[$cat] = [];
+            }
+            $grouped[$cat][] = $d;
         }
 
         jsonResponse(true, '', [
-            'mainDishes' => $grouped['main'],
-            'desserts'   => $grouped['dessert'],
+            'dishes_grouped' => $grouped,
+            'mainDishes' => $grouped['main'] ?? [], // fallback for older clients
+            'desserts'   => $grouped['Dessert'] ?? [], // fallback for older clients
         ]);
     }
 
     // Default: return all packages
     $stmt = $pdo->query("
         SELECT id, set_name, pax_count, price,
-               max_main_dishes, max_desserts, includes_rice
+               max_main_dishes, max_desserts, includes_rice, inclusions
         FROM packages
         WHERE is_active = 1
         ORDER BY pax_count ASC
@@ -49,46 +55,103 @@ if ($method === 'GET') {
     jsonResponse(true, '', ['packages' => $stmt->fetchAll()]);
 }
 
-// ── POST — add dish (admin only) ─────────────────────────────────────────
+// ── POST — add dish or package (admin only) ──────────────────────────────
 if ($method === 'POST') {
     requireApiRole('admin');
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
-    if (empty($d['name']))     jsonResponse(false, 'Dish name is required.', [], 422);
-    if (empty($d['category'])) jsonResponse(false, 'Category is required.', [], 422);
-    if (!in_array($d['category'], ['main','dessert'])) {
-        jsonResponse(false, 'Category must be main or dessert.', [], 422);
+
+    if (isset($d['type']) && $d['type'] === 'package') {
+        if (empty($d['set_name'])) jsonResponse(false, 'Package name is required.', [], 422);
+        
+        $stmt = $pdo->prepare("
+            INSERT INTO packages (set_name, pax_count, price, max_main_dishes, max_desserts, includes_rice, inclusions) 
+            VALUES (:name, :pax, :price, :opt_main, :opt_dessert, :rice, :inclusions)
+        ");
+        $stmt->execute([
+            ':name'        => trim($d['set_name']),
+            ':pax'         => (int)$d['pax_count'],
+            ':price'       => (float)$d['price'],
+            ':opt_main'    => (int)($d['max_main_dishes'] ?? 5),
+            ':opt_dessert' => (int)($d['max_desserts'] ?? 1),
+            ':rice'        => (int)($d['includes_rice'] ?? 1),
+            ':inclusions'  => trim($d['inclusions'] ?? '')
+        ]);
+        jsonResponse(true, 'Package added.', ['id' => $pdo->lastInsertId()], 201);
+        exit;
     }
 
-    $stmt = $pdo->prepare("INSERT INTO dishes (name, category) VALUES (:name, :cat)");
-    $stmt->execute([':name' => trim($d['name']), ':cat' => $d['category']]);
+    // Default POST: add dish
+    if (empty($d['name']))     jsonResponse(false, 'Dish name is required.', [], 422);
+    if (empty($d['category'])) jsonResponse(false, 'Category is required.', [], 422);
+    $stmt = $pdo->prepare("INSERT INTO dishes (name, category, custom_fee) VALUES (:name, :cat, :fee)");
+    $stmt->execute([
+        ':name' => trim($d['name']), 
+        ':cat' => trim($d['category']), 
+        ':fee' => (float)($d['custom_fee'] ?? 0)
+    ]);
     jsonResponse(true, 'Dish added.', ['id' => $pdo->lastInsertId()], 201);
 }
 
-// ── PUT — update dish ────────────────────────────────────────────────────
+// ── PUT — update dish or package ─────────────────────────────────────────
 if ($method === 'PUT') {
     requireApiRole('admin');
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    if (isset($d['type']) && $d['type'] === 'package') {
+        if (empty($d['id'])) jsonResponse(false, 'Package ID required.', [], 422);
+
+        $pdo->prepare("
+            UPDATE packages 
+            SET set_name = :name, pax_count = :pax, price = :price, 
+                max_main_dishes = :opt_main, max_desserts = :opt_dessert, includes_rice = :rice,
+                inclusions = :inclusions
+            WHERE id = :id
+        ")->execute([
+            ':name'        => trim($d['set_name'] ?? 'Tier'),
+            ':pax'         => (int)$d['pax_count'],
+            ':price'       => (float)$d['price'],
+            ':opt_main'    => (int)($d['max_main_dishes'] ?? 5),
+            ':opt_dessert' => (int)($d['max_desserts'] ?? 1),
+            ':rice'        => (int)($d['includes_rice'] ?? 1),
+            ':inclusions'  => trim($d['inclusions'] ?? ''),
+            ':id'          => (int)$d['id']
+        ]);
+        jsonResponse(true, 'Package updated.');
+        exit;
+    }
+
+    // Default PUT: update dish
     if (empty($d['id']))   jsonResponse(false, 'Dish ID required.', [], 422);
     if (empty($d['name'])) jsonResponse(false, 'Dish name required.', [], 422);
 
-    $pdo->prepare("UPDATE dishes SET name = :name, category = :cat WHERE id = :id")
+    $pdo->prepare("UPDATE dishes SET name = :name, category = :cat, custom_fee = :fee WHERE id = :id")
         ->execute([
             ':name' => trim($d['name']),
-            ':cat'  => $d['category'] ?? 'main',
+            ':cat'  => trim($d['category'] ?? 'main'),
+            ':fee'  => (float)($d['custom_fee'] ?? 0),
             ':id'   => (int)$d['id'],
         ]);
     jsonResponse(true, 'Dish updated.');
 }
 
-// ── DELETE — toggle active ───────────────────────────────────────────────
+// ── DELETE — toggle dish or package status ──────────────────────────────
 if ($method === 'DELETE') {
     requireApiRole('admin');
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
-    if (empty($d['id'])) jsonResponse(false, 'Dish ID required.', [], 422);
+    if (empty($d['id'])) jsonResponse(false, 'ID required.', [], 422);
+
+    if (isset($d['type']) && $d['type'] === 'package') {
+        $pdo->prepare("UPDATE packages SET is_active = IF(is_active=1, 0, 1) WHERE id = :id")
+            ->execute([':id' => (int)$d['id']]);
+        jsonResponse(true, 'Package status toggled.');
+        exit;
+    }
 
     $pdo->prepare("UPDATE dishes SET is_active = IF(is_active=1, 0, 1) WHERE id = :id")
         ->execute([':id' => (int)$d['id']]);
     jsonResponse(true, 'Dish status toggled.');
 }
+
+
 
 jsonResponse(false, 'Method Not Allowed.', [], 405);

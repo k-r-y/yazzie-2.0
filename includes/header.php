@@ -32,6 +32,9 @@ $extraCss     = $extraCss     ?? [];
         const BASE = '<?= rtrim(BASE_URL, "/") ?>/';
     </script>
 
+    <!-- CSRF Token (read by Api wrapper in main.js) -->
+    <meta name="csrf-token" content="<?= getCsrfToken() ?>">
+
     <?php foreach ($extraCss as $css): ?>
         <link rel="stylesheet" href="<?= htmlspecialchars($css) ?>">
     <?php endforeach; ?>
@@ -47,7 +50,7 @@ $extraCss     = $extraCss     ?? [];
 
     <!-- Yazzies Shared Utilities (Api, Format, Toast, Modal, Form, etc.) -->
     <!-- MUST load here so inline view scripts can use Api.get(), Format.peso(), etc. -->
-    <script src="<?= BASE_URL ?>/assets/js/main.js"></script>
+    <script src="<?= BASE_URL ?>/assets/js/main.js?v=<?= time() ?>"></script>
 
     <style>
         /* Force Apple font stack even when Bootstrap sets its own */

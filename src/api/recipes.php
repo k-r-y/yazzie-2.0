@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 
 $user   = requireApiRole(['admin', 'frontdesk', 'staff']);
+requireCsrf();
 $method = $_SERVER['REQUEST_METHOD'];
 
 // ── GET: Fetch full recipes or compute scaled yields ────────────────
@@ -35,12 +36,15 @@ if ($method === 'GET') {
         $scaled = [];
         foreach ($ingredients as $ing) {
             $computedQty = round($ing['base_quantity'] * $multiplier, 2);
+            $unitPrice   = (float)($ing['unit_price'] ?? 0);
             $scaled[] = [
                 'id' => $ing['id'],
                 'ingredient_name' => $ing['ingredient_name'],
                 'base_quantity' => (float)$ing['base_quantity'],
                 'computed_quantity' => $computedQty,
-                'unit' => $ing['unit']
+                'unit' => $ing['unit'],
+                'unit_price' => $unitPrice,
+                'estimated_cost' => round($unitPrice * $computedQty, 2),
             ];
         }
 

@@ -7,8 +7,10 @@
 header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/audit.php';
 
-requireApiRole('admin');
+$currentUser = requireApiRole('admin');
+requireCsrf();
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
@@ -89,7 +91,7 @@ if ($method === 'POST') {
             ':amount_paid'    => $booking['amount_paid'],
             ':payment_status' => $booking['payment_status'],
             ':notes'          => $booking['notes'],
-            ':archived_by'    => (int)$_SESSION['user_id'],
+            ':archived_by'    => (int)$currentUser['id'],
         ]);
 
         $archId = $pdo->lastInsertId();
@@ -107,6 +109,12 @@ if ($method === 'POST') {
         ]);
 
         $pdo->commit();
+
+        // Audit: booking archived
+        auditLog($pdo, 'booking_archived', 'booking', $bookingId,
+            ['booking_status' => $booking['booking_status']],
+            ['is_archived' => 1, 'archived_id' => $archId]
+        );
 
         jsonResponse(true, 'Booking archived successfully.', ['archived_id' => $archId], 201);
 

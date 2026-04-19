@@ -185,7 +185,7 @@ function renderTable(bookings) {
     }
     tbody.innerHTML = bookings.map((b, i) => `
         <tr>
-            <td class="td-name">${b.client_name}<br><small class="text-muted">${b.client_phone}</small></td>
+            <td class="td-name">${esc(b.client_name)}<br><small class="text-muted">${esc(b.client_phone)}</small></td>
             <td>${Format.dateShort(b.event_date)}<br><small class="text-muted">${b.event_time ? Format.time(b.event_time) : ''}</small></td>
             <td>${b.pax_count}</td>
             <td class="text-bold">${Format.peso(b.total_cost)}</td>
@@ -235,14 +235,14 @@ async function openEdit(id) {
         document.getElementById('editDishGridMains').innerHTML = allDishes.mains.map(dish => `
             <label style="display:flex; align-items:center; gap:6px; font-size:13px; background:#f8f9fa; padding:4px 8px; border-radius:4px; border:1px solid #eee;">
                 <input type="checkbox" name="selected_dishes[]" value="${dish.id}" ${selectedDishIds.includes(dish.id) ? 'checked' : ''}>
-                🍲 ${dish.name}
+                🍲 ${esc(dish.name)}
             </label>
         `).join('');
 
         document.getElementById('editDishGridDesserts').innerHTML = allDishes.desserts.map(dish => `
             <label style="display:flex; align-items:center; gap:6px; font-size:13px; background:#fff2cc; padding:4px 8px; border-radius:4px; border:1px solid #ffe699;">
                 <input type="checkbox" name="selected_dishes[]" value="${dish.id}" ${selectedDishIds.includes(dish.id) ? 'checked' : ''}>
-                🍮 ${dish.name}
+                🍮 ${esc(dish.name)}
             </label>
         `).join('');
 
@@ -371,7 +371,7 @@ async function openBreakageModal() {
             <div id="breakageList" class="mb-3" style="max-height:200px; overflow-y:auto; background:#f8f9fa; border-radius:10px; padding:10px;">
                 ${logs.length === 0 ? '<div class="text-center py-3 text-muted">No losses logged.</div>' : logs.map(l => `
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:13px; border-bottom:1px solid #eee; padding-bottom:5px;">
-                        <span>${l.equipment_name} (x${l.quantity})</span>
+                        <span>${esc(l.equipment_name)} (x${l.quantity})</span>
                         <div style="display:flex; align-items:center; gap:10px;">
                             <span class="fw-700">${Format.peso(l.total_cost)}</span>
                             <button class="btn-icon text-danger" onclick="deleteBreakage(${l.id})"><i class="fas fa-times"></i></button>
@@ -386,7 +386,7 @@ async function openBreakageModal() {
                         <label class="form-label text-xs">Item</label>
                         <select class="form-control form-control-sm" id="bb_item">
                             <option value="">Select equipment...</option>
-                            ${inventory.map(i => `<option value="${i.id}">${i.name} (${Format.peso(i.replacement_cost)})</option>`).join('')}
+                            ${inventory.map(i => `<option value="${i.id}">${esc(i.name)} (${Format.peso(i.replacement_cost)})</option>`).join('')}
                         </select>
                     </div>
                     <div class="col-4">

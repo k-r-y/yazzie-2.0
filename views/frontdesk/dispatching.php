@@ -33,16 +33,26 @@ include __DIR__ . '/../../includes/sidebar.php';
                             <div class="text-sm text-muted" id="di-loc"></div>
                             <div class="text-sm"><strong id="di-pax"></strong></div>
                         </div>
+                        <!-- Auto-Suggest Banner -->
+                        <div id="suggestBanner" style="display:none; margin-top:8px; background:rgba(48,209,88,0.08); border:1px solid rgba(48,209,88,0.25); border-radius:var(--radius-sm); padding:10px 14px;">
+                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
+                                <i class="fas fa-wand-magic-sparkles" style="color:#1A7A32;"></i>
+                                <span class="fw-700 text-sm" style="color:#1A7A32;">Staff Recommendation</span>
+                            </div>
+                            <div class="text-xs" style="color:rgba(60,60,67,0.7);">
+                                <span id="suggest-text"></span>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Role Required <span class="required">*</span></label>
-                        <select class="form-control" name="role_required" required>
-                            <option value="Head Cook">Head Cook</option>
-                            <option value="Assistant Cook">Assistant Cook</option>
-                            <option value="Waiter" selected>Waiter</option>
-                            <option value="Coordinator">Coordinator</option>
-                            <option value="Utility">Utility</option>
+                        <select class="form-control" name="role_required" id="roleReqSel" required onchange="renderStaffList()">
+                            <option value="head_cook">👨‍🍳 Head Cook</option>
+                            <option value="cook">🍳 Assistant Cook</option>
+                            <option value="waiter" selected>🤵 Waiter</option>
+                            <option value="server">🍽️ Server</option>
+                            <option value="helper">🙋 Helper / Utility</option>
                         </select>
                     </div>
 
@@ -85,8 +95,7 @@ include __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <script>
-const BASE = '<?= BASE_URL ?>';
-let confirmedBookings = [];
+let confirmedBookings = [], availStaff = [], allJobs = [];
 
 async function initDispatch() {
     try {
@@ -101,12 +110,70 @@ async function initDispatch() {
         sel.innerHTML = '<option value="">Choose a confirmed event…</option>' +
             confirmedBookings.map(b =>
                 `<option value="${b.id}" ${b.id == <?= $preloadId ?> ? 'selected' : ''}>
-                    #${b.id} — ${b.client_name} (${Format.dateShort(b.event_date)})
+                    #${b.id} — ${esc(b.client_name)} (${Format.dateShort(b.event_date)})
                 </option>`
             ).join('');
 
         if (<?= $preloadId ?> > 0) await loadExistingOrders();
     } catch(e) { Toast.error('Failed to load initial data.'); }
+}
+
+function renderStaffList() {
+    const div = document.getElementById('staffCheckboxes');
+    if (!availStaff.length) {
+        div.innerHTML = '<div class="text-muted text-sm p-2">No active staff found.</div>';
+        return;
+    }
+
+    const selectedRole = document.getElementById('roleReqSel').value;
+    
+    // Filter to strictly matching staff only as requested, and NOT already dispatched
+    const filteredStaff = availStaff.filter(s => s.job_class === selectedRole && !s.already_dispatched);
+
+    if (!filteredStaff.length) {
+        div.innerHTML = `<div class="text-muted text-sm p-3 text-center" style="border: 1px dashed var(--border); border-radius: 8px;">
+            <i class="fas fa-user-slash mb-2 text-muted" style="font-size: 1.5rem;"></i><br>
+            No staff available for the selected role.
+        </div>`;
+        return;
+    }
+
+    // Sort: Available first
+    const sorted = [...filteredStaff].sort((a,b) => {
+        const aAvail = a.availability === 'available';
+        const bAvail = b.availability === 'available';
+        if (aAvail !== bAvail) return aAvail ? -1 : 1;
+        return a.name.localeCompare(b.name);
+    });
+
+    div.innerHTML = sorted.map(s => {
+        const isAvail = s.availability === 'available';
+        const opacity = isAvail ? '1' : '0.5';
+        const disable = isAvail ? '' : 'disabled';
+        
+        const badge = isAvail ? '<span style="color:#1A7A32;font-size:10px;">🟢 Available</span>' : 
+                     (s.availability === 'on_leave' ? '<span style="color:#9A5400;font-size:10px;">🟡 On Leave</span>' : '<span style="color:#FF3B30;font-size:10px;">⚫ Booked</span>');
+
+        const jobClassLabel = { head_cook: '👨‍🍳 Head Cook', cook: '🍳 Cook', waiter: '🤵 Waiter', server: '🍽️ Server', helper: '🙋 Helper', any: '—' };
+        const roleDisp = jobClassLabel[s.job_class] || (s.job_class ? s.job_class.replace('_',' ') : 'any');
+
+        return `
+        <label style="display:flex;align-items:center;gap:8px;padding:8px 8px;cursor:${isAvail?'pointer':'not-allowed'};border-radius:6px;opacity:${opacity};margin-bottom:2px;"
+               onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='transparent'">
+            <input type="checkbox" name="staff_ids" value="${s.id}" ${disable} style="width:16px;height:16px;accent-color:var(--primary);">
+            <div style="flex:1;min-width:0;">
+                <div class="fw-600 text-sm d-flex align-items-center justify-content-between">
+                    <span>${s.name}</span>
+                    ${badge}
+                </div>
+                <div class="text-xs text-muted d-flex justify-content-between mt-1">
+                    <span>${s.phone || '—'}</span>
+                    <span style="text-transform:capitalize;font-weight:600;color:var(--label-2);">${roleDisp}</span>
+                </div>
+            </div>
+        </label>
+        `;
+    }).join('');
 }
 
 async function loadExistingOrders() {
@@ -123,6 +190,7 @@ async function loadExistingOrders() {
         document.getElementById('rosterTitle').textContent   = booking.client_name + ' · ' + Format.dateShort(booking.event_date);
     } else {
         document.getElementById('bookingInfo').style.display = 'none';
+        document.getElementById('suggestBanner').style.display = 'none';
     }
 
     if (!bookingId) {
@@ -136,40 +204,46 @@ async function loadExistingOrders() {
     document.getElementById('rosterContent').innerHTML = '<div class="spinner"></div>';
     document.getElementById('staffCheckboxes').innerHTML = '<div class="spinner"></div>';
     try {
-        const [d, sd] = await Promise.all([
+        // Use the suggest endpoint for staff + recommendations, roster from dispatching
+        const [d, sg] = await Promise.all([
             Api.get(BASE + '/src/api/dispatching.php', { booking_id: bookingId }),
-            Api.get(BASE + '/src/api/staff.php', { available_on: booking.event_date })
+            Api.get(BASE + '/src/api/dispatching.php', { suggest: 1, booking_id: bookingId })
         ]);
         
-        const jos = d.job_orders || [];
-        const availStaff = sd.staff || [];
-
-        // Build staff checkboxes
-        const div = document.getElementById('staffCheckboxes');
-        if (!availStaff.length) {
-            div.innerHTML = '<div class="text-muted text-sm p-2">No active staff found.</div>';
+        allJobs = d.job_orders || [];
+        availStaff = sg.staff || [];
+        
+        // Show recommendation banner
+        const banner = document.getElementById('suggestBanner');
+        const suggestText = document.getElementById('suggest-text');
+        if (sg.recommended) {
+            const dispatched = allJobs.filter(j => j.status !== 'declined').length;
+            const remaining  = Math.max(0, sg.recommended - dispatched);
+            suggestText.innerHTML = `<strong>${sg.recommended} staff</strong> recommended for <strong>${booking.pax_count} pax</strong> ` +
+                `(${sg.event_type}, ratio ${sg.ratio})` +
+                (dispatched > 0 ? ` · <strong>${dispatched}</strong> already dispatched` : '') +
+                (remaining > 0 ? ` · <span style="color:#C0392B;font-weight:700;">${remaining} more needed</span>` : ' · <span style="color:#1A7A32;font-weight:700;">✓ Fully staffed</span>');
+            banner.style.display = 'block';
         } else {
-            div.innerHTML = availStaff.map(s => {
-                const isAvail = s.availability === 'available';
-                const opacity = isAvail ? '1' : '0.5';
-                const disable = isAvail ? '' : 'disabled';
-                const badge = isAvail ? '<span style="color:#1A7A32;font-size:10px;">🟢 Available</span>' : 
-                             (s.availability === 'on_leave' ? '<span style="color:#9A5400;font-size:10px;">🟡 On Leave</span>' : '<span style="color:#FF3B30;font-size:10px;">⚫ Booked</span>');
-                
-                return `
-                <label style="display:flex;align-items:center;gap:8px;padding:8px 4px;cursor:${isAvail?'pointer':'not-allowed'};border-radius:6px;opacity:${opacity};"
-                       onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''">
-                    <input type="checkbox" name="staff_ids" value="${s.id}" ${disable} style="width:16px;height:16px;accent-color:var(--primary);">
-                    <div>
-                        <div class="fw-600 text-sm">${s.name} ${badge}</div>
-                        <div class="text-xs text-muted">${s.phone || '—'}</div>
-                    </div>
-                </label>
-                `;
-            }).join('');
+            banner.style.display = 'none';
         }
 
-        if (!jos.length) {
+        renderStaffList();
+        
+        // Auto-check top N available staff (only if no one is dispatched yet)
+        if (sg.recommended && allJobs.length === 0) {
+            let checked = 0;
+            const checkboxes = document.querySelectorAll('[name="staff_ids"]');
+            checkboxes.forEach(cb => {
+                if (checked >= sg.recommended) return;
+                if (!cb.disabled) {
+                    cb.checked = true;
+                    checked++;
+                }
+            });
+        }
+
+        if (!allJobs.length) {
             document.getElementById('rosterContent').innerHTML = `
                 <div class="empty-state" style="padding:40px;">
                     <div class="empty-state-icon"><i class="fas fa-user-slash"></i></div>
@@ -180,11 +254,15 @@ async function loadExistingOrders() {
         }
 
         const statusIcon = { pending: '⏳', accepted: '✅', declined: '❌' };
-        const rows = jos.map(jo => `
+        const jobClassLabel = { head_cook: '👨‍🍳 Head Cook', cook: '🍳 Cook', waiter: '🤵 Waiter', server: '🍽️ Server', helper: '🙋 Helper', any: '—' };
+        
+        const rows = allJobs.map(jo => {
+            const roleDisp = jobClassLabel[jo.role_required] || jo.role_required;
+            return `
             <tr>
                 <td class="td-name">${jo.staff_name}</td>
                 <td class="text-sm text-muted">${jo.staff_phone || '—'}</td>
-                <td>${jo.role_required}</td>
+                <td style="font-weight:600;color:var(--label-2);">${roleDisp}</td>
                 <td>${Format.jobBadge(jo.status)}</td>
                 <td class="text-xs text-muted">${jo.responded_at ? Format.dateShort(jo.responded_at) : '—'}</td>
                 <td>
@@ -193,7 +271,7 @@ async function loadExistingOrders() {
                     </button>
                 </td>
             </tr>
-        `).join('');
+        `}).join('');
 
         document.getElementById('rosterContent').innerHTML = `
             <div style="overflow-x:auto;">

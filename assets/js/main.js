@@ -3,6 +3,23 @@
  */
 
 /* ================================================================
+   XSS PREVENTION
+   ================================================================ */
+/**
+ * Escape a string for safe HTML rendering.
+ * Use this whenever inserting dynamic data into innerHTML or template literals.
+ */
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    const div = document.createElement('div');
+    div.appendChild(document.createTextNode(String(str)));
+    return div.innerHTML;
+}
+
+/** Alias for template literal usage: ${esc(value)} */
+const esc = escapeHtml;
+
+/* ================================================================
    SWEETALERT / TOAST NOTIFICATIONS
    ================================================================ */
 const Toast = {
@@ -60,6 +77,15 @@ const Api = {
             config.headers = Object.assign({}, defaults.headers, options.headers);
         }
 
+        // ── Auto-inject CSRF token for state-changing methods ──
+        const method = (config.method || 'GET').toUpperCase();
+        if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            if (csrfMeta) {
+                config.headers['X-CSRF-Token'] = csrfMeta.getAttribute('content');
+            }
+        }
+
         try {
             const res   = await fetch(url, config);
             const text  = await res.text();
@@ -110,16 +136,28 @@ const Format = {
 
     /** Format a date string (YYYY-MM-DD → Month D, YYYY) */
     date(dateStr) {
-        if (!dateStr) return '—';
-        const d = new Date(dateStr + 'T00:00:00');
-        return d.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
+        if (!dateStr || String(dateStr).startsWith('0000')) return '—';
+        const s = String(dateStr);
+        const match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!match) return '—';
+        
+        const [_, y, m, d] = match.map(Number);
+        const dt = new Date(y, m - 1, d);
+        if (isNaN(dt.getTime())) return 'Invalid Date';
+        return dt.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
     },
 
     /** Format a date as short (Apr 14, 2026) */
     dateShort(dateStr) {
-        if (!dateStr) return '—';
-        const d = new Date(dateStr + 'T00:00:00');
-        return d.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
+        if (!dateStr || String(dateStr).startsWith('0000')) return '—';
+        const s = String(dateStr);
+        const match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!match) return '—';
+
+        const [_, y, m, d] = match.map(Number);
+        const dt = new Date(y, m - 1, d);
+        if (isNaN(dt.getTime())) return 'Invalid Date';
+        return dt.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
     },
 
     /** Format 24h time (HH:MM:SS → H:MM AM/PM) */

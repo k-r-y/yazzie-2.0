@@ -32,10 +32,10 @@ loadEnv(__DIR__ . '/../.env');
 // Business Logic Constants
 // Change these values here ONLY — they propagate everywhere.
 // ============================================================
-define('MIN_LEAD_TIME_DAYS', 3);
+define('MIN_LEAD_TIME_DAYS', 1);
 define('MIN_PAX',            50);   // Minimum guests per booking
 define('MAX_PAX',            300);  // Maximum guests per booking
-define('MIN_DP_PERCENT',     0.50); // Minimum downpayment (50%)
+define('MIN_DP_PERCENT',     0.30); // Minimum downpayment (30%)
 define('APP_ENV', getenv('APP_ENV') ?: 'development'); // Set APP_ENV=production on server
 
 // Timezone
@@ -48,7 +48,7 @@ if (session_status() === PHP_SESSION_NONE) {
         'path'     => '/',
         'secure'   => false,    // Set to true when HTTPS is enabled
         'httponly' => true,     // Prevent JS access to session cookie
-        'samesite' => 'Strict', // CSRF protection
+        'samesite' => 'Lax',    // CSRF protection (Lax is better for local dev with fetch)
     ]);
 }
 
@@ -84,6 +84,12 @@ try {
     http_response_code(503);
     die('<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:60px;"><h2>Database Unavailable</h2><p>' . htmlspecialchars($e->getMessage()) . '</p><p>Run <a href="/test/database/setup.php">/test/database/setup.php</a> to initialize the database.</p></body></html>');
 }
+
+// ============================================================
+// Security Helpers (XSS escape, password policy)
+// ============================================================
+require_once __DIR__ . '/../includes/security.php';
+require_once __DIR__ . '/../includes/csrf.php';
 
 // ============================================================
 // Settings (dynamic business rules from DB)

@@ -16,7 +16,9 @@ function auditLog(
     ?array $newValue = null
 ): void {
     try {
+        // Fallback to 0 only if session is truly empty, though requireApiRole should prevent this
         $userId = (int)($_SESSION['user_id'] ?? 0);
+        
         $ip     = $_SERVER['HTTP_X_FORWARDED_FOR']
                   ?? $_SERVER['REMOTE_ADDR']
                   ?? null;

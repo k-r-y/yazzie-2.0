@@ -21,6 +21,20 @@ if ($method !== 'GET') {
     jsonResponse(false, 'Method Not Allowed.', [], 405);
 }
 
+// ── Bulk mode: return all booked dates for calendar guard ──
+if (isset($_GET['booked_dates'])) {
+    $stmt = $pdo->query("
+        SELECT DISTINCT event_date
+        FROM bookings
+        WHERE booking_status NOT IN ('cancelled')
+          AND event_date >= CURDATE()
+        ORDER BY event_date ASC
+    ");
+    $dates = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    jsonResponse(true, '', ['booked_dates' => $dates]);
+    exit;
+}
+
 $date = trim($_GET['date'] ?? '');
 $excludeId = (int)($_GET['exclude_id'] ?? 0);
 

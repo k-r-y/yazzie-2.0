@@ -12,11 +12,89 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
+requireCsrf();
 
 // ────────────────────────────────────────────────────────────────
 // GET — List job orders
 // ────────────────────────────────────────────────────────────────
 if ($method === 'GET') {
+    // ── Staff Suggestion Engine ────────────────────────────────
+    if (isset($_GET['suggest']) && !empty($_GET['booking_id'])) {
+        requireApiRole(['admin', 'frontdesk']);
+        $bookingId = (int)$_GET['booking_id'];
+
+        // Fetch booking details
+        $bStmt = $pdo->prepare("
+            SELECT b.id, b.event_date, b.event_type, b.pax_count,
+                   c.name AS client_name
+            FROM bookings b
+            JOIN clients c ON c.id = b.client_id
+            WHERE b.id = :bid
+        ");
+        $bStmt->execute([':bid' => $bookingId]);
+        $booking = $bStmt->fetch();
+        if (!$booking) jsonResponse(false, 'Booking not found.', [], 404);
+
+        $pax       = (int)$booking['pax_count'];
+        $eventType = $booking['event_type'] ?? 'Wedding';
+
+        // Calculate recommended staff count based on event type ratios
+        $ratio = in_array($eventType, ['Wedding', 'Corporate']) ? 10 : 20;
+        $recommended = max(5, (int)ceil($pax / $ratio));
+
+        // Fetch available staff for this date, sorted by job_class match
+        $date = $booking['event_date'];
+
+        $staffStmt = $pdo->query("
+            SELECT id, name, phone, job_class
+            FROM users
+            WHERE role = 'staff' AND is_active = 1
+            ORDER BY name ASC
+        ");
+        $allStaff = $staffStmt->fetchAll();
+
+        // Check leave + existing bookings
+        $onLeaveStmt = $pdo->prepare("SELECT staff_id FROM leave_requests WHERE leave_date = :d AND status = 'approved'");
+        $onLeaveStmt->execute([':d' => $date]);
+        $onLeave = array_column($onLeaveStmt->fetchAll(), 'staff_id');
+
+        $bookedStmt = $pdo->prepare("
+            SELECT DISTINCT jo.staff_id
+            FROM job_orders jo JOIN bookings b ON b.id = jo.booking_id
+            WHERE b.event_date = :d AND b.booking_status NOT IN ('cancelled')
+              AND jo.status = 'accepted' AND jo.booking_id != :excl
+        ");
+        $bookedStmt->execute([':d' => $date, ':excl' => $bookingId]);
+        $alreadyBooked = array_column($bookedStmt->fetchAll(), 'staff_id');
+
+        // Already dispatched to this booking
+        $dispatchedStmt = $pdo->prepare("
+            SELECT staff_id FROM job_orders WHERE booking_id = :bid AND status != 'declined'
+        ");
+        $dispatchedStmt->execute([':bid' => $bookingId]);
+        $alreadyDispatched = array_column($dispatchedStmt->fetchAll(), 'staff_id');
+
+        foreach ($allStaff as &$s) {
+            if (in_array($s['id'], $onLeave)) {
+                $s['availability'] = 'on_leave';
+            } elseif (in_array($s['id'], $alreadyBooked)) {
+                $s['availability'] = 'booked';
+            } else {
+                $s['availability'] = 'available';
+            }
+            $s['already_dispatched'] = in_array($s['id'], $alreadyDispatched);
+        }
+        unset($s);
+
+        jsonResponse(true, '', [
+            'booking'     => $booking,
+            'recommended' => $recommended,
+            'ratio'       => "1:$ratio",
+            'event_type'  => $eventType,
+            'staff'       => $allStaff,
+        ]);
+    }
+
     // Staff: my job board
     if (isset($_GET['my_jobs'])) {
         $currentUser = requireApiRole('staff');
@@ -40,7 +118,12 @@ if ($method === 'GET') {
 
     requireApiRole(['admin', 'frontdesk']);
     $bookingId = (int)($_GET['booking_id'] ?? 0);
-    if (!$bookingId) jsonResponse(false, 'Booking ID is required.', [], 422);
+
+    // Dashboard support: if no booking_id, return total pending job orders
+    if (!$bookingId) {
+        $count = $pdo->query("SELECT COUNT(*) FROM job_orders WHERE status = 'pending'")->fetchColumn();
+        jsonResponse(true, '', ['pending_count' => (int)$count]);
+    }
 
     $stmt = $pdo->prepare("
         SELECT jo.*, u.name AS staff_name, u.phone AS staff_phone
@@ -199,15 +282,33 @@ if ($method === 'POST') {
     $booking = $bStmt->fetch();
     if (!$booking) jsonResponse(false, 'Booking not found.', [], 404);
 
+    // Enforce 1 Head Cook per event
+    if ($role === 'head_cook') {
+        if (count($staffIds) > 1) {
+            jsonResponse(false, 'You cannot dispatch multiple Head Cooks at once. Only one Head Cook is allowed per event.', [], 409);
+        }
+        $chkHc = $pdo->prepare("SELECT id FROM job_orders WHERE booking_id = ? AND role_required = 'head_cook' AND status != 'declined'");
+        $chkHc->execute([$bookingId]);
+        if ($chkHc->fetch()) {
+            jsonResponse(false, 'A Head Cook has already been dispatched or is pending for this event.', [], 409);
+        }
+    }
+
     $ins = $pdo->prepare("
-        INSERT INTO job_orders (booking_id, staff_id, role_required, notes, status)
-        VALUES (:bid, :sid, :role, :notes, 'pending')
+        INSERT INTO job_orders (booking_id, staff_id, role_required, notes, status, job_class)
+        VALUES (:bid, :sid, :role, :notes, 'pending', :jc)
     ");
 
     $notif = $pdo->prepare("
         INSERT INTO notifications (user_id, type, title, body)
         VALUES (:uid, 'job_assigned', :title, :body)
     ");
+
+    // Fetch job classes for all staff to be notified
+    $uStmt = $pdo->prepare("SELECT id, job_class FROM users WHERE id IN (" . implode(',', array_fill(0, count($staffIds), '?')) . ")");
+    $uStmt->execute($staffIds);
+    $staffMap = [];
+    foreach ($uStmt->fetchAll() as $usr) { $staffMap[(int)$usr['id']] = $usr['job_class']; }
 
     $count = 0;
     foreach ($staffIds as $sid) {
@@ -229,7 +330,8 @@ if ($method === 'POST') {
             ':bid'   => $bookingId,
             ':sid'   => $sid,
             ':role'  => $role,
-            ':notes' => $notes ?: null
+            ':notes' => $notes ?: null,
+            ':jc'    => $staffMap[$sid] ?? 'any'
         ]);
         
         $notif->execute([
