@@ -90,6 +90,7 @@ try {
 // ============================================================
 require_once __DIR__ . '/../includes/security.php';
 require_once __DIR__ . '/../includes/csrf.php';
+require_once __DIR__ . '/../includes/formatters.php';
 
 // ============================================================
 // Settings (dynamic business rules from DB)

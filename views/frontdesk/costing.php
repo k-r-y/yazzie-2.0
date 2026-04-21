@@ -156,6 +156,7 @@ async function loadGroceryList() {
                     <i class="fas fa-exclamation-triangle" style="font-size:36px;color:#FF9500;display:block;margin-bottom:12px;"></i>
                     <p>All dishes for this booking are custom items with no recipe data.<br>
                     Add ingredients in <strong>Recipes &amp; Computation</strong> or list them manually.</p>
+                    <a href="${BASE}/views/admin/recipes.php" class="btn btn-primary btn-sm mt-3">Go to Recipe Manager</a>
                 </div>`;
             return;
         }
@@ -165,7 +166,8 @@ async function loadGroceryList() {
                 <div class="empty-state">
                     <i class="fas fa-list-ul" style="font-size:36px;color:var(--text-muted);display:block;margin-bottom:12px;"></i>
                     <p>No dishes selected for this booking, or no recipes defined.<br>
-                    Ask the Admin to assign dishes and add ingredients in Recipe Manager.</p>
+                    Assign dishes and add ingredients in the Recipe Manager.</p>
+                    <a href="${BASE}/views/admin/recipes.php" class="btn btn-primary btn-sm mt-3">Go to Recipe Manager</a>
                 </div>`;
             return;
         }
@@ -182,11 +184,9 @@ async function loadGroceryList() {
                 (res.ingredients || []).forEach(ing => {
                     const key = ing.ingredient_name + '|' + ing.unit;
                     if (!aggregated[key]) {
-                        aggregated[key] = { name: ing.ingredient_name, unit: ing.unit, total: 0, unitPrice: 0, estCost: 0, basePax: res.base_pax };
+                        aggregated[key] = { name: ing.ingredient_name, unit: ing.unit, total: 0, basePax: res.base_pax };
                     }
                     aggregated[key].total += parseFloat(ing.computed_quantity);
-                    if (ing.unit_price > 0) aggregated[key].unitPrice = ing.unit_price;
-                    aggregated[key].estCost += parseFloat(ing.estimated_cost || 0);
                 });
             } catch (e) {
                 // Dish has no recipe yet — skip silently, it'll show in empty-ingredient warning
@@ -202,48 +202,24 @@ async function loadGroceryList() {
                     <i class="fas fa-exclamation-triangle" style="font-size:36px;color:var(--sys-orange,#FF9500);display:block;margin-bottom:12px;"></i>
                     <p>Dishes are selected but none have recipe ingredients defined yet.<br>
                     Go to <strong>Recipes &amp; Computation</strong> to add ingredients to each dish.</p>
+                    <a href="${BASE}/views/admin/recipes.php" class="btn btn-primary btn-sm mt-3">Go to Recipe Manager</a>
                 </div>`;
             return;
         }
 
         const tableRows = rows.map(r => {
-            const qty = r.total.toFixed(3).replace(/\.?0+$/, '');
-            const hasPrice = r.unitPrice > 0;
-            const estCost = r.estCost || 0;
+            const formatted = Format.unit(r.total, r.unit);
+            const [val, unit] = formatted.split(' ', 2);
             return `<tr>
                 <td class="td-name">${esc(r.name)}</td>
-                <td class="text-right text-bold" style="font-size:16px;">${qty}</td>
-                <td class="text-muted">${esc(r.unit)}</td>
-                <td class="text-right" style="font-size:12px; color:${hasPrice ? 'rgba(60,60,67,0.6)' : '#FF9500'};">
-                    ${hasPrice ? '₱' + r.unitPrice.toFixed(2) : '<i class="fas fa-exclamation-triangle"></i>'}
-                </td>
-                <td class="text-right fw-600" style="color:${hasPrice ? '#1A7A32' : '#C0392B'};">
-                    ${hasPrice ? '₱' + estCost.toFixed(2) : '—'}
-                </td>
+                <td class="text-right text-bold" style="font-size:16px;">${val}</td>
+                <td class="text-muted">${unit}</td>
                 <td><div style="width:18px;height:18px;border:2px solid var(--border);border-radius:4px;"></div></td>
             </tr>`;
         }).join('');
 
-        const grandTotal = rows.reduce((s, r) => s + (r.estCost || 0), 0);
-        const missingCount = rows.filter(r => !r.unitPrice || r.unitPrice <= 0).length;
-
-        const missingWarning = missingCount > 0 ? `
-            <div style="display:flex; gap:10px; align-items:flex-start; background:rgba(255,149,0,0.08);
-                        border:1px solid rgba(255,149,0,0.3); border-radius:12px; padding:14px 16px; margin-bottom:16px;">
-                <span style="font-size:20px; flex-shrink:0;">💰</span>
-                <div>
-                    <div style="font-size:13px; font-weight:700; color:#9A5400; margin-bottom:2px;">
-                        ${missingCount} ingredient(s) missing price data
-                    </div>
-                    <div style="font-size:12px; color:rgba(60,60,67,0.7);">
-                        Go to <strong>Recipes &amp; Computation</strong> to add unit prices for accurate cost estimates.
-                    </div>
-                </div>
-            </div>` : '';
-
         document.getElementById('groceryContent').innerHTML = `
             ${customWarningHtml}
-            ${missingWarning}
             <div style="overflow-x:auto;">
                 <table class="data-table">
                     <thead>
@@ -251,29 +227,16 @@ async function loadGroceryList() {
                             <th>Ingredient</th>
                             <th class="text-right">Qty (${pax} pax)</th>
                             <th>Unit</th>
-                            <th class="text-right">Price/Unit</th>
-                            <th class="text-right">Est. Cost</th>
-                            <th>✓</th>
+                            <th>✓ Check</th>
                         </tr>
                     </thead>
                     <tbody>${tableRows}</tbody>
                     <tfoot>
-                        <tr style="background:rgba(48,209,88,0.05);">
-                            <td colspan="4" style="padding:14px 16px; font-size:14px; font-weight:700;">
-                                <i class="fas fa-calculator me-2" style="color:var(--sys-green);"></i>
-                                Estimated Total Market Cost
-                            </td>
-                            <td class="text-right" style="padding:14px 16px; font-size:16px; font-weight:800; color:#1A7A32;">
-                                ₱${grandTotal.toLocaleString('en-PH', {minimumFractionDigits:2})}
-                            </td>
-                            <td></td>
-                        </tr>
                         <tr>
-                            <td colspan="6" style="padding:12px 16px;font-size:13px;color:var(--text-muted);">
+                            <td colspan="4" style="padding:12px 16px;font-size:13px;color:var(--text-muted);">
                                 <i class="fas fa-circle-info me-1"></i>
                                 Quantities aggregated across <strong>${dishes.length} dish(es)</strong> for
                                 <strong>${pax} guests</strong>.
-                                ${missingCount > 0 ? `<br><span style="color:#9A5400;">⚠️ ${missingCount} ingredient(s) without prices — total is approximate.</span>` : ''}
                                 ${customDishes.length > 0 ? `<br><span style="color:#9A5400;">⚠️ ${customDishes.length} custom dish(es) not included — see warning above.</span>` : ''}
                             </td>
                         </tr>

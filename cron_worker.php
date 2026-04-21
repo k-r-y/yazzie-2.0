@@ -224,81 +224,49 @@ function sendBalanceReminders(PDO $pdo, callable $log): int
     $bookings = $stmt->fetchAll();
 
     if (empty($bookings)) {
-        $log('[BALANCE] No client balances to remind for events in 3 days.');
+        $log('[BALANCE] No client balances to check for events in 3 days.');
         return 0;
     }
 
     $count = 0;
-    require_once __DIR__ . '/includes/mailer.php';
-
-    // Duplicate check statement
-    $checkSent = $pdo->prepare("
+    // Duplicate check statement for internal notification
+    $checkNotified = $pdo->prepare("
         SELECT COUNT(*) FROM notifications 
         WHERE booking_id = :bid AND title LIKE '%Pending Balance%' 
           AND DATE(created_at) = CURDATE()
     ");
 
     foreach ($bookings as $bk) {
-        $checkSent->execute([':bid' => $bk['id']]);
-        if ((int)$checkSent->fetchColumn() > 0) {
-            $log("[BALANCE] Reminder already sent today for booking #{$bk['id']}. Skipping.");
+        $checkNotified->execute([':bid' => $bk['id']]);
+        if ((int)$checkNotified->fetchColumn() > 0) {
             continue;
         }
 
         $balance = $bk['total_cost'] - $bk['amount_paid'];
-        $eventDate = date('F j, Y', strtotime($bk['event_date']));
         
-        $subject = "Payment Reminder: Your event is in 3 days! — " . APP_NAME;
-        $html = "
-        <div style='font-family:-apple-system, BlinkMacSystemFont, \`Segoe UI\`, Roboto, Helvetica, Arial, sans-serif; max-width:560px; margin:0 auto; background-color:#F2F2F7; padding:20px; border-radius:12px;'>
-          <div style='background:linear-gradient(135deg, #FF9500, #FF5E00); padding:32px; border-radius:16px 16px 0 0; text-align:center;'>
-            <div style='font-size:36px; margin-bottom:8px;'>🔔</div>
-            <h1 style='color:#ffffff; margin:0; font-size:22px; font-weight:700; letter-spacing:-0.5px;'>Balance Reminder</h1>
-            <p style='color:rgba(255,255,255,0.9); margin:4px 0 0; font-size:14px; font-weight:500;'>Yazzies Catering</p>
-          </div>
-          <div style='background:#ffffff; padding:32px; border-left:0.5px solid rgba(60,60,67,0.08); border-right:0.5px solid rgba(60,60,67,0.08);'>
-            <h2 style='color:#000000; font-size:18px; margin:0 0 8px; font-weight:600; letter-spacing:-0.3px;'>Hello, {$bk['client_name']}!</h2>
-            <p style='color:rgba(60,60,67,0.8); font-size:14px; line-height:1.6; margin:0 0 24px;'>This is a friendly reminder that your catering event is just 3 days away! To ensure everything runs smoothly, please settle your remaining balance.</p>
-            
-            <div style='background:#FFF9F0; border:1px solid #FF9500; border-radius:12px; padding:20px; margin-bottom:24px; text-align:center;'>
-                <p style='color:rgba(60,60,67,0.6); font-size:13px; margin:0 0 8px; font-weight:500;'>Remaining Balance for $eventDate</p>
-                <div style='font-size:32px; font-weight:800; color:#FF9500; letter-spacing:-1px;'>₱" . number_format($balance, 2) . "</div>
-            </div>
-            
-            <p style='color:rgba(60,60,67,0.6); font-size:13px; line-height:1.5; margin:0 0 16px;'>If you have already made the payment, please disregard this email or send us a copy of your proof of payment. We are excited to serve you!</p>
-            <p style='color:#000000; font-size:14px; font-weight:600; margin:0;'>See you soon! 🍽️</p>
-          </div>
-          <div style='background:#F2F2F7; padding:20px; border-radius:0 0 16px 16px; text-align:center; font-size:12px; font-weight:500; color:rgba(60,60,67,0.4); border:0.5px solid rgba(60,60,67,0.08); border-top:none;'>
-            Yazzies Catering &bull; Barangay St. Peter, Dasmariñas City, Cavite
-          </div>
-        </div>";
-
-        if (sendMail($bk['client_email'], $bk['client_name'], $subject, $html)) {
+        // Notify the System (Admins/Frontdesk) ONLY — No automatic client email as per new manual control policy
+        try {
+            $sysNotif = $pdo->prepare("
+                INSERT INTO notifications (user_id, type, title, body, booking_id, link_url)
+                SELECT id, 'general', :title, :body, :bid, :link
+                FROM users 
+                WHERE role IN ('super_admin', 'admin', 'frontdesk') 
+                  AND is_active = 1
+            ");
+            $sysNotif->execute([
+                ':title' => '💰 Pending Balance: ' . $bk['client_name'],
+                ':body'  => "Booking #{$bk['id']} is in 3 days but still has a remaining balance of ₱" . number_format($balance, 2) . ". Please send a manual reminder if needed.",
+                ':bid'   => $bk['id'],
+                ':link'  => BASE_URL . '/views/admin/bookings.php?highlight=' . $bk['id']
+            ]);
             $count++;
-            $log("[BALANCE] Queued reminder for #{$bk['id']} ({$bk['client_name']})");
-
-            // Also Notify the System (Admins/Frontdesk)
-            try {
-                $sysNotif = $pdo->prepare("
-                    INSERT INTO notifications (user_id, type, title, body, booking_id, link_url)
-                    SELECT id, 'general', :title, :body, :bid, :link
-                    FROM users 
-                    WHERE role IN ('super_admin', 'admin', 'frontdesk') 
-                      AND is_active = 1
-                ");
-                $sysNotif->execute([
-                    ':title' => '💰 Pending Balance: ' . $bk['client_name'],
-                    ':body'  => "Booking #{$bk['id']} is in 3 days but still has a remaining balance of ₱" . number_format($balance, 2),
-                    ':bid'   => $bk['id'],
-                    ':link'  => BASE_URL . '/views/admin/bookings.php?highlight=' . $bk['id']
-                ]);
-            } catch (\Throwable $e) {
-                $log("[BALANCE] System notification failed: " . $e->getMessage());
-            }
+            $log("[BALANCE] Created internal alert for booking #{$bk['id']} ({$bk['client_name']})");
+        } catch (\Throwable $e) {
+            $log("[BALANCE] System notification failed: " . $e->getMessage());
         }
     }
 
-    $log("[BALANCE] Total balance reminders queued: $count.");
+    $log("[BALANCE] Total internal balance alerts created: $count.");
     return $count;
 }
 

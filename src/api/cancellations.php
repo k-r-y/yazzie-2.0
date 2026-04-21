@@ -34,13 +34,13 @@ if ($method === 'GET') {
                cl.name AS client_name,
                u_req.name AS requested_by_name,
                u_proc.name AS processed_by_name
-        FROM cancellations c
+        FROM booking_cancellations c
         JOIN bookings b ON b.id = c.booking_id
         JOIN clients cl ON cl.id = b.client_id
         JOIN users u_req ON u_req.id = c.requested_by
         LEFT JOIN users u_proc ON u_proc.id = c.refund_processed_by
         WHERE $whereClause
-        ORDER BY c.cancelled_at DESC
+        ORDER BY c.created_at DESC
     ");
     $stmt->execute($params);
     jsonResponse(true, '', ['cancellations' => $stmt->fetchAll()]);
@@ -79,14 +79,16 @@ if ($method === 'POST') {
 
     $pdo->beginTransaction();
     try {
-        // 1. Insert into cancellations
+        // 1. Insert into booking_cancellations
         $ins = $pdo->prepare("
-            INSERT INTO cancellations (
+            INSERT INTO booking_cancellations (
                 booking_id, requested_by, reason, total_paid, 
-                forfeited_amount, refundable_amount, refund_status
+                forfeited_amount, refundable_amount, refund_status,
+                cancelled_at
             ) VALUES (
                 :bid, :uid, :reason, :paid, 
-                :forfeit, :refund, :status
+                :forfeit, :refund, :status,
+                NOW()
             )
         ");
         
@@ -150,7 +152,7 @@ if ($method === 'PUT') {
     $pdo->beginTransaction();
     try {
         $stmt = $pdo->prepare("
-            UPDATE cancellations SET 
+            UPDATE booking_cancellations SET 
                 refund_status       = :st,
                 refund_method       = :meth,
                 refund_reference    = :ref,

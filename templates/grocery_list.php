@@ -54,7 +54,6 @@ foreach ($standardDishes as $dish) {
 
     foreach ($ingredients as $ing) {
         $computedQty = round($ing['base_quantity'] * $multiplier, 3);
-        $unitPrice   = (float)($ing['unit_price'] ?? 0);
         $key = $ing['ingredient_name'] . '|' . $ing['unit'];
 
         if (!isset($aggregated[$key])) {
@@ -62,20 +61,14 @@ foreach ($standardDishes as $dish) {
                 'name' => $ing['ingredient_name'],
                 'unit' => $ing['unit'],
                 'total' => 0,
-                'unitPrice' => $unitPrice,
-                'estCost' => 0,
             ];
         }
         $aggregated[$key]['total'] += $computedQty;
-        if ($unitPrice > 0) $aggregated[$key]['unitPrice'] = $unitPrice;
-        $aggregated[$key]['estCost'] += round($unitPrice * $computedQty, 2);
     }
 }
 
 $rows = array_values($aggregated);
 usort($rows, fn($a, $b) => strcmp($a['name'], $b['name']));
-$grandTotal   = array_sum(array_column($rows, 'estCost'));
-$missingCount = count(array_filter($rows, fn($r) => $r['unitPrice'] <= 0));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -155,11 +148,6 @@ $missingCount = count(array_filter($rows, fn($r) => $r['unitPrice'] <= 0));
 
     <div class="print-section-title">Grocery / Ingredient List</div>
 
-    <?php if ($missingCount > 0): ?>
-    <div style="background: rgba(255,149,0,0.08); border: 1px solid rgba(255,149,0,0.3); border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 12px; color: #9A5400;">
-        💰 <strong><?= $missingCount ?> ingredient(s)</strong> missing price data — total is approximate.
-    </div>
-    <?php endif; ?>
 
     <?php if (empty($rows)): ?>
     <p style="color: #999; font-style: italic; padding: 20px 0;">No recipe data available for the selected dishes. Add ingredients in Recipes & Computation.</p>
@@ -167,40 +155,25 @@ $missingCount = count(array_filter($rows, fn($r) => $r['unitPrice'] <= 0));
     <table class="grocery-table">
         <thead>
             <tr>
-                <th style="width:35%;">Ingredient</th>
-                <th class="text-right" style="width:15%;">Qty</th>
-                <th style="width:12%;">Unit</th>
-                <th class="text-right" style="width:13%;">Price/Unit</th>
-                <th class="text-right" style="width:15%;">Est. Cost</th>
-                <th style="width:10%; text-align:center;">✓</th>
+                <th style="width:50%;">Ingredient</th>
+                <th class="text-right" style="width:20%;">Qty Required</th>
+                <th style="width:15%;">Unit</th>
+                <th style="width:15%; text-align:center;">✓ Check</th>
             </tr>
         </thead>
         <tbody>
             <?php foreach ($rows as $r):
-                $qty = rtrim(rtrim(number_format($r['total'], 3), '0'), '.');
-                $hasPrice = $r['unitPrice'] > 0;
+                $formatted = formatUnit($r['total'], $r['unit']);
+                list($val, $unit) = explode(' ', $formatted, 2);
             ?>
             <tr>
                 <td class="fw-700"><?= htmlspecialchars($r['name']) ?></td>
-                <td class="text-right fw-700" style="font-size: 14px;"><?= $qty ?></td>
-                <td style="color: #666;"><?= htmlspecialchars($r['unit']) ?></td>
-                <td class="text-right" style="color: <?= $hasPrice ? '#666' : '#FF9500' ?>;">
-                    <?= $hasPrice ? '₱' . number_format($r['unitPrice'], 2) : '—' ?>
-                </td>
-                <td class="text-right fw-700" style="color: <?= $hasPrice ? '#2D7F3A' : '#ccc' ?>;">
-                    <?= $hasPrice ? '₱' . number_format($r['estCost'], 2) : '—' ?>
-                </td>
+                <td class="text-right fw-700" style="font-size: 14px;"><?= $val ?></td>
+                <td style="color: #666;"><?= htmlspecialchars($unit) ?></td>
                 <td style="text-align: center;"><span class="check-box"></span></td>
             </tr>
             <?php endforeach; ?>
         </tbody>
-        <tfoot>
-            <tr class="total-row">
-                <td colspan="4">Estimated Total Market Cost</td>
-                <td class="text-right" style="color: #2D7F3A; font-size: 16px;">₱<?= number_format($grandTotal, 2) ?></td>
-                <td></td>
-            </tr>
-        </tfoot>
     </table>
     <?php endif; ?>
 

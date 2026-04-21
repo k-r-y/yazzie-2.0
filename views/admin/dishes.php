@@ -27,6 +27,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <tr>
                     <th>Dish Name</th>
                     <th>Category</th>
+                    <th>Meal Type</th>
                     <th>Custom Surcharge Rate</th>
                     <th>Status</th>
                     <th class="td-actions">Actions</th>
@@ -52,12 +53,21 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <input type="hidden" name="type" value="dish">
                     <input type="hidden" name="id" id="dish_id">
                     
-                    <div class="form-group mb-3">
-                        <label class="form-label">Dish Name <span class="required">*</span></label>
-                        <input type="text" class="form-control" name="name" id="dish_name" required placeholder="e.g. Beef Caldereta">
-                    </div>
-
                     <div class="row g-3 mb-3">
+                        <div class="col-8">
+                            <label class="form-label">Dish Name <span class="required">*</span></label>
+                            <input type="text" class="form-control" name="name" id="dish_name" required placeholder="e.g. Beef Caldereta">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">Meal Type <span class="required">*</span></label>
+                            <select class="form-control" name="meal_type" id="dish_meal_type" required>
+                                <option value="all">All Meals</option>
+                                <option value="breakfast">Breakfast</option>
+                                <option value="lunch">Lunch</option>
+                                <option value="dinner">Dinner</option>
+                            </select>
+                        </div>
+                    </div>
                         <div class="col-7">
                             <label class="form-label">Category Classification <span class="required">*</span></label>
                             <select class="form-control" name="category" id="dish_category" required>
@@ -126,6 +136,9 @@ function renderTable(items) {
             <td>
                 <span class="badge badge-light text-dark fw-500 border border-secondary" style="font-size:11px;">${i.category}</span>
             </td>
+            <td>
+                <span class="badge badge-info" style="font-size:10px; text-transform:uppercase;">${i.meal_type || 'all'}</span>
+            </td>
             <td class="td-mono">${parseFloat(i.custom_fee || 0) > 0 ? '+ ' + Format.peso(i.custom_fee) : '<span class="text-muted">₱0.00</span>'}</td>
             <td>
                 <span class="badge badge-${i.is_active == 1 ? 'success' : 'secondary'}">
@@ -159,6 +172,7 @@ function openEditModal(id) {
     document.getElementById('dish_id').value = item.id;
     document.getElementById('dish_name').value = item.name;
     document.getElementById('dish_category').value = item.category;
+    document.getElementById('dish_meal_type').value = item.meal_type || 'all';
     document.getElementById('dish_fee').value = item.custom_fee || 0;
     Modal.open('dishModal');
 }

@@ -102,13 +102,13 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                         </div>
                         <div class="form-group">
                             <label class="form-label">Guest Count (Pax)</label>
-                            <input type="number" class="form-control" name="pax_count" id="edit_pax_count" min="50">
+                            <div id="edit_pax_display" style="font-weight:700; font-size:16px; color:var(--sys-green-deeper); padding:8px 0;"></div>
+                            <input type="hidden" name="pax_count" id="edit_pax_count">
                         </div>
                     </div>
-                    <div class="form-group mt-3" style="border:1px solid #e1e4e8; border-radius:8px; padding:12px;">
-                        <label class="form-label" style="margin-bottom:8px;">Menu Selection</label>
-                        <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:12px;" id="editDishGridMains"></div>
-                        <div style="display:flex; flex-wrap:wrap; gap:12px;" id="editDishGridDesserts"></div>
+                    <div class="alert alert-soft-warning mb-3" style="font-size:12.5px; border-radius:10px; display:flex; align-items:center;">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <span><strong>Menu Lock:</strong> To prevent costing drifts, direct menu editing is disabled. If the client requested changes, please document them in the <strong>Notes</strong> field below.</span>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Event Location</label>
@@ -121,11 +121,17 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                 </form>
             </div>
             <div class="modal-footer">
+                <button class="btn btn-outline-info btn-sm me-2" id="reminderBtn" onclick="sendReminder()">
+                    <i class="fas fa-envelope"></i> Send Reminder
+                </button>
                 <button class="btn btn-outline-danger btn-sm me-2" id="cancelReqBtn" onclick="requestCancellation()">
                     <i class="fas fa-ban"></i> Request Cancellation
                 </button>
                 <button class="btn btn-outline-warning btn-sm me-2" id="breakageLogBtn" onclick="openBreakageModal()">
                     <i class="fas fa-shrimp"></i> Breakage Log
+                </button>
+                <button class="btn btn-outline-secondary btn-sm me-2" id="archiveBtn" onclick="archiveBooking()" title="Archive Booking">
+                    <i class="fas fa-box-archive"></i> Archive Booking
                 </button>
                 <div style="flex:1;"></div>
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -198,9 +204,12 @@ function renderTable(bookings) {
                 </div>
             </td>
             <td>${Format.paymentBadge(b.payment_status)}</td>
-            <td>${Format.bookingBadge(b.booking_status)}</td>
+            <td>
+                ${Format.bookingBadge(b.booking_status)}
+                ${parseInt(b.resched_count) > 0 ? `<br><span class="badge bg-soft-info text-info mt-1" style="font-size:10px;"><i class="fas fa-redo me-1"></i>Rescheduled</span>` : ''}
+            </td>
             <td class="td-actions">
-                <button class="btn btn-outline-primary btn-sm" onclick="openEdit(${b.id})">
+                <button class="btn btn-outline-primary btn-sm" onclick="openEdit(${b.id})" title="Edit Booking">
                     <i class="fas fa-edit"></i>
                 </button>
                 <a href="${BASE}/views/admin/financial.php?booking_id=${b.id}" class="btn btn-outline-secondary btn-sm" title="Payments">
@@ -224,27 +233,18 @@ async function openEdit(id) {
         document.getElementById('edit_event_date').value = b.event_date;
         document.getElementById('edit_event_time').value = b.event_time || '';
         document.getElementById('edit_pax_count').value = b.pax_count;
+        document.getElementById('edit_pax_display').textContent = b.pax_count;
         document.getElementById('edit_booking_status').value = b.booking_status;
         document.getElementById('edit_event_location').value = b.event_location || '';
         document.getElementById('edit_notes').value = b.notes || '';
 
-        // Extract already selected dishes
-        const selectedDishIds = (b.dishes || []).map(ds => ds.id);
+        // Enforce 14-day UI restriction for rescheduling
+        const minDate = new Date();
+        minDate.setDate(minDate.getDate() + 14);
+        document.getElementById('edit_event_date').min = minDate.toISOString().split('T')[0];
 
-        // Build dish checkboxes
-        document.getElementById('editDishGridMains').innerHTML = allDishes.mains.map(dish => `
-            <label style="display:flex; align-items:center; gap:6px; font-size:13px; background:#f8f9fa; padding:4px 8px; border-radius:4px; border:1px solid #eee;">
-                <input type="checkbox" name="selected_dishes[]" value="${dish.id}" ${selectedDishIds.includes(dish.id) ? 'checked' : ''}>
-                🍲 ${esc(dish.name)}
-            </label>
-        `).join('');
-
-        document.getElementById('editDishGridDesserts').innerHTML = allDishes.desserts.map(dish => `
-            <label style="display:flex; align-items:center; gap:6px; font-size:13px; background:#fff2cc; padding:4px 8px; border-radius:4px; border:1px solid #ffe699;">
-                <input type="checkbox" name="selected_dishes[]" value="${dish.id}" ${selectedDishIds.includes(dish.id) ? 'checked' : ''}>
-                🍮 ${esc(dish.name)}
-            </label>
-        `).join('');
+        // Dish selection update removed as per policy shift
+        Modal.open('editBookingModal');
 
         // Show archive/cancel buttons logic
         document.getElementById('archiveBtn').style.display =
@@ -256,7 +256,25 @@ async function openEdit(id) {
         document.getElementById('breakageLogBtn').style.display =
             (b.booking_status !== 'cancelled') ? 'flex' : 'none';
 
-        Modal.open('editBookingModal');
+        // Reminder button logic
+        const hasBalance = (parseFloat(b.total_cost) - parseFloat(b.amount_paid)) > 0.01;
+        const reminderBtn = document.getElementById('reminderBtn');
+        reminderBtn.style.display = (hasBalance && b.booking_status !== 'cancelled') ? 'flex' : 'none';
+        
+        if (hasBalance) {
+            const evDate = new Date(b.event_date);
+            const today  = new Date();
+            today.setHours(0,0,0,0);
+            evDate.setHours(0,0,0,0);
+            const diff = Math.round((evDate - today) / (86400000));
+            if (diff >= 0 && diff <= 3) {
+                reminderBtn.classList.replace('btn-outline-info', 'btn-info');
+                reminderBtn.title = "Event is in " + diff + " days! Send reminder now.";
+            } else {
+                reminderBtn.classList.replace('btn-info', 'btn-outline-info');
+                reminderBtn.title = "Send payment reminder email";
+            }
+        }
     } catch (e) { Toast.error(e.message); }
 }
 
@@ -268,6 +286,23 @@ async function updateBooking() {
         Modal.close('editBookingModal');
         await loadBookings();
     } catch (e) { Toast.error(e.message); }
+}
+
+async function sendReminder() {
+    const id = document.getElementById('edit_id').value;
+    if (!id) return;
+    const btn = document.getElementById('reminderBtn');
+    const old = btn.innerHTML;
+    try {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+        await Api.post(BASE + '/src/api/bookings.php', { action: 'send_reminder', id: id });
+        Toast.success('Reminder sent successfully.');
+    } catch (e) { Toast.error(e.message); }
+    finally {
+        btn.disabled = false;
+        btn.innerHTML = old;
+    }
 }
 
 async function archiveBooking() {
@@ -319,16 +354,16 @@ async function requestCancellation() {
         </div>
     `;
 
-    const ok = await CustomConfirm.show({
+    const result = await CustomConfirm.show({
         title: 'Cancel Booking',
         html: html,
         confirmText: 'Confirm Cancellation',
         confirmColor: 'var(--sys-red)'
     });
 
-    if (!ok) return;
+    if (!result) return;
 
-    const reason = document.getElementById('cancel_reason').value;
+    const reason = result.cancel_reason || '';
     try {
         await Api.post(BASE + '/src/api/cancellations.php', { 
             booking_id: id, 
@@ -339,6 +374,7 @@ async function requestCancellation() {
         await loadBookings();
     } catch (e) { Toast.error(e.message); }
 }
+
 
 // Wire up filters
 ['filterStatus','filterPayment'].forEach(id => {
@@ -402,18 +438,18 @@ async function openBreakageModal() {
         </div>
     `;
 
-    const ok = await CustomConfirm.show({
+    const result = await CustomConfirm.show({
         title: 'Breakage & Loss Log: #' + id,
         html: html,
         confirmText: 'Add Loss Log',
         confirmColor: 'var(--sys-orange)'
     });
 
-    if (!ok) return;
+    if (!result) return;
 
-    const itemId = document.getElementById('bb_item').value;
-    const qty    = document.getElementById('bb_qty').value;
-    const note   = document.getElementById('bb_note').value;
+    const itemId = result.bb_item;
+    const qty    = result.bb_qty;
+    const note   = result.bb_note;
 
     if (!itemId) return Toast.error('Please select an item.');
 
@@ -430,6 +466,7 @@ async function openBreakageModal() {
 }
 
 async function deleteBreakage(id) {
+
     if (!await confirmDialog('Remove this breakage entry?')) return;
     try {
         await Api.delete(BASE + '/src/api/breakages.php', { id });

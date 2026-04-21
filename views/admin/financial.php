@@ -233,6 +233,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                 </form>
             </div>
         </div>
+
     </div>
 </div>
 
@@ -332,9 +333,10 @@ async function onBookingChange() {
         box.style.display = 'block';
 
         // Auto-load history
-        loadPaymentHistory(bid, { total_cost: total, amount_paid: livePaid });
+        loadPaymentHistory(bid, { total_cost: eventTotal, amount_paid: livePaid });
     } catch(e) { Toast.error('Could not load booking balance.'); }
 }
+
 
 function fillFullBalance() {
     const inp = document.getElementById('amountInput');
@@ -640,18 +642,18 @@ async function processRefund(id, amount) {
         </div>
     `;
 
-    const ok = await CustomConfirm.show({
+    const result = await CustomConfirm.show({
         title: 'Process Refund',
         html: html,
         confirmText: 'Mark as Processed',
         confirmColor: 'var(--sys-green)'
     });
 
-    if (!ok) return;
+    if (!result) return;
 
     try {
-        const method = document.getElementById('rf_method').value;
-        const ref    = document.getElementById('rf_ref').value;
+        const method = result.rf_method;
+        const ref    = result.rf_ref;
         
         await Api.put(BASE + '/src/api/cancellations.php', {
             id: id,
@@ -665,6 +667,7 @@ async function processRefund(id, amount) {
         loadKPIs(); // Refresh outstanding balance if applicable
     } catch(e) { Toast.error(e.message); }
 }
+
 
 initFinancial();
 </script>

@@ -36,15 +36,12 @@ if ($method === 'GET') {
         $scaled = [];
         foreach ($ingredients as $ing) {
             $computedQty = round($ing['base_quantity'] * $multiplier, 2);
-            $unitPrice   = (float)($ing['unit_price'] ?? 0);
             $scaled[] = [
                 'id' => $ing['id'],
                 'ingredient_name' => $ing['ingredient_name'],
                 'base_quantity' => (float)$ing['base_quantity'],
                 'computed_quantity' => $computedQty,
-                'unit' => $ing['unit'],
-                'unit_price' => $unitPrice,
-                'estimated_cost' => round($unitPrice * $computedQty, 2),
+                'unit' => $ing['unit']
             ];
         }
 

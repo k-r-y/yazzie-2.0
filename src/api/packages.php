@@ -21,7 +21,7 @@ if ($method === 'GET') {
     if (isset($_GET['dishes'])) {
         // Return dishes grouped by category
         $stmt = $pdo->query("
-            SELECT id, name, category, is_active
+            SELECT id, name, category, meal_type, is_active, custom_fee
             FROM dishes
             WHERE is_active = 1
             ORDER BY category, name
@@ -37,10 +37,19 @@ if ($method === 'GET') {
             $grouped[$cat][] = $d;
         }
 
+        // Aggregate all main categories for legacy compatibility
+        $mainCats = ['Beef', 'Pork', 'Chicken', 'Seafood', 'Vegetables', 'Pasta', 'Main'];
+        $mainsAggregated = [];
+        foreach ($mainCats as $mc) {
+            if (isset($grouped[$mc])) {
+                $mainsAggregated = array_merge($mainsAggregated, $grouped[$mc]);
+            }
+        }
+
         jsonResponse(true, '', [
             'dishes_grouped' => $grouped,
-            'mainDishes' => $grouped['main'] ?? [], // fallback for older clients
-            'desserts'   => $grouped['Dessert'] ?? [], // fallback for older clients
+            'mainDishes'     => $mainsAggregated,
+            'desserts'       => $grouped['Dessert'] ?? $grouped['dessert'] ?? [],
         ]);
     }
 
@@ -52,7 +61,19 @@ if ($method === 'GET') {
         WHERE is_active = 1
         ORDER BY pax_count ASC
     ");
-    jsonResponse(true, '', ['packages' => $stmt->fetchAll()]);
+    $pkgs = $stmt->fetchAll();
+
+    // Get rates from settings
+    $rates = [
+        'extra_main_rate'    => (float)appSetting('extra_main_rate', 50),
+        'extra_dessert_rate' => (float)appSetting('extra_dessert_rate', 30),
+        'extra_rice_rate'    => (float)appSetting('extra_rice_rate', 20),
+    ];
+
+    jsonResponse(true, '', [
+        'packages' => $pkgs,
+        'rates'    => $rates
+    ]);
 }
 
 // ── POST — add dish or package (admin only) ──────────────────────────────
@@ -83,10 +104,11 @@ if ($method === 'POST') {
     // Default POST: add dish
     if (empty($d['name']))     jsonResponse(false, 'Dish name is required.', [], 422);
     if (empty($d['category'])) jsonResponse(false, 'Category is required.', [], 422);
-    $stmt = $pdo->prepare("INSERT INTO dishes (name, category, custom_fee) VALUES (:name, :cat, :fee)");
+    $stmt = $pdo->prepare("INSERT INTO dishes (name, category, meal_type, custom_fee) VALUES (:name, :cat, :meal, :fee)");
     $stmt->execute([
         ':name' => trim($d['name']), 
         ':cat' => trim($d['category']), 
+        ':meal' => trim($d['meal_type'] ?? 'all'),
         ':fee' => (float)($d['custom_fee'] ?? 0)
     ]);
     jsonResponse(true, 'Dish added.', ['id' => $pdo->lastInsertId()], 201);
@@ -124,10 +146,11 @@ if ($method === 'PUT') {
     if (empty($d['id']))   jsonResponse(false, 'Dish ID required.', [], 422);
     if (empty($d['name'])) jsonResponse(false, 'Dish name required.', [], 422);
 
-    $pdo->prepare("UPDATE dishes SET name = :name, category = :cat, custom_fee = :fee WHERE id = :id")
+    $pdo->prepare("UPDATE dishes SET name = :name, category = :cat, meal_type = :meal, custom_fee = :fee WHERE id = :id")
         ->execute([
             ':name' => trim($d['name']),
             ':cat'  => trim($d['category'] ?? 'main'),
+            ':meal' => trim($d['meal_type'] ?? 'all'),
             ':fee'  => (float)($d['custom_fee'] ?? 0),
             ':id'   => (int)$d['id'],
         ]);

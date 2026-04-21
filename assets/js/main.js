@@ -170,6 +170,45 @@ const Format = {
         return `${hour12}:${m} ${ampm}`;
     },
 
+    /** 
+     * Intelligent Unit Formatter & Scaler
+     * Bidirectional conversion for kg/g and L/ml. Normalizes casing.
+     */
+    unit(qty, unitStr) {
+        if (!unitStr) return qty;
+        let u = String(unitStr).trim().toLowerCase();
+        let val = parseFloat(qty) || 0;
+        let finalUnit = u;
+
+        // Weights
+        if (['kg', 'kilogram', 'kilograms'].includes(u)) {
+            if (val < 1.0 && val > 0) { val *= 1000; finalUnit = 'g'; }
+            else finalUnit = 'kg';
+        } else if (['g', 'gram', 'grams'].includes(u)) {
+            if (val >= 1000) { val /= 1000; finalUnit = 'kg'; }
+            else finalUnit = 'g';
+        }
+        // Volumes
+        else if (['l', 'liter', 'liters', 'litre'].includes(u)) {
+            if (val < 1.0 && val > 0) { val *= 1000; finalUnit = 'ml'; }
+            else finalUnit = 'L';
+        } else if (['ml', 'milliliter', 'milliliters'].includes(u)) {
+            if (val >= 1000) { val /= 1000; finalUnit = 'L'; }
+            else finalUnit = 'ml';
+        }
+        // Packaging
+        else if (['pc', 'pcs', 'piece', 'pieces'].includes(u)) finalUnit = 'pcs';
+        else if (['pack', 'packs', 'pck', 'pks'].includes(u)) finalUnit = 'packs';
+        else if (['can', 'cans', 'cn'].includes(u)) finalUnit = 'cans';
+        else if (['jar', 'jars'].includes(u)) finalUnit = 'jars';
+        else if (['head', 'heads'].includes(u)) finalUnit = 'heads';
+        else if (['bundle', 'bundles'].includes(u)) finalUnit = 'bundles';
+
+        // Clean trailing decimals
+        let fVal = Number(val.toFixed(3));
+        return `${fVal} ${finalUnit}`;
+    },
+
     /** Capitalize first letter */
     ucfirst(str) {
         if (!str) return '';
@@ -324,12 +363,59 @@ function initSidebar() {
 /* ================================================================
    CONFIRM DIALOG (async)
    ================================================================ */
+const CustomConfirm = {
+    /**
+     * Show a custom confirmation dialog with HTML content.
+     * Captures all input/select/textarea values by ID and returns them.
+     */
+    show(options) {
+        return Swal.fire({
+            title: options.title || 'Confirm Action',
+            html: options.html || '',
+            icon: options.icon || null,
+            showCancelButton: true,
+            confirmButtonText: options.confirmText || 'Confirm',
+            cancelButtonText: options.cancelButtonText || 'Cancel',
+            confirmButtonColor: options.confirmColor || 'var(--sys-blue)',
+            cancelButtonColor: options.cancelColor || '#aaa',
+            reverseButtons: true,
+            padding: '1.5em',
+            background: 'var(--glass-ultra)',
+            color: 'var(--label)',
+            customClass: {
+                popup: 'swal2-bento',
+                confirmButton: 'btn btn-primary',
+                cancelButton: 'btn btn-secondary'
+            },
+            preConfirm: () => {
+                // Return an object of all input IDs and their values
+                const data = {};
+                const container = Swal.getHtmlContainer();
+                if (!container) return data;
+                
+                container.querySelectorAll('input, select, textarea').forEach(el => {
+                    if (el.id) {
+                        data[el.id] = el.value;
+                    }
+                });
+                return data;
+            }
+        }).then(result => {
+            if (result.isConfirmed) {
+                return result.value || true;
+            }
+            return false;
+        });
+    }
+};
+
 function confirmDialog(message, title = 'Confirm Action') {
     return new Promise(resolve => {
         // Use simple browser confirm; replace with modal if desired
         resolve(window.confirm(`${title}\n\n${message}`));
     });
 }
+
 
 /* ================================================================
    DEBOUNCE

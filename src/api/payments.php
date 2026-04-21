@@ -29,7 +29,7 @@ if ($method === 'GET') {
 
         // Also return booking summary
         $bStmt = $pdo->prepare("
-            SELECT b.total_cost, b.amount_paid, b.payment_status,
+            SELECT b.total_cost, b.amount_paid, b.payment_status, b.market_cost,
                    c.name AS client_name
             FROM bookings b JOIN clients c ON c.id = b.client_id
             WHERE b.id = :bid
@@ -111,9 +111,17 @@ if ($method === 'POST') {
 
         // Validation: payment_method whitelist
         $validMethods = ['cash', 'bank_transfer', 'gcash', 'maya'];
-        if (!in_array($d['payment_method'], $validMethods, true)) {
+        $method = $d['payment_method'] ?? 'cash';
+        if (!in_array($method, $validMethods, true)) {
             $pdo->rollBack();
             jsonResponse(false, 'Invalid payment method. Allowed: cash, gcash, maya, bank_transfer.', [], 422);
+        }
+
+        // Validation: Reference number required for digital payments
+        $ref = trim((string)($d['reference_no'] ?? ''));
+        if ($method !== 'cash' && $ref === '') {
+            $pdo->rollBack();
+            jsonResponse(false, "Reference number is required for " . strtoupper($method) . " payments.", ['field' => 'reference_no'], 422);
         }
 
         // Validation: cannot go below zero balance
@@ -193,6 +201,16 @@ if ($method === 'POST') {
         null,
         ['booking_id' => $bookingId, 'amount' => $amount, 'method' => $d['payment_method']]
     );
+
+    // ── Immediate Email Receipt (No Queuing) ──
+    if (!empty($booking['client_email'])) {
+        require_once __DIR__ . '/../../includes/mailer.php';
+        try {
+            sendPaymentReceipt($booking, (float)$amount, (string)$d['payment_method']);
+        } catch (\Throwable $e) {
+            error_log("[Payment Receipt Error] " . $e->getMessage());
+        }
+    }
 
     jsonResponse(true, 'Payment recorded successfully.', [
         'id'             => $newPaymentId,

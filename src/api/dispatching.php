@@ -212,48 +212,70 @@ if ($method === 'PUT') {
         WHERE id = :id AND staff_id = :uid AND status = 'pending'
     ")->execute([':st' => $status, ':id' => $id, ':uid' => $uid]);
 
-    // ── Declined: notify all admin & frontdesk users to update the lineup ──
-    if ($status === 'declined') {
-        // Fetch booking info for the notification message
-        $bInfo = $pdo->prepare("
-            SELECT b.id AS booking_id, b.event_date, c.name AS client_name
-            FROM bookings b JOIN clients c ON c.id = b.client_id
-            WHERE b.id = :bid
-        ");
-        $bInfo->execute([':bid' => $jo['booking_id']]);
-        $bData = $bInfo->fetch();
+    // ── Notify all admin & frontdesk users about the response ──
+    $bInfo = $pdo->prepare("
+        SELECT b.id AS booking_id, b.event_date, b.event_time, b.event_location, b.pax_count, c.name AS client_name, jo.role_required
+        FROM job_orders jo
+        JOIN bookings b ON b.id = jo.booking_id
+        JOIN clients c ON c.id = b.client_id
+        WHERE jo.id = :id
+    ");
+    $bInfo->execute([':id' => $id]);
+    $bData = $bInfo->fetch();
 
-        if ($bData) {
-            $eventDateFormatted = date('F j, Y', strtotime($bData['event_date']));
-            $staffName  = $currentUser['name'] ?? 'A staff member';
-            $bookingUrl = BASE_URL . '/views/admin/bookings.php?highlight=' . $bData['booking_id'];
+    if ($bData) {
+        $eventDateFormatted = date('F j, Y', strtotime($bData['event_date']));
+        $staffName  = $currentUser['name'] ?? 'A staff member';
+        $statusLabel= ($status === 'accepted' ? 'ACCEPTED' : 'DECLINED');
+        $bookingUrl = BASE_URL . '/views/admin/bookings.php?highlight=' . $bData['booking_id'];
 
-            try {
-                $notifyAdmins = $pdo->prepare("
-                    INSERT INTO notifications (user_id, type, title, body, booking_id, link_url)
-                    SELECT id,
-                           'job_declined',
-                           'Staff Declined Job Offer',
-                           CONCAT(:staffName, ' has declined the job offer for ',
-                                  :clientName, '\'s event on ', :eventDate,
-                                  '. Please update the lineup.'),
-                           :bid,
-                           :linkUrl
-                    FROM users
-                    WHERE role IN ('admin', 'super_admin', 'frontdesk')
-                      AND is_active = 1
-                ");
-                $notifyAdmins->execute([
-                    ':staffName'  => $staffName,
-                    ':clientName' => $bData['client_name'],
-                    ':eventDate'  => $eventDateFormatted,
-                    ':bid'        => $bData['booking_id'],
-                    ':linkUrl'    => $bookingUrl,
-                ]);
-            } catch (\Throwable $e) {
-                // Non-fatal: notification insert may fail if migration V11 not yet run
-                error_log('Decline notification failed: ' . $e->getMessage());
+        $notifBody = ($status === 'accepted')
+            ? "$staffName has ACCEPTED the job offer for {$bData['client_name']}'s event on $eventDateFormatted."
+            : "$staffName has DECLINED the job offer for {$bData['client_name']}'s event on $eventDateFormatted. Please update the lineup.";
+
+        try {
+            // 1. In-App Notifications
+            $notifyAdmins = $pdo->prepare("
+                INSERT INTO notifications (user_id, type, title, body, booking_id, link_url)
+                SELECT id,
+                       :type,
+                       :title,
+                       :body,
+                       :bid,
+                       :linkUrl
+                FROM users
+                WHERE role IN ('admin', 'super_admin', 'frontdesk')
+                  AND is_active = 1
+            ");
+            $notifyAdmins->execute([
+                ':type'    => ($status === 'accepted' ? 'job_accepted' : 'job_declined'),
+                ':title'   => "Staff $statusLabel Job Offer",
+                ':body'    => $notifBody,
+                ':bid'     => $bData['booking_id'],
+                ':linkUrl' => $bookingUrl,
+            ]);
+
+            // 2. Email Notifications
+            if (MAIL_ENABLED) {
+                require_once __DIR__ . '/../../includes/mailer.php';
+                $admins = $pdo->query("SELECT name, email FROM users WHERE role IN ('admin', 'super_admin', 'frontdesk') AND is_active = 1")->fetchAll();
+                foreach ($admins as $admin) {
+                    if (!empty($admin['email'])) {
+                        sendJobResponseEmailToAdmin(
+                            $admin,
+                            ['name' => $staffName],
+                            [
+                                'event_date'  => $bData['event_date'],
+                                'client_name' => $bData['client_name'],
+                                'staff_role'  => $bData['role_required']
+                            ],
+                            $status
+                        );
+                    }
+                }
             }
+        } catch (\Throwable $e) {
+            error_log('Response notification failed: ' . $e->getMessage());
         }
     }
 

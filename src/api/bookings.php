@@ -45,8 +45,8 @@ function validateEventTime(?string $time): ?string {
         jsonResponse(false, 'Invalid event time format. Use HH:MM.', [], 422);
     }
     $h = (int) explode(':', $time)[0];
-    if ($h < 8 || $h >= 22) {
-        jsonResponse(false, 'Event start time cannot be earlier than 08:00 AM or later than 09:59 PM.', [], 422);
+    if ($h < 7 || $h >= 23) {
+        jsonResponse(false, 'Event start time cannot be earlier than 07:00 AM or later than 11:00 PM.', [], 422);
     }
     return $time;
 }
@@ -101,14 +101,10 @@ function computePaxPricing($pdo, int $paxCount, $packageId = null): array {
     $extraCost  = round($extraPax * $ratePerPax, 2);
     $totalCost  = round($basePrice + $extraCost, 2);
 
-    // Legacy logic for max dishes if no package was provided
+    // Fixed Limits (May 2026 Shift): 5 Mains, 1 Dessert, 1 Rice
     if (!$packageId || empty($pkg)) {
-        if ($paxCount < 100)      { $maxMain = 5;  $maxDesserts = 1; }
-        elseif ($paxCount < 150)  { $maxMain = 6;  $maxDesserts = 1; }
-        elseif ($paxCount < 200)  { $maxMain = 7;  $maxDesserts = 2; }
-        elseif ($paxCount < 250)  { $maxMain = 8;  $maxDesserts = 2; }
-        elseif ($paxCount < 300)  { $maxMain = 9;  $maxDesserts = 3; }
-        else                      { $maxMain = 10; $maxDesserts = 3; }
+        $maxMain = 5;
+        $maxDesserts = 1;
     }
 
     return [
@@ -124,41 +120,26 @@ function computePaxPricing($pdo, int $paxCount, $packageId = null): array {
     ];
 }
 
-function validateSelectedDishes(PDO $pdo, array $selectedDishIds, int $maxMain, int $maxDesserts): array {
+function validateSelectedDishes(PDO $pdo, array $selectedDishIds): array {
     $selectedDishIds = array_values(array_filter(array_map('intval', $selectedDishIds), fn($v) => $v > 0));
-    if (empty($selectedDishIds)) return [[], 0.0];
+    if (empty($selectedDishIds)) return [];
 
     $placeholders = implode(',', array_fill(0, count($selectedDishIds), '?'));
     $dishStmt = $pdo->prepare("SELECT id, category, custom_fee FROM dishes WHERE id IN ($placeholders) AND is_active = 1");
     $dishStmt->execute($selectedDishIds);
-    $valid = $dishStmt->fetchAll();
+    $dishes = $dishStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $mainCount = 0;
-    $dessertCount = 0;
-    $customFees = 0.0;
-    $validIds = [];
-    $mainCategories = ['beef', 'pork', 'chicken', 'seafood', 'vegetables', 'pasta', 'main'];
-
-    foreach ($valid as $d) {
-        $validIds[] = (int)$d['id'];
-        $cat = strtolower($d['category']);
-        $isMain = in_array($cat, $mainCategories);
-        if ($isMain) {
-            $mainCount++;
-        } elseif ($cat === 'dessert') {
-            $dessertCount++;
+    // Reorder fetched dishes to match the original $selectedDishIds order
+    $ordered = [];
+    foreach ($selectedDishIds as $id) {
+        foreach ($dishes as $d) {
+            if ((int)$d['id'] === $id) {
+                $ordered[] = $d;
+                break;
+            }
         }
-        $customFees += (float)($d['custom_fee'] ?? 0);
     }
-
-    if ($mainCount > $maxMain) {
-        jsonResponse(false, "You can select a maximum of $maxMain main dishes for this package.", [], 422);
-    }
-    if ($dessertCount > $maxDesserts) {
-        jsonResponse(false, "You can select a maximum of $maxDesserts dessert(s) for this package.", [], 422);
-    }
-
-    return [$validIds, $customFees];
+    return $ordered;
 }
 
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
@@ -287,7 +268,8 @@ if ($method === 'GET') {
     $stmt = $pdo->prepare("
         SELECT b.*,
                c.name AS client_name, c.phone AS client_phone,
-               (SELECT COALESCE(SUM(total_cost), 0) FROM booking_breakages WHERE booking_id = b.id) as breakage_total
+               (SELECT COALESCE(SUM(total_cost), 0) FROM booking_breakages WHERE booking_id = b.id) as breakage_total,
+               b.resched_count
         FROM bookings b
         JOIN clients c ON c.id = b.client_id
         WHERE $whereClause
@@ -308,6 +290,33 @@ if ($method === 'GET') {
 // ────────────────────────────────────────────────────────────────
 if ($method === 'POST') {
     $data = readJsonBody();
+
+    // ── ACTION: Send manual reminder ───────────────────────────────────────────
+    if (isset($data['action']) && $data['action'] === 'send_reminder') {
+        requireFields($data, ['id']);
+        $id = (int)$data['id'];
+
+        $stmt = $pdo->prepare("
+            SELECT b.*, c.name AS client_name, c.email AS client_email 
+            FROM bookings b
+            JOIN clients c ON c.id = b.client_id
+            WHERE b.id = :id
+        ");
+        $stmt->execute([':id' => $id]);
+        $booking = $stmt->fetch();
+
+        if (!$booking) jsonResponse(false, 'Booking not found.', [], 404);
+        if (empty($booking['client_email'])) jsonResponse(false, 'Client has no email address.', [], 422);
+
+        require_once __DIR__ . '/../../includes/mailer.php';
+        if (sendPaymentReminderEmail($booking)) {
+            auditLog($pdo, 'reminder_sent', 'booking', $id, null, ['method' => 'manual_email']);
+            jsonResponse(true, 'Payment reminder sent successfully.');
+        } else {
+            jsonResponse(false, 'Failed to send email. Check mailer settings.', [], 500);
+        }
+    }
+
 
     // Compatibility: action-based subroutes
     $action = strtolower(trim((string)($data['action'] ?? '')));
@@ -444,25 +453,63 @@ if ($method === 'POST') {
     $pId       = (int)($data['package_id'] ?? 0);
     $pricing   = computePaxPricing($pdo, $paxCount, $pId);
     
-    // Validate dishes early to calculate total cost including custom fees
+    // Validate dishes early and calculate dynamic surcharge
     $maxMain = (int)$pricing['max_main'];
     $maxDess = (int)$pricing['max_desserts'];
-    list($validDishIds, $customFees) = validateSelectedDishes($pdo, (array)($data['selected_dishes'] ?? []), $maxMain, $maxDess);
+    
+    $selectedDishes = validateSelectedDishes($pdo, (array)($data['selected_dishes'] ?? []));
+    $validDishIds = array_column($selectedDishes, 'id');
+
+    // Dynamic Surcharge Calculation
+    $mainCats = ['beef', 'pork', 'chicken', 'seafood', 'vegetables', 'pasta', 'main'];
+    
+    $dishSurcharge = 0.0;
+    $counts = ['main' => 0, 'dessert' => 0, 'rice' => 0];
+
+    foreach ($selectedDishes as $d) {
+        $cat = strtolower($d['category']);
+        $fee = (float)($d['custom_fee'] ?? 0);
+        $isPremium = $fee > 0;
+        
+        $type = 'other';
+        if (in_array($cat, $mainCats)) $type = 'main';
+        elseif (in_array($cat, ['dessert', 'desserts', 'sweets'])) $type = 'dessert';
+        elseif (in_array($cat, ['rice', 'additional'])) $type = 'rice';
+
+        $limit = ($type === 'main') ? $maxMain : (($type === 'dessert') ? $maxDess : 1);
+        $isExtra = ($counts[$type] ?? 0) >= $limit;
+        
+        // Use only explicit module-defined fees
+        if ($isExtra || $isPremium) {
+            $dishSurcharge += $fee;
+        }
+
+        if (isset($counts[$type])) $counts[$type]++;
+    }
 
     $basePax   = (int)$pricing['base_pax'];
     $basePrice = (float)$pricing['base_price'];
+    $extraPax  = (int)$pricing['extra_pax'];
     $extraCost = (float)$pricing['extra_cost'];
     $transportFee = max(0, round((float)($data['transport_fee'] ?? 0), 2));
 
-    // Calculate Custom Add-ons Surcharge
+    // Calculate Custom Add-ons Surcharge (manual items)
     $customItemsTotal = 0;
     if (!empty($data['custom_items']) && is_array($data['custom_items'])) {
         foreach ($data['custom_items'] as $ci) {
-            $customItemsTotal += max(0, (float)($ci['price'] ?? 0));
+            $p = max(0, (float)($ci['price'] ?? 0));
+            $cat = strtolower($ci['category'] ?? 'other');
+            // Food items are per-pax; others (e.g. equipment) are flat
+            if ($cat === 'main' || $cat === 'dessert') {
+                $customItemsTotal += ($p * $paxCount);
+            } else {
+                $customItemsTotal += $p;
+            }
         }
     }
 
-    $totalCost = (float)$pricing['total_cost'] + $transportFee + $customFees + $customItemsTotal;
+    $totalSurchargePerPax = $dishSurcharge * $paxCount;
+    $totalCost = (float)$pricing['total_cost'] + $transportFee + $totalSurchargePerPax + $customItemsTotal;
 
     $downpayment = round((float)($data['downpayment'] ?? 0), 2);
     if ($downpayment < 0) jsonResponse(false, 'Downpayment cannot be a negative value.', [], 422);
@@ -549,7 +596,7 @@ if ($method === 'POST') {
             ':base_price'     => $basePrice,
             ':extra_cost'     => $extraCost,
             ':transport_fee'  => $transportFee,
-            ':surcharge_total'=> $customItemsTotal,
+            ':surcharge_total'=> $totalSurchargePerPax + $customItemsTotal,
             ':total_cost'     => $totalCost,
             ':booking_status' => $initialStatus,
             ':invoice_token'  => bin2hex(random_bytes(16)),
@@ -597,6 +644,12 @@ if ($method === 'POST') {
         if ($downpayment > 0) {
             $dpMethod = in_array($data['downpayment_method'] ?? '', ['cash','gcash','maya','bank_transfer'])
                 ? $data['downpayment_method'] : 'cash';
+            $dpRef = trim((string)($data['downpayment_ref'] ?? ''));
+
+            // Validation: Reference number required for digital payments
+            if ($dpMethod !== 'cash' && $dpRef === '') {
+                jsonResponse(false, "Reference number is required for " . strtoupper($dpMethod) . " payments.", ['field' => 'downpayment_ref'], 422);
+            }
 
             // Insert the payment record
             $pdo->prepare("
@@ -652,19 +705,15 @@ if ($method === 'POST') {
 
         $pdo->commit();
 
-        // Trigger the cron worker in the background (non-blocking)
-        // This ensures the email queue is processed immediately after the booking.
-        $phpPath = '/Applications/XAMPP/xamppfiles/bin/php';
-        $cronPath = escapeshellarg(__DIR__ . '/../../cron_worker.php');
-        if (file_exists($phpPath)) {
-            shell_exec("$phpPath $cronPath > /dev/null 2>&1 &");
-        }
+        // Immediate email sending now handled directly in sendBookingConfirmation
 
-        // Send email to client (Queuing)
+
+        // Send email to client (Synchronous — No Queuing)
         $clientStmt = $pdo->prepare("SELECT * FROM clients WHERE id = :cid");
         $clientStmt->execute([':cid' => $data['client_id']]);
         $client = $clientStmt->fetch();
         if ($client && !empty($client['email'])) {
+            require_once __DIR__ . '/../../includes/mailer.php';
             try {
                 sendBookingConfirmation([
                     'client_email' => $client['email'],
@@ -713,13 +762,26 @@ if ($method === 'PUT') {
     $bookingId = (int)$data['id'];
 
     // Fetch current state for audit pattern and actual date change detection
-    $cur = $pdo->prepare("SELECT booking_status, notes, event_date, pax_count, package_id, base_pax, base_price, extra_pax, extra_cost, total_cost, amount_paid FROM bookings WHERE id = :id");
+    $cur = $pdo->prepare("SELECT booking_status, notes, event_date, pax_count, package_id, base_pax, base_price, extra_pax, extra_cost, total_cost, amount_paid, resched_count, updated_at FROM bookings WHERE id = :id");
     $cur->execute([':id' => $bookingId]);
     $current = $cur->fetch();
     if (!$current) jsonResponse(false, 'Booking not found.', [], 404);
 
     if ($current['booking_status'] === 'cancelled' && ($data['booking_status'] ?? '') !== 'pending') {
         jsonResponse(false, 'This booking is cancelled and cannot be modified. Reset status to pending to edit.', [], 403);
+    }
+
+    // ── Optimistic Locking Check ──
+    // Detect if another user updated this booking since the current user loaded the edit modal.
+    $clientUpdatedAt = $data['updated_at'] ?? '';
+    $currentUpdatedAt = $current['updated_at'] ?? '';
+    
+    // Perform loose comparison to avoid microsecond/format mismatch issues common in different MySQL/PHP configs
+    if (!empty($clientUpdatedAt) && trim($clientUpdatedAt) !== trim($currentUpdatedAt)) {
+        jsonResponse(false, 'CONFLICT: This booking was modified by another user while you were editing it. Please refresh and try again.', [
+            'db_updated_at' => $currentUpdatedAt,
+            'client_updated_at' => $clientUpdatedAt
+        ], 409);
     }
 
     // Validate status transition: pending can't skip to completed
@@ -729,7 +791,7 @@ if ($method === 'PUT') {
         jsonResponse(false, 'Invalid booking status.', [], 422);
     }
 
-    $event_time = !empty($data['event_time']) ? $data['event_time'] : null;
+    $event_time = !empty($data['event_time']) ? validateEventTime($data['event_time']) : null;
     $event_location = !empty($data['event_location']) ? $data['event_location'] : null;
     $booking_status = !empty($data['booking_status']) ? $data['booking_status'] : null;
 
@@ -737,17 +799,32 @@ if ($method === 'PUT') {
     $newDate = !empty($data['event_date']) ? trim($data['event_date']) : null;
     $dateChanged = ($newDate && $current && $newDate !== $current['event_date']);
 
+    $dateChanged = ($newDate && $newDate !== $current['event_date']);
     if ($dateChanged) {
-        $parsedNew = \DateTime::createFromFormat('Y-m-d', $newDate);
-        if (!$parsedNew || $parsedNew->format('Y-m-d') !== $newDate) {
-            jsonResponse(false, 'Invalid event date format. Use YYYY-MM-DD.', [], 422);
+        // RESHEDULING POLICY (May 2026):
+        // 1. Only one reschedule allowed
+        if ((int)($current['resched_count'] ?? 0) >= 1) {
+            jsonResponse(false, 'This booking has already been rescheduled once and cannot be moved again.', [], 422);
         }
-        // Check lead time
-        $minLeadDays = function_exists('appSettingInt') ? appSettingInt('min_lead_time_days', MIN_LEAD_TIME_DAYS) : MIN_LEAD_TIME_DAYS;
-        if ($newDate < date('Y-m-d', strtotime('+' . $minLeadDays . ' days'))) {
-            jsonResponse(false, 'Rescheduled date must be at least ' . $minLeadDays . ' days from today.', [], 422);
+
+        $minLeadDays = function_exists('appSettingInt') ? appSettingInt('min_lead_time_days', 14) : 14;
+        $todayTs = strtotime(date('Y-m-d'));
+        $origTs  = strtotime($current['event_date']);
+        $newTs   = strtotime($newDate);
+
+        // 2. Original date must be at least 14 days away from today
+        $daysToOrig = round(($origTs - $todayTs) / 86400);
+        if ($daysToOrig < $minLeadDays) {
+            jsonResponse(false, "Rescheduling must be done at least $minLeadDays days before the original event date (Current: $daysToOrig days away).", [], 422);
         }
-        // Check one-booking-per-date (exclude self, though we know it changed)
+
+        // 3. New date must be at least 14 days in the future
+        $daysToNew = round(($newTs - $todayTs) / 86400);
+        if ($daysToNew < $minLeadDays) {
+            jsonResponse(false, "The new event date must be at least $minLeadDays days from today (Selected: $daysToNew days away).", [], 422);
+        }
+
+        // Availability check
         $avail = $pdo->prepare("
             SELECT COUNT(*) FROM bookings
             WHERE event_date = :date
@@ -756,61 +833,12 @@ if ($method === 'PUT') {
         ");
         $avail->execute([':date' => $newDate, ':self' => $bookingId]);
         if ((int)$avail->fetchColumn() > 0) {
-            jsonResponse(false, 'The chosen reschedule date is already booked by another event. Please select a different date.', ['field' => 'event_date'], 409);
+            jsonResponse(false, 'The chosen reschedule date is already booked by another event.', ['field' => 'event_date'], 409);
         }
     }
 
-    $newPax = !empty($data['pax_count']) ? (int)$data['pax_count'] : (int)$current['pax_count'];
-    $paxChanged = ($newPax !== (int)$current['pax_count']);
-    
-    $base_pax   = $current['base_pax'];
-    $base_price = $current['base_price'];
-    $extra_pax  = $current['extra_pax'];
-    $extra_cost = $current['extra_cost'];
-    $total_cost = $current['total_cost'];
-    $maxMain = 5;
-    $maxDesserts = 1;
-    
-    if ($paxChanged) {
-        $minPax = function_exists('appSettingInt') ? appSettingInt('min_pax', MIN_PAX) : MIN_PAX;
-        $maxPax = function_exists('appSettingInt') ? appSettingInt('max_pax', MAX_PAX) : MAX_PAX;
-        if ($newPax < $minPax) jsonResponse(false, 'Minimum of ' . $minPax . ' guests is required.', [], 422);
-        if ($newPax > $maxPax) jsonResponse(false, 'Maximum of ' . $maxPax . ' guests is allowed.', [], 422);
-
-        $pId     = isset($data['package_id']) ? (int)$data['package_id'] : (int)$booking['package_id'];
-        $pricing = computePaxPricing($pdo, $newPax, $pId);
-        $base_pax   = (int)$pricing['base_pax'];
-        $base_price = (float)$pricing['base_price'];
-        $extra_pax  = (int)$pricing['extra_pax'];
-        $extra_cost = (float)$pricing['extra_cost'];
-        $newTransport = isset($data['transport_fee']) ? max(0, round((float)$data['transport_fee'], 2)) : 0;
-        $total_cost = (float)$pricing['total_cost'] + $newTransport;
-        $maxMain = (int)$pricing['max_main'];
-        $maxDesserts = (int)$pricing['max_desserts'];
-    }
-    
-    }
-    
-    // Always re-calculate total cost if pax, package, transport, or dishes changed
-    // to avoid rounding drifts or double-counting surcharges
-    $finalTransport = isset($data['transport_fee']) ? max(0, round((float)$data['transport_fee'], 2)) : (float)$current['transport_fee'];
-    $finalPId = isset($data['package_id']) ? (int)$data['package_id'] : (int)$current['package_id'];
-    $finalPricing = computePaxPricing($pdo, $newPax, $finalPId);
-    
-    $total_cost = (float)$finalPricing['total_cost'] + $finalTransport;
-    
-    $dishesUpdated = false;
-    $validDishIds = [];
-    if (isset($data['selected_dishes'])) {
-        list($validDishIds, $customFees) = validateSelectedDishes($pdo, (array)$data['selected_dishes'], $maxMain, $maxDesserts);
-        $total_cost += $customFees;
-        $dishesUpdated = true;
-    } else {
-        // If dishes NOT updated, we still need current dish surcharges to keep total_cost accurate
-        $stmtOld = $pdo->prepare("SELECT SUM(custom_fee) FROM dishes d JOIN booking_dishes bd ON d.id = bd.dish_id WHERE bd.booking_id = ?");
-        $stmtOld->execute([$bookingId]);
-        $total_cost += (float)$stmtOld->fetchColumn();
-    }
+    // Use the existing values for the update (effectively locking them)
+    // $total_cost remains what is already in the database for this booking
 
     // Wrap in transaction just in case
     $pdo->beginTransaction();
@@ -823,14 +851,8 @@ if ($method === 'PUT') {
                 event_type     = COALESCE(:event_type,     event_type),
                 booking_status = COALESCE(:booking_status, booking_status),
                 notes          = :notes,
-                pax_count      = :pax_count,
-                package_id     = :package_id,
-                base_pax       = :base_pax,
-                base_price     = :base_price,
-                extra_pax      = :extra_pax,
-                extra_cost     = :extra_cost,
-                transport_fee  = :transport_fee,
-                total_cost     = :total_cost
+                dietary_notes  = COALESCE(:dietary_notes,  dietary_notes),
+                resched_count  = resched_count + :resched_inc
             WHERE id = :id
         ")->execute([
             ':id'             => $bookingId,
@@ -840,24 +862,16 @@ if ($method === 'PUT') {
             ':event_type'     => !empty($data['event_type']) ? trim($data['event_type']) : null,
             ':booking_status' => $booking_status,
             ':notes'          => !empty($data['notes']) ? $data['notes'] : null,
-            ':pax_count'      => $newPax,
-            ':package_id'     => null, // package-less system
-            ':base_pax'       => $base_pax,
-            ':base_price'     => $base_price,
-            ':extra_pax'      => $extra_pax,
-            ':extra_cost'     => $extra_cost,
-            ':transport_fee'  => isset($data['transport_fee']) ? max(0, round((float)$data['transport_fee'], 2)) : null,
-            ':total_cost'     => $total_cost,
+            ':dietary_notes'  => !empty($data['dietary_notes']) ? trim((string)$data['dietary_notes']) : null,
+            ':resched_inc'    => $dateChanged ? 1 : 0,
         ]);
 
+        // Dish selection update removed as per order
+        /*
         if ($dishesUpdated) {
-            $pdo->prepare("DELETE FROM booking_dishes WHERE booking_id = :bid")->execute([':bid' => $bookingId]);
-            $allDishIds = array_merge($mainDishIds ?? [], $dessertIds ?? []);
-            if (!empty($allDishIds)) {
-                $dInsert = $pdo->prepare("INSERT INTO booking_dishes (booking_id, dish_id) VALUES (:bid, :did)");
-                foreach ($allDishIds as $did) $dInsert->execute([':bid' => $bookingId, ':did' => $did]);
-            }
+            ...
         }
+        */
 
         // Custom items update (optional). If provided, replace the set.
         if (array_key_exists('custom_items', $data) && is_array($data['custom_items'])) {
@@ -928,7 +942,7 @@ if ($method === 'PUT') {
     }
 
     jsonResponse(true, 'Booking updated successfully.');
-
+}
 
 // ────────────────────────────────────────────────────────────────
 // DELETE — admin only

@@ -21,6 +21,7 @@ $nav = [
         ['dashboard',   'Dashboard',    'fa-chart-line',   '/views/admin/dashboard.php'],
         ['section' => 'Manage'],
         ['bookings',    'Bookings',          'fa-calendar-days',  '/views/admin/bookings.php'],
+        ['clients',     'Clients',           'fa-user-group',     '/views/admin/clients.php'],
         ['packages',    'Package Pricing',   'fa-tags',           '/views/admin/packages.php'],
         ['dishes',      'Food & Menu',       'fa-utensils',       '/views/admin/dishes.php'],
         ['recipes',     'Recipes & Costing', 'fa-flask',          '/views/admin/recipes.php'],
@@ -29,7 +30,6 @@ $nav = [
         ['section' => 'Human Resources'],
         ['staff',       'Staff',        'fa-id-badge',     '/views/admin/staff.php'],
         ['section' => 'System'],
-        ['profit',      'Profit Guard', 'fa-chart-pie',    '/views/admin/profit.php'],
         ['archive',     'Archive',      'fa-box-archive',  '/views/admin/archive.php'],
     ],
     'frontdesk' => [

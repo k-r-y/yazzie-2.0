@@ -73,13 +73,15 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             <div class="form-group">
                                 <label class="form-label">Event Date <span class="required">*</span></label>
                                 <input type="date" class="form-control" id="s1_date"
-                                       min="<?= date('Y-m-d', strtotime('+1 day')) ?>"
+                                       min="<?= date('Y-m-d', strtotime('+1 days')) ?>"
                                        max="<?= date('Y-m-d', strtotime('+1 year')) ?>">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Event Time <span class="required">*</span></label>
-                                <input type="time" class="form-control" id="s1_time" min="08:00" max="21:59" 
-                                       onchange="state.time = this.value; let h = this.value ? parseInt(this.value.split(':')[0]) : 0; if(this.value && (h < 8 || h >= 22)) { Toast.error('Operating hours are from 08:00 AM to 09:59 PM.'); this.value=''; state.time=''; }">
+                                <input type="time" class="form-control" id="s1_time" 
+                                       onchange="onTimeChange(this.value)" 
+                                       oninput="onTimeChange(this.value)"
+                                       onblur="onTimeChange(this.value)">
                             </div>
                         </div>
 
@@ -165,7 +167,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                     <input type="email" class="form-control" id="nc_email" placeholder="email@example.com" required>
                                 </div>
                                 <div class="form-group">
-                                    <label class="form-label">Messenger Link <span class="required">*</span></label>
+                                    <label class="form-label">Messenger/Facebook Link <span class="required">*</span></label>
                                     <input type="text" class="form-control" id="nc_messenger" placeholder="m.me/username" required>
                                 </div>
                                 <div class="form-group" style="grid-column: span 2;">
@@ -407,7 +409,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             <div class="form-grid-2" style="gap:10px;">
                                 <div class="form-group">
                                     <label class="form-label">Payment Method</label>
-                                    <select class="form-control" id="s4_dpMethod">
+                                    <select class="form-control" id="s4_dpMethod" onchange="onDPMethodChange()">
                                         <option value="cash">💵 Cash</option>
                                         <option value="gcash">📱 GCash</option>
                                         <option value="maya">📱 Maya</option>
@@ -415,7 +417,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label class="form-label">Reference No.</label>
+                                    <label class="form-label" id="s4_dpRefLabel">Reference No.</label>
                                     <input type="text" class="form-control" id="s4_dpRef"
                                            placeholder="e.g. GC-2026041412345"
                                            maxlength="40"
@@ -523,6 +525,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
     border-color: rgba(48,209,88,0.35);
     background: rgba(48,209,88,0.04);
 }
+/* All Category Selected State (Unified Green Theme) */
 .dish-card.selected {
     border-color: var(--sys-green);
     background: rgba(48,209,88,0.08);
@@ -537,19 +540,20 @@ $stepperRole = $bookingStepperRole ?? 'admin';
     font-weight: 800;
     color: var(--sys-green);
 }
-.dish-card.dessert-selected {
-    border-color: #FF9500;
-    background: rgba(255,149,0,0.07);
-    color: #9A5400;
-    font-weight: 600;
+/* Surcharge Indicator */
+.dish-card.surcharged {
+    border-style: dashed;
 }
-.dish-card.dessert-selected::after {
-    content: '\2713';
+.dish-card.surcharged::before {
+    content: 'EXTRA';
     position: absolute;
-    top: 4px; right: 7px;
-    font-size: 10px;
+    top: -6px; right: -4px;
+    background: #FF9500;
+    color: white;
+    font-size: 8px;
+    padding: 1px 4px;
+    border-radius: 4px;
     font-weight: 800;
-    color: #FF9500;
 }
 .dish-card.disabled {
     opacity: 0.4;
@@ -611,8 +615,11 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         // Dish selection
         selectedMain:   [],   // array of dish IDs
         selectedDesserts: [], // array of dish IDs
+        selectedAdditional: [], // array of dish IDs
         maxMain:        5,
         maxDessert:     1,
+        maxRice:        1,
+        mealType:       'all', // all, breakfast, lunch, dinner
         // Payment
         dpAmount:       0,
         dpMethod:       'cash',
@@ -622,6 +629,12 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         dietaryNotes:   '',
         // Custom / Additional Foods
         customItems:    [], // array of {name, category, price, notes}
+        // Rates
+        additionalRates: {
+            main: 50,
+            dessert: 30,
+            rice: 20
+        }
     };
 
     let allPackages = [];
@@ -645,6 +658,10 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 Api.get(BASE + '/src/api/availability.php', { booked_dates: 1 }),
             ]);
             allPackages          = pkgData.packages   || [];
+            state.additionalRates.main    = pkgData.rates.extra_main_rate || 50;
+            state.additionalRates.dessert = pkgData.rates.extra_dessert_rate || 30;
+            state.additionalRates.rice    = pkgData.rates.extra_rice_rate || 20;
+
             allDishesGroups      = dishData.dishes_grouped || {};
             allDishes            = [];
             Object.values(allDishesGroups).forEach(arr => { allDishes = allDishes.concat(arr); });
@@ -706,9 +723,15 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         document.getElementById('s3_pkgBadge').style.display   = 'none';
         document.getElementById('pr_tierRow').style.display    = 'none';
         document.getElementById('pr_dpNotice').style.display   = 'none';
-        document.getElementById('pr_extraRow').style.display   = 'none';
         document.getElementById('pr_total').textContent        = '₱—';
         document.getElementById('dishSelectionPanel').style.display = 'none';
+        
+        // Reset limits to fixed 5/1/1
+        state.maxMain = 5;
+        state.maxDessert = 1;
+        state.maxRice = 1;
+        state.mealType = 'all';
+
         setStep(1);
         updateAvailUI(null);
     }
@@ -775,13 +798,19 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             if (!state.available) { Toast.error('This date is already taken. Please choose another.'); return false; }
             state.date = d;
             
-            const timeVal = document.getElementById('s1_time').value;
-            if (timeVal) {
-                const parts = timeVal.split(':');
-                const hour = parseInt(parts[0], 10);
-                if (hour < 8 || hour >= 22) {
-                    Toast.error('Event hours strictly limited between 08:00 AM and 09:59 PM.'); return false;
-                }
+            let timeVal = document.getElementById('s1_time').value;
+            // Safari/Mobile fallback: Check both ID and querySelector, then the internal state
+            if (!timeVal) {
+                const el = document.querySelector('#s1_time');
+                if (el) timeVal = el.value;
+            }
+            if (!timeVal && state.time) timeVal = state.time; 
+
+            if (!timeVal) { Toast.error('Please select an event time.'); return false; }
+            const parts = timeVal.split(':');
+            const hour = parseInt(parts[0], 10);
+            if (hour < 7 || hour >= 23) {
+                Toast.error('Event hours strictly limited between 07:00 AM and 11:00 PM.'); return false;
             }
             state.time = timeVal;
             
@@ -803,12 +832,39 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 const phone = document.getElementById('nc_phone').value.trim();
                 const email = document.getElementById('nc_email').value.trim();
                 const address = document.getElementById('nc_address').value.trim();
+                const messenger_link =document.getElementById('nc_messenger').value.trim();
+                
+                if (!name) { 
+                    Toast.error('New client name are required.'); 
+                    return false; 
+                }
+
+                if (!phone) { 
+                    Toast.error('New client phone required.'); 
+                    return false; 
+                }
+
                 if (phone.length < 11 || !phone.startsWith('09')) {
                     Toast.error('Please enter a valid 11-digit PH mobile number.');
                     return false;
                 }
-                if (!name || !phone || !email) { Toast.error('New client name, phone and email are required.'); return false; }
-                if (!validateEmail(email)) { Toast.error('Invalid email address.'); return false; }
+
+                if (!email) {
+                    Toast.error('New client messenger/facebook link are required.'); 
+                    return false; 
+                }
+
+                if (!messenger_link) { 
+                    Toast.error('New client email are required.'); 
+                    return false; 
+                }
+
+                if (!validateEmail(email)) { 
+                    Toast.error('Invalid email address.'); 
+                    return false; 
+                }
+
+
                 // Save new client
                 try {
                     const r = await Api.post(BASE + '/src/api/clients.php', {
@@ -854,9 +910,6 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             if (state.selectedMain.length === 0) {
                 Toast.error('Please select at least 1 main dish.'); return false;
             }
-            if (state.selectedMain.length > state.maxMain) {
-                Toast.error(`Maximum ${state.maxMain} main dishes allowed.`); return false;
-            }
             if (state.selectedDesserts.length === 0) {
                 Toast.error('Please choose at least 1 dessert.'); return false;
             }
@@ -878,6 +931,15 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 Toast.error(isLastMinute ? `Full payment is required for bookings made within 3 days (72h).` : `Downpayment is below the 30% minimum (₱${minDP.toLocaleString()}).`); 
                 return false; 
             }
+
+            // Reference No. Validation for digital payments
+            const method = document.getElementById('s4_dpMethod').value;
+            const ref = document.getElementById('s4_dpRef').value.trim();
+            if (dp > 0 && method !== 'cash' && !ref) {
+                Toast.error(`Reference number is required for ${method.toUpperCase()} payments.`);
+                return false;
+            }
+
             if (!document.getElementById('s4_terms').checked) { Toast.error('You must accept the Terms and Conditions.'); return false; }
             state.dpAmount = dp;
             return true;
@@ -983,6 +1045,31 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         calcPricing();
     }
 
+    window.onTimeChange = function (val) {
+        state.time = val;
+        if (!val) return;
+
+        const parts = val.split(':');
+        const h = parseInt(parts[0], 10);
+
+        if(h < 7 || h >= 23) {
+            Toast.warning('Operating hours are from 07:00 AM to 11:00 PM. Please adjust your selection.');
+            // We no longer auto-clear to prevent confusing the user; validateStep will catch it.
+        }
+
+        // Determine Meal Type
+        if (h >= 6 && h < 11) state.mealType = 'breakfast';
+        else if (h >= 11 && h < 17) state.mealType = 'lunch';
+        else if (h >= 17) state.mealType = 'dinner';
+        else state.mealType = 'all';
+
+        console.log('Detected Meal Type:', state.mealType);
+        
+        // Refresh dish selection UI based on meal type
+        buildDishSelection();
+        calcPricing();
+    };
+
     window.onEventTypeChange = function (val) {
         state.eventType = val;
         const customGroup = document.getElementById('customTypeGroup');
@@ -997,7 +1084,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         updateStaffMin();
     };
 
-    // Update dish limits when pax changes (staff logic moved to Dispatching module)
+    // Update pricing when pax changes
     window.updateStaffMin = function() {
         let p = parseInt(document.getElementById('s3_pax')?.value) || state.pax || 0;
         if (p > 300) {
@@ -1011,32 +1098,6 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         
         // Trigger pricing calculation
         if (typeof calcPricing === 'function') calcPricing();
-        
-        if (p < 100) { state.maxMain = 5; state.maxDessert = 1; }
-        else if (p < 150) { state.maxMain = 6; state.maxDessert = 1; }
-        else if (p < 200) { state.maxMain = 7; state.maxDessert = 2; }
-        else if (p < 250) { state.maxMain = 8; state.maxDessert = 2; }
-        else if (p < 300) { state.maxMain = 9; state.maxDessert = 3; }
-        else { state.maxMain = 10; state.maxDessert = 3; }
-        
-        const ml = document.getElementById('maxMainLabel');
-        if(ml) ml.textContent = state.maxMain;
-        const md = document.getElementById('maxDessertLabel');
-        if(md) md.textContent = state.maxDessert;
-        
-        // Reset selections when size changes down to avoid breaking limits
-        if (state.selectedMain && state.selectedDesserts) {
-            state.selectedMain = [];
-            state.selectedDesserts = [];
-            const mGrid = document.getElementById('mainDishGrid');
-            if(mGrid) mGrid.querySelectorAll('.selected').forEach(el=>el.classList.remove('selected'));
-            const dGrid = document.getElementById('dessertDishGrid');
-            if(dGrid) dGrid.querySelectorAll('.dessert-selected').forEach(el=>el.classList.remove('dessert-selected'));
-            const mdl = document.getElementById('mainDishCounter');
-            if (mdl) mdl.textContent = `0 / ${state.maxMain}`;
-            const ddl = document.getElementById('dessertCounter');
-            if (ddl) ddl.textContent = `0 / ${state.maxDessert}`;
-        }
     };
 
     /* ── PRICING ENGINE (PAX-DRIVEN AUTO-TIER from DB packages) ── */
@@ -1111,16 +1172,35 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         state.tierPax     = tierPax;
         state.basePrice    = basePrice;
         state.extraPax    = extraPax;
+        state.extraPax    = extraPax;
         state.extraCost   = extraCost;
         state.totalCost   = total;
         
-        let p = pax;
-        if (p < 100) { state.maxMain = 5; state.maxDessert = 1; }
-        else if (p < 150) { state.maxMain = 6; state.maxDessert = 1; }
-        else if (p < 200) { state.maxMain = 7; state.maxDessert = 2; }
-        else if (p < 250) { state.maxMain = 8; state.maxDessert = 2; }
-        else if (p < 300) { state.maxMain = 9; state.maxDessert = 3; }
-        else { state.maxMain = 10; state.maxDessert = 3; }
+        // Dynamic Surcharge Logic
+        const inclMain = 5;
+        const inclDessert = 1;
+        const inclRice = 1;
+
+        const getSurcharge = (selectedIds, limit, fallbackRate) => {
+            let sur = 0;
+            selectedIds.forEach((id, index) => {
+                const dish = allDishes.find(d => d.id == id);
+                if (!dish) return;
+                const fee = parseFloat(dish.custom_fee) || 0;
+                const isExtra = index >= limit;
+
+                if (isExtra || fee > 0) {
+                    sur += fee;
+                }
+            });
+            return sur * pax;
+        };
+
+        const surchargeMain = getSurcharge(state.selectedMain, inclMain, parseFloat(state.additionalRates.main) || 50);
+        const surchargeDessert = getSurcharge(state.selectedDesserts, inclDessert, parseFloat(state.additionalRates.dessert) || 30);
+        const surchargeRice = getSurcharge(state.selectedAdditional, inclRice, parseFloat(state.additionalRates.rice) || 20);
+
+        const extraDishSurcharge = surchargeMain + surchargeDessert + surchargeRice;
 
         // ── Badge ───────────────────────────────────────────────
         document.getElementById('s3_pkgLabel').textContent =
@@ -1165,36 +1245,27 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             document.getElementById('pr_transportRow').style.display = 'none';
         }
 
-        // ── Custom Fees via Selected Dishes ──────────────────────
-        let customFeeSum = 0;
-        const allSelected = [...state.selectedMain, ...state.selectedDesserts, ...state.selectedAdditional];
-        allSelected.forEach(id => {
-            const dish = allDishes.find(d => d.id == id);
-            if (dish && parseFloat(dish.custom_fee) > 0) {
-                customFeeSum += parseFloat(dish.custom_fee);
-            }
-        });
-        state.customFees = customFeeSum;
+        // Surcharges already calculated above in extraDishSurcharge
+        state.customFees = extraDishSurcharge;
 
-        if (customFeeSum > 0) {
+        const addOnSum = state.customItems.reduce((acc, item) => {
+            const p = parseFloat(item.price) || 0;
+            // Per-pax for food categories, flat for 'other'
+            if (item.category === 'main' || item.category === 'dessert') {
+                return acc + (p * state.pax);
+            }
+            return acc + p;
+        }, 0);
+        const totalSurcharge = extraDishSurcharge + addOnSum;
+
+        if (totalSurcharge > 0) {
             document.getElementById('pr_customFeeRow').style.display = 'flex';
-            document.getElementById('pr_customFeeCost').textContent = `+₱${customFeeSum.toLocaleString('en-PH',{minimumFractionDigits:2})}`;
+            document.getElementById('pr_customFeeCost').textContent = '+' + Format.peso(totalSurcharge);
         } else {
             document.getElementById('pr_customFeeRow').style.display = 'none';
         }
 
-        // Add custom add-ons total
-        const addOnSum = state.customItems.reduce((acc, item) => acc + (parseFloat(item.price) || 0), 0);
-        if (addOnSum > 0) {
-            document.getElementById('pr_customFeeRow').style.display = 'flex';
-            const totalSurcharge = customFeeSum + addOnSum;
-            document.getElementById('pr_customFeeCost').textContent = '+' + Format.peso(totalSurcharge);
-        } else if (customFeeSum > 0) {
-            document.getElementById('pr_customFeeRow').style.display = 'flex';
-            document.getElementById('pr_customFeeCost').textContent = '+' + Format.peso(customFeeSum);
-        }
-
-        total = Math.round((basePrice + extraCost + customFeeSum + addOnSum + state.transportFee) * 100) / 100;
+        total = Math.round((basePrice + extraCost + totalSurcharge + state.transportFee) * 100) / 100;
         const finalPerPax = Math.round((total / pax) * 100) / 100;
 
         document.getElementById('pr_total').textContent  = '₱' + total.toLocaleString('en-PH',{minimumFractionDigits:2});
@@ -1245,11 +1316,41 @@ $stepperRole = $bookingStepperRole ?? 'admin';
 
         const renderGroup = (cat, items, isMain, isDessert) => {
             if(!items || items.length === 0) return '';
-            const grid = items.map(d => `
-                <div class="dish-card" id="dish_${d.id}" onclick="toggleDish(${d.id}, ${isMain}, ${isDessert})">
-                    <span style="font-size:13px;">${isMain?'🍲':isDessert?'🍮':'🥗'}</span> ${d.name}
-                </div>
-            `).join('');
+            
+            // Filter by Meal Type
+            const filtered = items.filter(d => {
+                const mt = d.meal_type || 'all';
+                return mt === 'all' || mt === state.mealType || state.mealType === 'all';
+            });
+            if(filtered.length === 0) return '';
+
+            const grid = filtered.map(d => {
+                const isSelected = isMain 
+                    ? state.selectedMain.includes(d.id) 
+                    : isDessert ? state.selectedDesserts.includes(d.id) : state.selectedAdditional.includes(d.id);
+                
+                // Determine if this specific card should show "Extra" badge
+                let isExtra = false;
+                if (isSelected) {
+                    if (isMain) {
+                        const idx = state.selectedMain.indexOf(d.id);
+                        if (idx >= 5) isExtra = true;
+                    } else if (isDessert) {
+                        const idx = state.selectedDesserts.indexOf(d.id);
+                        if (idx >= 1) isExtra = true;
+                    } else {
+                        const idx = state.selectedAdditional.indexOf(d.id);
+                        if (idx >= 1) isExtra = true;
+                    }
+                }
+
+                return `
+                    <div class="dish-card ${isSelected ? 'selected' : ''} ${isExtra ? 'surcharged' : ''}" id="dish_${d.id}" onclick="toggleDish(${d.id}, ${isMain}, ${isDessert})">
+                        <span style="font-size:13px;">${isMain?'🍲':isDessert?'🍮':'🥗'}</span> ${d.name}
+                    </div>
+                `;
+            }).join('');
+            
             return `
                 <div style="margin-bottom:12px;">
                     <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:rgba(60,60,67,0.4); margin-bottom:6px;">${cat}</div>
@@ -1301,28 +1402,40 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         const idx = selectedArr.indexOf(id);
         if (idx > -1) {
             selectedArr.splice(idx, 1);
-            el.classList.remove(isDessert ? 'dessert-selected' : 'selected');
         } else {
-            if (selectedArr.length >= limit) {
-                Toast.error(`Maximum ${limit} ${limitName} dishes allowed.`);
-                return;
-            }
             selectedArr.push(id);
-            el.classList.add(isDessert ? 'dessert-selected' : 'selected');
         }
-        updateDishCounters();
+        
+        // Premium Green Theme Re-render
+        buildDishSelection();
+        calcPricing();
     };
 
     function updateDishCounters() {
         const mNode = document.getElementById('mainDishCounter');
-        if(mNode) mNode.textContent = `${state.selectedMain.length} / ${state.maxMain}`;
+        if(mNode) mNode.textContent = `${state.selectedMain.length} items`;
         const dNode = document.getElementById('dessertCounter');
-        if(dNode) dNode.textContent = `${state.selectedDesserts.length} / ${state.maxDessert}`;
+        if(dNode) dNode.textContent = `${state.selectedDesserts.length} items`;
+        
+        const ml = document.getElementById('maxMainLabel');
+        if(ml) ml.textContent = 5;
+        const md = document.getElementById('maxDessertLabel');
+        if(md) md.textContent = 1;
     }
 
     /* ── STEP 4 DOWNPAYMENT ── */
     window.onDPInput = function () {
         updateSummaryBalances();
+    };
+
+    window.onDPMethodChange = function () {
+        const method = document.getElementById('s4_dpMethod').value;
+        const refLabel = document.getElementById('s4_dpRefLabel');
+        if (method !== 'cash') {
+            refLabel.innerHTML = 'Reference No. <span class="text-danger">*</span>';
+        } else {
+            refLabel.innerHTML = 'Reference No.';
+        }
     };
 
     function updateSummaryBalances() {
@@ -1503,7 +1616,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 </select>
                 <div class="input-group input-group-sm">
                     <span class="input-prefix" style="font-size:10px;">₱</span>
-                    <input type="number" class="form-control form-control-sm" value="${item.price}" oninput="onCustomItemChange(${item.id}, 'price', this.value)">
+                    <input type="number" class="form-control form-control-sm" value="${item.price}" oninput="onCustomItemChange(${item.id}, 'price', this.value)" placeholder="Price/Pax">
                 </div>
                 <button type="button" class="btn btn-sm btn-link text-danger" onclick="removeCustomItem(${item.id})"><i class="fas fa-trash-alt"></i></button>
             `;

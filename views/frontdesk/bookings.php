@@ -71,6 +71,7 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
             <div class="modal-body">
                  <form id="editStatusForm">
                     <input type="hidden" name="id" id="edit_id">
+                    <input type="hidden" name="updated_at" id="edit_updated_at">
                     <div class="form-group">
                         <label class="form-label">Event Date</label>
                         <input type="date" class="form-control" name="event_date" id="edit_event_date">
@@ -86,12 +87,12 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                     </div>
                     <div class="form-group">
                         <label class="form-label">Guest Count (Pax)</label>
-                        <input type="number" class="form-control" name="pax_count" id="edit_pax_count" min="50">
+                        <div id="edit_pax_display" style="font-weight:700; font-size:16px; color:var(--sys-green-deeper); padding:8px 0;"></div>
+                        <input type="hidden" name="pax_count" id="edit_pax_count">
                     </div>
-                    <div class="form-group mt-3" style="border:1px solid #e1e4e8; border-radius:8px; padding:12px;">
-                        <label class="form-label" style="margin-bottom:8px;">Menu Selection</label>
-                        <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:12px;" id="editDishGridMains"></div>
-                        <div style="display:flex; flex-wrap:wrap; gap:12px;" id="editDishGridDesserts"></div>
+                    <div class="alert alert-soft-warning mb-3" style="font-size:12.5px; border-radius:10px; display:flex; align-items:center;">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <span><strong>Menu Lock:</strong> Frontdesk cannot edit dishes directly after encoding. Please put changes in the <strong>Notes</strong> field.</span>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Notes</label>
@@ -172,7 +173,10 @@ async function loadBookingsFD() {
             <td>${Format.dateShort(b.event_date)}<br><small class="text-muted">${b.event_time ? Format.time(b.event_time) : ''}</small></td>
             <td>${b.menu_name}</td>
             <td>${b.pax_count}</td>
-            <td>${Format.bookingBadge(b.booking_status)}</td>
+            <td>
+                ${Format.bookingBadge(b.booking_status)}
+                ${parseInt(b.resched_count) > 0 ? `<br><span class="badge bg-soft-info text-info mt-1" style="font-size:10px;"><i class="fas fa-redo me-1"></i>Rescheduled</span>` : ''}
+            </td>
             <td>${Format.paymentBadge(b.payment_status)}</td>
             <td class="td-actions">
                 <button class="btn btn-outline-primary btn-sm" onclick="openEdit(${b.id})">
@@ -200,22 +204,17 @@ async function openEdit(id) {
         document.getElementById('edit_event_date').value = b.event_date;
         document.getElementById('edit_bs').value = b.booking_status;
         document.getElementById('edit_pax_count').value = b.pax_count;
+        document.getElementById('edit_pax_display').textContent = b.pax_count;
         document.getElementById('edit_notes').value = b.notes || '';
+        document.getElementById('edit_updated_at').value = b.updated_at;
 
-        const selectedDishIds = (b.dishes || []).map(ds => ds.id);
-        document.getElementById('editDishGridMains').innerHTML = allDishes.mains.map(dish => `
-            <label style="display:flex; align-items:center; gap:6px; font-size:13px; background:#f8f9fa; padding:4px 8px; border-radius:4px; border:1px solid #eee;">
-                <input type="checkbox" name="selected_dishes[]" value="${dish.id}" ${selectedDishIds.includes(dish.id) ? 'checked' : ''}>
-                🍲 ${dish.name}
-            </label>
-        `).join('');
+        // Enforce 14-day UI restriction for rescheduling
+        const minDate = new Date();
+        minDate.setDate(minDate.getDate() + 14);
+        document.getElementById('edit_event_date').min = minDate.toISOString().split('T')[0];
 
-        document.getElementById('editDishGridDesserts').innerHTML = allDishes.desserts.map(dish => `
-            <label style="display:flex; align-items:center; gap:6px; font-size:13px; background:#fff2cc; padding:4px 8px; border-radius:4px; border:1px solid #ffe699;">
-                <input type="checkbox" name="selected_dishes[]" value="${dish.id}" ${selectedDishIds.includes(dish.id) ? 'checked' : ''}>
-                🍮 ${dish.name}
-            </label>
-        `).join('');
+        // Dish extraction/building removed as per policy shift
+        Modal.open('editStatusModal');
 
         Modal.open('editStatusModal');
     } catch (e) { Toast.error(e.message); }
