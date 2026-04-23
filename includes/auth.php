@@ -145,6 +145,17 @@ function requireApiRole(string|array $roles): array
         jsonResponse(false, 'Unauthorized. Please log in.', [], 401);
     }
 
+    global $pdo;
+    if (isset($pdo)) {
+        $stmt = $pdo->prepare("SELECT is_active FROM users WHERE id = :id");
+        $stmt->execute([':id' => $_SESSION['user_id']]);
+        if ((int)$stmt->fetchColumn() === 0) {
+            $_SESSION = [];
+            session_destroy();
+            jsonResponse(false, 'Your account has been deactivated.', [], 403);
+        }
+    }
+
     $roles = (array) $roles;
 
     // super_admin inherits all role permissions

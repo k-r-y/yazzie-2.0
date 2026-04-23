@@ -206,11 +206,15 @@ if ($method === 'PUT') {
         }
     }
 
-    $pdo->prepare("
+    $stmt = $pdo->prepare("
         UPDATE job_orders
         SET status = :st, responded_at = NOW()
         WHERE id = :id AND staff_id = :uid AND status = 'pending'
-    ")->execute([':st' => $status, ':id' => $id, ':uid' => $uid]);
+    ");
+    $stmt->execute([':st' => $status, ':id' => $id, ':uid' => $uid]);
+    if ($stmt->rowCount() === 0) {
+        jsonResponse(false, 'This job offer has already been responded to or is no longer available.', [], 409);
+    }
 
     // ── Notify all admin & frontdesk users about the response ──
     $bInfo = $pdo->prepare("
@@ -316,53 +320,60 @@ if ($method === 'POST') {
         }
     }
 
-    $ins = $pdo->prepare("
-        INSERT INTO job_orders (booking_id, staff_id, role_required, notes, status, job_class)
-        VALUES (:bid, :sid, :role, :notes, 'pending', :jc)
-    ");
-
-    $notif = $pdo->prepare("
-        INSERT INTO notifications (user_id, type, title, body)
-        VALUES (:uid, 'job_assigned', :title, :body)
-    ");
-
-    // Fetch job classes for all staff to be notified
-    $uStmt = $pdo->prepare("SELECT id, job_class FROM users WHERE id IN (" . implode(',', array_fill(0, count($staffIds), '?')) . ")");
-    $uStmt->execute($staffIds);
-    $staffMap = [];
-    foreach ($uStmt->fetchAll() as $usr) { $staffMap[(int)$usr['id']] = $usr['job_class']; }
-
-    $count = 0;
-    foreach ($staffIds as $sid) {
-        // Skip staff on approved leave for this booking date
-        $leaveChk = $pdo->prepare("
-            SELECT id FROM leave_requests
-            WHERE staff_id = :sid AND leave_date = :d AND status = 'approved'
-            LIMIT 1
+    $pdo->beginTransaction();
+    try {
+        $ins = $pdo->prepare("
+            INSERT INTO job_orders (booking_id, staff_id, role_required, notes, status, job_class)
+            VALUES (:bid, :sid, :role, :notes, 'pending', :jc)
         ");
-        $leaveChk->execute([':sid' => $sid, ':d' => $booking['event_date']]);
-        if ($leaveChk->fetch()) continue;
 
-        // Check if already dispatched to this staff for this event
-        $chk = $pdo->prepare("SELECT id FROM job_orders WHERE booking_id = ? AND staff_id = ? AND status != 'declined'");
-        $chk->execute([$bookingId, $sid]);
-        if ($chk->fetch()) continue;
+        $notif = $pdo->prepare("
+            INSERT INTO notifications (user_id, type, title, body)
+            VALUES (:uid, 'job_assigned', :title, :body)
+        ");
 
-        $ins->execute([
-            ':bid'   => $bookingId,
-            ':sid'   => $sid,
-            ':role'  => $role,
-            ':notes' => $notes ?: null,
-            ':jc'    => $staffMap[$sid] ?? 'any'
-        ]);
-        
-        $notif->execute([
-            ':uid'   => $sid,
-            ':title' => 'New Job Offer: ' . $role,
-            ':body'  => "Event on " . date('M d', strtotime($booking['event_date'])) . " for " . $booking['client_name'] . ". Please respond in your Job Board."
-        ]);
-        
-        $count++;
+        // Fetch job classes for all staff to be notified
+        $uStmt = $pdo->prepare("SELECT id, job_class FROM users WHERE id IN (" . implode(',', array_fill(0, count($staffIds), '?')) . ")");
+        $uStmt->execute($staffIds);
+        $staffMap = [];
+        foreach ($uStmt->fetchAll() as $usr) { $staffMap[(int)$usr['id']] = $usr['job_class']; }
+
+        $count = 0;
+        foreach ($staffIds as $sid) {
+            // Skip staff on approved leave for this booking date
+            $leaveChk = $pdo->prepare("
+                SELECT id FROM leave_requests
+                WHERE staff_id = :sid AND leave_date = :d AND status = 'approved'
+                LIMIT 1
+            ");
+            $leaveChk->execute([':sid' => $sid, ':d' => $booking['event_date']]);
+            if ($leaveChk->fetch()) continue;
+
+            // Check if already dispatched to this staff for this event
+            $chk = $pdo->prepare("SELECT id FROM job_orders WHERE booking_id = ? AND staff_id = ? AND status != 'declined'");
+            $chk->execute([$bookingId, $sid]);
+            if ($chk->fetch()) continue;
+
+            $ins->execute([
+                ':bid'   => $bookingId,
+                ':sid'   => $sid,
+                ':role'  => $role,
+                ':notes' => $notes ?: null,
+                ':jc'    => $staffMap[$sid] ?? 'any'
+            ]);
+            
+            $notif->execute([
+                ':uid'   => $sid,
+                ':title' => 'New Job Offer: ' . $role,
+                ':body'  => "Event on " . date('M d', strtotime($booking['event_date'])) . " for " . $booking['client_name'] . ". Please respond in your Job Board."
+            ]);
+            
+            $count++;
+        }
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        jsonResponse(false, 'Failed to dispatch job orders: ' . $e->getMessage(), [], 500);
     }
 
     // Email broadcast — batch fetch all staff in one query (avoids N+1)

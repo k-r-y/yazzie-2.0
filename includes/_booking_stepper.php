@@ -179,7 +179,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
 
                         <div class="form-group" style="margin-bottom:0;">
                             <label class="form-label">Event Notes (Optional)</label>
-                            <textarea class="form-control" id="s2_notes" rows="2" placeholder="e.g. VIP guest attending..."></textarea>
+                            <textarea class="form-control" id="s2_notes" rows="2" placeholder="e.g. VIP guest attending..., Themes to follow"></textarea>
                         </div>
 
                         <!-- Dietary / Allergy Notes -->
@@ -251,9 +251,11 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             </div>
                             
                             <!-- Package Inclusions -->
-                            <div id="s3_inclusionsBox" style="display:none; margin-top:14px; padding:14px; background:rgba(60,60,67,0.03); border:0.5px solid rgba(60,60,67,0.1); border-radius:12px;">
-                                <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; color:rgba(60,60,67,0.4); margin-bottom:8px;">Package Inclusions</div>
-                                <div id="s3_inclusionsList" style="font-size:12px; color:rgba(60,60,67,0.7); line-height:1.5;"></div>
+                            <div id="s3_inclusionsBox" style="display:none; margin-top:14px; padding:14px 16px; background:rgba(48,209,88,0.04); border:0.5px solid rgba(48,209,88,0.2); border-radius:14px;">
+                                <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:rgba(60,60,67,0.4); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+                                    <i class="fas fa-list-check" style="color:var(--sys-green); font-size:11px;"></i> What's Included
+                                </div>
+                                <div id="s3_inclusionsList" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
                             </div>
                         </div>
 
@@ -590,6 +592,9 @@ $stepperRole = $bookingStepperRole ?? 'admin';
 <!-- ══ STEPPER JAVASCRIPT ══ -->
 <script>
 (function () {
+    /* ── HELPERS ─────────────────────────────────────────────── */
+    const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
     /* ── STATE ────────────────────────────────────────────────── */
     const state = {
         step:           1,
@@ -849,12 +854,12 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                     return false;
                 }
 
-                if (!email) {
+                if (!messenger_link) {
                     Toast.error('New client messenger/facebook link are required.'); 
                     return false; 
                 }
 
-                if (!messenger_link) { 
+                if (!email) { 
                     Toast.error('New client email are required.'); 
                     return false; 
                 }
@@ -1189,7 +1194,9 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 const fee = parseFloat(dish.custom_fee) || 0;
                 const isExtra = index >= limit;
 
-                if (isExtra || fee > 0) {
+                // Only charge when the dish EXCEEDS the free allowance (limit).
+                // Dishes within the limit are always free, even if they have a custom_fee.
+                if (isExtra) {
                     sur += fee;
                 }
             });
@@ -1207,16 +1214,34 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             `${pkg.set_name} — ${tierPax} pax · ₱${basePrice.toLocaleString()}`;
         document.getElementById('s3_pkgBadge').style.display = 'block';
 
-        // Update inclusions
-        const inclBox = document.getElementById('s3_inclusionsBox');
-        if (inclBox) {
-            const inclList = document.getElementById('s3_inclusionsList');
-            if (pkg.inclusions) {
-                inclBox.style.display = 'block';
-                inclList.innerHTML = pkg.inclusions.split('\n').map(l => `<div>• ${l}</div>`).join('');
-            } else {
-                inclBox.style.display = 'none';
-            }
+        // Update inclusions — render as pill badges
+        const inclBox  = document.getElementById('s3_inclusionsBox');
+        const inclList = document.getElementById('s3_inclusionsList');
+        if (inclBox && inclList) {
+            // Build list: custom inclusions from DB + always-on defaults
+            const defaultItems = [
+                `Up to ${pkg.max_main_dishes || 5} Main Dishes`,
+                `Up to ${pkg.max_desserts || 1} Dessert${(pkg.max_desserts || 1) > 1 ? 's' : ''}`,
+                pkg.includes_rice == 1 ? 'Unlimited Rice' : null,
+                'Uniformed Servers',
+                'Complete Setup & Cleanup',
+            ].filter(Boolean);
+
+            const customLines = (pkg.inclusions || '')
+                .split('\n')
+                .map(l => l.trim())
+                .filter(l => l.length > 0);
+
+            const allItems = [...customLines, ...defaultItems];
+
+            inclList.innerHTML = allItems.map(l =>
+                `<span style="display:inline-flex; align-items:center; gap:5px; background:rgba(48,209,88,0.1); color:#1A7A32;
+                             border:0.5px solid rgba(48,209,88,0.25); border-radius:20px; padding:4px 12px;
+                             font-size:11.5px; font-weight:600; white-space:nowrap;">
+                    <i class="fas fa-circle-check" style="font-size:10px;"></i>${esc(l)}
+                 </span>`
+            ).join('');
+            inclBox.style.display = 'block';
         }
 
         // ── Price Card ────────────────────────────────────────────

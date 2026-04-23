@@ -478,9 +478,10 @@ if ($method === 'POST') {
 
         $limit = ($type === 'main') ? $maxMain : (($type === 'dessert') ? $maxDess : 1);
         $isExtra = ($counts[$type] ?? 0) >= $limit;
-        
-        // Use only explicit module-defined fees
-        if ($isExtra || $isPremium) {
+
+        // Only apply surcharge when the dish EXCEEDS the free allowance.
+        // Dishes within the limit are always free, even if they have a custom_fee.
+        if ($isExtra) {
             $dishSurcharge += $fee;
         }
 
@@ -771,13 +772,22 @@ if ($method === 'PUT') {
         jsonResponse(false, 'This booking is cancelled and cannot be modified. Reset status to pending to edit.', [], 403);
     }
 
+    $archCheck = $pdo->prepare("SELECT is_archived FROM bookings WHERE id = :id");
+    $archCheck->execute([':id' => $bookingId]);
+    if ((int)$archCheck->fetchColumn() === 1) {
+        jsonResponse(false, 'Archived bookings cannot be modified.', [], 403);
+    }
+
     // ── Optimistic Locking Check ──
     // Detect if another user updated this booking since the current user loaded the edit modal.
     $clientUpdatedAt = $data['updated_at'] ?? '';
     $currentUpdatedAt = $current['updated_at'] ?? '';
     
     // Perform loose comparison to avoid microsecond/format mismatch issues common in different MySQL/PHP configs
-    if (!empty($clientUpdatedAt) && trim($clientUpdatedAt) !== trim($currentUpdatedAt)) {
+    if (empty($clientUpdatedAt)) {
+        jsonResponse(false, 'CONFLICT: Missing updated_at timestamp. Please refresh the page to get the latest data before saving.', [], 409);
+    }
+    if (trim($clientUpdatedAt) !== trim($currentUpdatedAt)) {
         jsonResponse(false, 'CONFLICT: This booking was modified by another user while you were editing it. Please refresh and try again.', [
             'db_updated_at' => $currentUpdatedAt,
             'client_updated_at' => $clientUpdatedAt
@@ -789,6 +799,13 @@ if ($method === 'PUT') {
     $validStatuses = ['pending', 'confirmed', 'completed', 'cancelled'];
     if ($newStatus !== null && !in_array($newStatus, $validStatuses, true)) {
         jsonResponse(false, 'Invalid booking status.', [], 422);
+    }
+
+    if ($newStatus && $newStatus !== $current['booking_status']) {
+        $cur = $current['booking_status'];
+        if ($newStatus === 'completed' && $cur !== 'confirmed') {
+            jsonResponse(false, 'Only confirmed bookings can be marked as completed.', [], 422);
+        }
     }
 
     $event_time = !empty($data['event_time']) ? validateEventTime($data['event_time']) : null;

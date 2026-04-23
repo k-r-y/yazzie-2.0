@@ -56,6 +56,13 @@ if ($method === 'POST') {
         jsonResponse(false, 'Invalid phone number.', [], 422);
     }
     
+    // Enforce unique email
+    $dupChk = $pdo->prepare("SELECT id FROM clients WHERE email = :email LIMIT 1");
+    $dupChk->execute([':email' => trim($d['email'])]);
+    if ($dupChk->fetch()) {
+        jsonResponse(false, 'A client with this email address already exists.', ['field' => 'email'], 409);
+    }
+
     $stmt = $pdo->prepare("
         INSERT INTO clients (name, email, phone, address, messenger_link)
         VALUES (:name, :email, :phone, :address, :messenger_link)
@@ -81,6 +88,15 @@ if ($method === 'POST') {
 if ($method === 'PUT') {
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
     if (empty($d['id'])) jsonResponse(false, 'Client ID required.', [], 422);
+
+    // Enforce unique email on update (exclude self)
+    if (!empty($d['email'])) {
+        $emailChk = $pdo->prepare("SELECT id FROM clients WHERE email = :email AND id != :id LIMIT 1");
+        $emailChk->execute([':email' => trim($d['email']), ':id' => (int)$d['id']]);
+        if ($emailChk->fetch()) {
+            jsonResponse(false, 'This email address is already registered to another client.', ['field' => 'email'], 409);
+        }
+    }
 
     // FIX: Use COALESCE for ALL fields to prevent accidental null overwrite
     $stmt = $pdo->prepare("

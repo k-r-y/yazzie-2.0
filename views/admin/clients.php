@@ -101,7 +101,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                         </div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Messenger Link (Optional)</label>
+                        <label class="form-label">Messenger Link</label>
                         <div style="position:relative;">
                             <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--label-4);font-size:12px;">m.me/</span>
                             <input type="text" class="form-control" name="messenger_link" id="f-msgr" style="padding-left:50px;" placeholder="username">

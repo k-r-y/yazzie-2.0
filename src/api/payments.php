@@ -231,39 +231,66 @@ if ($method === 'DELETE') {
     $pay = $payRow->fetch();
     if (!$pay) jsonResponse(false, 'Payment not found.', [], 404);
 
-    $pdo->prepare("DELETE FROM payments WHERE id = :id")->execute([':id' => (int)$d['id']]);
-
-    // ── Audit: payment deleted (critical financial event) ──
-    auditLog($pdo, 'payment_deleted', 'payment', (int)$d['id'],
-        ['booking_id' => (int)$pay['booking_id']],
-        null
-    );
-
-    // ── Force re-sync bookings.amount_paid after deletion ────────────────
     $bookingId = (int)$pay['booking_id'];
 
-    $paidStmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE booking_id = :bid");
-    $paidStmt->execute([':bid' => $bookingId]);
-    $newPaid = (float)$paidStmt->fetchColumn();
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("DELETE FROM payments WHERE id = :id")->execute([':id' => (int)$d['id']]);
 
-    $costStmt = $pdo->prepare("SELECT total_cost FROM bookings WHERE id = :id");
-    $costStmt->execute([':id' => $bookingId]);
-    $totalCost = (float)$costStmt->fetchColumn();
+        // ── Audit: payment deleted (critical financial event) ──
+        auditLog($pdo, 'payment_deleted', 'payment', (int)$d['id'],
+            ['booking_id' => $bookingId],
+            null
+        );
 
-    $status = ($newPaid >= $totalCost - 0.01) ? 'paid'
-            : ($newPaid > 0                   ? 'partial' : 'unpaid');
+        // ── Force re-sync bookings.amount_paid after deletion ────────────────
+        $paidStmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE booking_id = :bid");
+        $paidStmt->execute([':bid' => $bookingId]);
+        $newPaid = (float)$paidStmt->fetchColumn();
 
-    $pdo->prepare("
-        UPDATE bookings SET
-            amount_paid    = :paid,
-            payment_status = :status,
-            updated_at     = NOW()
-        WHERE id = :id
-    ")->execute([
-        ':paid'   => round($newPaid, 2),
-        ':status' => $status,
-        ':id'     => $bookingId,
-    ]);
+        $costStmt = $pdo->prepare("SELECT total_cost FROM bookings WHERE id = :id");
+        $costStmt->execute([':id' => $bookingId]);
+        $totalCost = (float)$costStmt->fetchColumn();
+
+        $status = ($newPaid >= $totalCost - 0.01) ? 'paid'
+                : ($newPaid > 0                   ? 'partial' : 'unpaid');
+
+        $pdo->prepare("
+            UPDATE bookings SET
+                amount_paid    = :paid,
+                payment_status = :status,
+                updated_at     = NOW()
+            WHERE id = :id
+        ")->execute([
+            ':paid'   => round($newPaid, 2),
+            ':status' => $status,
+            ':id'     => $bookingId,
+        ]);
+
+        // ── Demote booking_status if paid falls below DP threshold ──
+        $dpPercent   = defined('MIN_DP_PERCENT') ? MIN_DP_PERCENT : 0.30;
+        $minDPThresh = round($totalCost * $dpPercent, 2);
+        
+        if ($newPaid < $minDPThresh - 0.01) {
+            $curStatusStmt = $pdo->prepare("SELECT booking_status FROM bookings WHERE id = :id");
+            $curStatusStmt->execute([':id' => $bookingId]);
+            $curStatus = $curStatusStmt->fetchColumn();
+            
+            if ($curStatus === 'confirmed') {
+                $pdo->prepare("UPDATE bookings SET booking_status = 'pending' WHERE id = :id")
+                    ->execute([':id' => $bookingId]);
+                auditLog($pdo, 'booking_demoted', 'booking', $bookingId,
+                    ['booking_status' => 'confirmed'],
+                    ['booking_status' => 'pending', 'trigger' => 'payment_deleted_below_threshold']
+                );
+            }
+        }
+
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        jsonResponse(false, 'Failed to delete payment: ' . $e->getMessage(), [], 500);
+    }
 
     jsonResponse(true, 'Payment removed. Balance updated.', [
         'amount_paid'    => round($newPaid, 2),

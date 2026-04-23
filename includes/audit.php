@@ -7,6 +7,17 @@
  *   auditLog($pdo, 'payment_recorded', 'payment', $paymentId,
  *             null, ['amount' => 5000, 'method' => 'gcash']);
  */
+function roundFloats($arr) {
+    if (!is_array($arr)) return is_float($arr) ? round($arr, 2) : $arr;
+    $res = [];
+    foreach ($arr as $k => $v) {
+        if (is_float($v)) $res[$k] = round($v, 2);
+        elseif (is_array($v)) $res[$k] = roundFloats($v);
+        else $res[$k] = $v;
+    }
+    return $res;
+}
+
 function auditLog(
     PDO    $pdo,
     string $action,
@@ -31,8 +42,8 @@ function auditLog(
             ':action' => $action,
             ':entity' => $entity,
             ':eid'    => $entityId,
-            ':old'    => $oldValue !== null ? json_encode($oldValue) : null,
-            ':new'    => $newValue !== null ? json_encode($newValue)  : null,
+            ':old'    => $oldValue !== null ? json_encode(roundFloats($oldValue)) : null,
+            ':new'    => $newValue !== null ? json_encode(roundFloats($newValue))  : null,
             ':ip'     => $ip,
         ]);
     } catch (Throwable $e) {

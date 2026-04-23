@@ -77,10 +77,11 @@ include __DIR__ . '/../../includes/sidebar.php';
                         </select>
                         <div class="form-hint">Used to enforce booking lineup structure (e.g. 1 Head Cook required).</div>
                     </div>
-                    <div class="form-group"><label class="form-label">Phone (for SMS alerts)</label>
+                    <div class="form-group"><label class="form-label">Phone</label>
                         <input class="form-control" name="phone" id="u_phone"
                                placeholder="09XXXXXXXXX"
                                pattern="^(09|\+639)\d{9}$"
+                               maxlength="11"
                                title="Enter a valid PH mobile number (e.g. 09XXXXXXXXX or +639XXXXXXXXX)"></div>
                     <div class="form-group">
                         <label class="form-label">Password <span class="required" id="pwReq">*</span></label>
