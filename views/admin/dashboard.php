@@ -11,6 +11,33 @@ include __DIR__ . '/../../includes/header.php';
 include __DIR__ . '/../../includes/sidebar.php';
 ?>
 
+<!-- DATE FILTER -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fas fa-chart-line text-muted"></i>
+                    <span class="fw-bold">Analytics Timeframe:</span>
+                </div>
+                <div class="btn-group" role="group">
+                    <input type="radio" class="btn-check" name="tf" id="tf-day" value="day" onchange="refreshAll()">
+                    <label class="btn btn-outline-primary btn-sm" for="tf-day">Daily</label>
+
+                    <input type="radio" class="btn-check" name="tf" id="tf-week" value="week" onchange="refreshAll()">
+                    <label class="btn btn-outline-primary btn-sm" for="tf-week">Weekly</label>
+
+                    <input type="radio" class="btn-check" name="tf" id="tf-month" value="month" checked onchange="refreshAll()">
+                    <label class="btn btn-outline-primary btn-sm" for="tf-month">Monthly</label>
+
+                    <input type="radio" class="btn-check" name="tf" id="tf-year" value="year" onchange="refreshAll()">
+                    <label class="btn btn-outline-primary btn-sm" for="tf-year">Yearly</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- KPI CARDS -->
 <div class="row g-3 mb-4">
     <div class="col-sm-6 col-xl-3">
@@ -118,10 +145,28 @@ include __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <script>
-async function loadKPIs() {
+let currentRevenueChart = null;
+let currentMenuChart = null;
+
+function getTimeframe() {
+    return document.querySelector('input[name="tf"]:checked').value;
+}
+
+async function refreshAll() {
+    const tf = getTimeframe();
+    loadKPIs({ timeframe: tf });
+    loadRevenueChart({ timeframe: tf });
+    loadMenuChart({ timeframe: tf });
+    loadUpcoming({ timeframe: tf });
+}
+
+async function loadKPIs(params = {}) {
     try {
-        const d = await Api.get(BASE + 'src/api/analytics.php', { type: 'kpis' });
-        document.getElementById('kpi-revenue-mtd').textContent  = Format.peso(d.revenue_mtd);
+        const d = await Api.get(BASE + '/src/api/analytics.php', { type: 'kpis', ...params });
+        document.getElementById('kpi-revenue-mtd').textContent  = Format.peso(d.total_revenue);
+        // Update label to reflect period
+        document.querySelector('#kpi-revenue-mtd + .stat-label').textContent = 'Revenue (' + d.period_label + ')';
+        
         document.getElementById('kpi-active').textContent       = d.active_bookings;
         document.getElementById('kpi-clients').textContent      = d.total_clients;
         document.getElementById('kpi-unpaid').textContent       = d.unpaid_count ?? 0;
@@ -129,11 +174,14 @@ async function loadKPIs() {
     } catch (e) { console.error(e); }
 }
 
-async function loadRevenueChart() {
+async function loadRevenueChart(params = {}) {
     try {
-        const d = await Api.get(BASE + 'src/api/analytics.php', { type: 'revenue_chart' });
+        const d = await Api.get(BASE + '/src/api/analytics.php', { type: 'revenue_chart', ...params });
         const ctx = document.getElementById('revenueChart').getContext('2d');
-        new Chart(ctx, {
+        
+        if (currentRevenueChart) currentRevenueChart.destroy();
+        
+        currentRevenueChart = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: d.labels,
@@ -172,12 +220,15 @@ async function loadRevenueChart() {
     } catch (e) { console.error(e); }
 }
 
-async function loadMenuChart() {
+async function loadMenuChart(params = {}) {
     try {
-        const d = await Api.get(BASE + 'src/api/analytics.php', { type: 'menu_popularity' });
+        const d = await Api.get(BASE + '/src/api/analytics.php', { type: 'menu_popularity', ...params });
         const ctx = document.getElementById('menuChart').getContext('2d');
+        
+        if (currentMenuChart) currentMenuChart.destroy();
+        
         const colors = ['#16A34A','#22C55E','#0D9488','#4ADE80','#6A9B7E','#059669','#15803D','#86EFAC'];
-        new Chart(ctx, {
+        currentMenuChart = new Chart(ctx, {
             type: 'doughnut',
             data: {
                 labels: d.labels,
@@ -194,10 +245,12 @@ async function loadMenuChart() {
     } catch (e) { console.error(e); }
 }
 
-async function loadUpcoming() {
+async function loadUpcoming(params = {}) {
     try {
-        const d = await Api.get(BASE + 'src/api/bookings.php', {
-            from: new Date().toISOString().split('T')[0]
+        const d = await Api.get(BASE + '/src/api/bookings.php', {
+            status: 'confirmed', ...params,
+            order: 'ASC',
+            from: params.timeframe ? null : new Date().toISOString().split('T')[0]
         });
         const tbody = document.getElementById('upcomingBody');
         if (!d.bookings || d.bookings.length === 0) {
@@ -222,10 +275,10 @@ async function loadUpcoming() {
     }
 }
 
-loadKPIs();
-loadRevenueChart();
-loadMenuChart();
-loadUpcoming();
+// Initial Load
+(function() {
+    refreshAll();
+})();
 </script>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

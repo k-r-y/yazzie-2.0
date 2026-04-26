@@ -26,6 +26,10 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
             </select>
+            <select class="form-control" id="filterOrder" style="width:160px;">
+                <option value="DESC">Latest First</option>
+                <option value="ASC">Upcoming First</option>
+            </select>
             <button class="btn btn-primary" onclick="openBookingStepper()">
                 <i class="fas fa-plus"></i> New Booking
             </button>
@@ -156,9 +160,11 @@ async function loadDishes() {
 async function loadBookingsFD() {
     const status = document.getElementById('filterStatus').value;
     const search = document.getElementById('searchInput').value;
+    const order  = document.getElementById('filterOrder').value;
     const params = {};
     if (status) params.status = status;
     if (search) params.search = search;
+    if (order)  params.order = order;
     const d = await Api.get(BASE + '/src/api/bookings.php', params);
     allBookings = d.bookings || [];
     document.getElementById('countLabel').textContent = allBookings.length + ' booking(s)';
@@ -245,7 +251,7 @@ async function saveClient() {
     Form.setLoading(btn, false);
 }
 
-['filterStatus'].forEach(id => document.getElementById(id).addEventListener('change', loadBookingsFD));
+['filterStatus', 'filterOrder'].forEach(id => document.getElementById(id).addEventListener('change', loadBookingsFD));
 document.getElementById('searchInput').addEventListener('input', debounce(loadBookingsFD, 400));
 
 initFD();

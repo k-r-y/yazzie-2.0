@@ -264,14 +264,28 @@ if ($method === 'GET') {
         $where[] = 'b.payment_status = :pay_status';
         $params[':pay_status'] = $_GET['payment_status'];
     }
-    if (!empty($_GET['from'])) {
-        $where[] = 'b.event_date >= :from';
-        $params[':from'] = $_GET['from'];
+    if (!empty($_GET['timeframe'])) {
+        $tf = $_GET['timeframe'];
+        if ($tf === 'day') {
+            $where[] = "DATE(b.event_date) = CURDATE()";
+        } elseif ($tf === 'week') {
+            $where[] = "YEARWEEK(b.event_date, 1) = YEARWEEK(CURDATE(), 1)";
+        } elseif ($tf === 'year') {
+            $where[] = "YEAR(b.event_date) = YEAR(CURDATE())";
+        } else {
+            $where[] = "MONTH(b.event_date) = MONTH(CURDATE()) AND YEAR(b.event_date) = YEAR(CURDATE())";
+        }
+    } else {
+        if (!empty($_GET['from'])) {
+            $where[] = 'b.event_date >= :from';
+            $params[':from'] = $_GET['from'];
+        }
+        if (!empty($_GET['to'])) {
+            $where[] = 'b.event_date <= :to';
+            $params[':to'] = $_GET['to'];
+        }
     }
-    if (!empty($_GET['to'])) {
-        $where[] = 'b.event_date <= :to';
-        $params[':to'] = $_GET['to'];
-    }
+
     if (!empty($_GET['search'])) {
         $where[] = "(c.name LIKE :s1 OR b.event_location LIKE :s2)";
         $like = '%' . $_GET['search'] . '%';
@@ -281,6 +295,11 @@ if ($method === 'GET') {
 
     $whereClause = implode(' AND ', $where);
 
+    $order = 'DESC';
+    if (isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC') {
+        $order = 'ASC';
+    }
+
     $stmt = $pdo->prepare("
         SELECT b.*,
                c.name AS client_name, c.phone AS client_phone,
@@ -289,7 +308,7 @@ if ($method === 'GET') {
         FROM bookings b
         JOIN clients c ON c.id = b.client_id
         WHERE $whereClause
-        ORDER BY b.event_date DESC, b.id DESC
+        ORDER BY b.event_date $order, b.id $order
     ");
     $stmt->execute($params);
     $rows = $stmt->fetchAll();

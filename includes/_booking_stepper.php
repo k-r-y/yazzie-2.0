@@ -184,18 +184,6 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             <textarea class="form-control" id="s2_notes" rows="2" placeholder="e.g. VIP guest attending..., Themes to follow" maxlength="2000"></textarea>
                         </div>
 
-                        <!-- Dietary / Allergy Notes -->
-                        <div class="form-group" style="margin-top:14px; margin-bottom:0;">
-                            <label class="form-label" style="display:flex; align-items:center; gap:6px;">
-                                <span style="font-size:15px;">⚠️</span> Allergy & Dietary Restrictions
-                                <span style="font-size:11px; font-weight:400; color:rgba(60,60,67,0.4);">(Optional)</span>
-                            </label>
-                            <textarea class="form-control" id="s2_dietaryNotes" rows="2"
-                                      placeholder="e.g. 2 guests are lactose intolerant; no pork for 5 guests; less salt for the elderly…"
-                                      maxlength="1000"
-                                      style="border-color: rgba(255,149,0,0.4); background: rgba(255,149,0,0.03);"></textarea>
-                            <div class="form-hint" style="color: rgba(180, 100, 0, 0.7);">This will be flagged on the grocery list and staff briefing.</div>
-                        </div>
                     </div>
                 </div>
 
@@ -259,6 +247,19 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                     <i class="fas fa-list-check" style="color:var(--sys-green); font-size:11px;"></i> What's Included
                                 </div>
                                 <div id="s3_inclusionsList" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+                            </div>
+
+                            <!-- Dietary / Allergy Notes (Moved to Step 3) -->
+                            <div class="form-group" style="margin-top:14px; margin-bottom:0;">
+                                <label class="form-label" style="display:flex; align-items:center; gap:6px;">
+                                    <span style="font-size:15px;">⚠️</span> Allergy & Dietary Restrictions
+                                    <span style="font-size:11px; font-weight:400; color:rgba(60,60,67,0.4);">(Optional)</span>
+                                </label>
+                                <textarea class="form-control" id="s3_dietaryNotes" rows="3"
+                                          placeholder="e.g. 2 guests are lactose intolerant; no pork for 5 guests; less salt for the elderly…"
+                                          maxlength="1000"
+                                          style="border-color: rgba(255,149,0,0.4); background: rgba(255,149,0,0.03);"></textarea>
+                                <div class="form-hint" style="color: rgba(180, 100, 0, 0.7);">This will be flagged on the grocery list and staff briefing.</div>
                             </div>
                         </div>
 
@@ -604,8 +605,8 @@ $stepperRole = $bookingStepperRole ?? 'admin';
     const minDpPct = <?= MIN_DP_PERCENT ?>;
     const rushDpPct = <?= RUSH_DP_PERCENT ?>;
     const rushThresholdHours = <?= RUSH_THRESHOLD_HOURS ?>;
-    const operatingHoursStart = '<?= OPERATING_HOURS_START ?>';
-    const operatingHoursEnd = '<?= OPERATING_HOURS_END ?>';
+    const opStart = '<?= OPERATING_HOURS_START ?>';
+    const opEnd = '<?= OPERATING_HOURS_END ?>';
 
     // Dynamic Dish Limits & Surcharge Rates
     const defaultMaxMain = <?= DEFAULT_MAX_MAIN ?>;
@@ -744,7 +745,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         document.getElementById('s1_transport').value = 0;
         document.getElementById('transportFeePanel').style.display = 'none';
         document.getElementById('s2_notes').value    = '';
-        const dietaryEl = document.getElementById('s2_dietaryNotes');
+        const dietaryEl = document.getElementById('s3_dietaryNotes');
         if (dietaryEl) dietaryEl.value = '';
         document.getElementById('s3_pax').value      = '';
         document.getElementById('s4_dp').value       = '';
@@ -920,7 +921,6 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             state.notes        = document.getElementById('s2_notes').value;
             state.eventType    = document.getElementById('s1_type').value === 'Other' ? document.getElementById('s1_customType').value : document.getElementById('s1_type').value;
             state.transportFee = parseFloat(document.getElementById('s1_transport').value) || 0;
-            state.dietaryNotes = (document.getElementById('s2_dietaryNotes')?.value || '').trim();
             return true;
         }
 
@@ -942,6 +942,8 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             if (state.selectedDesserts.length === 0) {
                 Toast.error('Please choose at least 1 dessert.'); return false;
             }
+
+            state.dietaryNotes = (document.getElementById('s3_dietaryNotes')?.value || '').trim();
 
             return true;
         }

@@ -11,27 +11,45 @@ include __DIR__ . '/../../includes/header.php';
 include __DIR__ . '/../../includes/sidebar.php';
 ?>
 
+<!-- DATE FILTER -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fas fa-calendar-alt text-muted"></i>
+                    <span class="fw-bold">Viewing Events For:</span>
+                </div>
+                <div class="btn-group" role="group">
+                    <input type="radio" class="btn-check" name="tf" id="tf-day" value="day" onchange="refreshDashboard()">
+                    <label class="btn btn-outline-primary btn-sm" for="tf-day">Today</label>
+
+                    <input type="radio" class="btn-check" name="tf" id="tf-week" value="week" checked onchange="refreshDashboard()">
+                    <label class="btn btn-outline-primary btn-sm" for="tf-week">This Week</label>
+
+                    <input type="radio" class="btn-check" name="tf" id="tf-month" value="month" onchange="refreshDashboard()">
+                    <label class="btn btn-outline-primary btn-sm" for="tf-month">This Month</label>
+
+                    <input type="radio" class="btn-check" name="tf" id="tf-year" value="year" onchange="refreshDashboard()">
+                    <label class="btn btn-outline-primary btn-sm" for="tf-year">This Year</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- QUICK STATS -->
 <div class="row g-3 mb-4">
-    <div class="col-sm-4">
+    <div class="col-sm-6">
         <div class="stat-card">
             <div class="stat-icon orange"><i class="fas fa-calendar-day"></i></div>
             <div class="stat-info">
-                <div class="stat-value" id="stat-today">—</div>
-                <div class="stat-label">Today's Events</div>
+                <div class="stat-value" id="stat-count">—</div>
+                <div class="stat-label" id="label-count">Events</div>
             </div>
         </div>
     </div>
-    <div class="col-sm-4">
-        <div class="stat-card">
-            <div class="stat-icon gold"><i class="fas fa-calendar-week"></i></div>
-            <div class="stat-info">
-                <div class="stat-value" id="stat-week">—</div>
-                <div class="stat-label">This Week's Events</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-4">
+    <div class="col-sm-6">
         <div class="stat-card">
             <div class="stat-icon blue"><i class="fas fa-bullhorn"></i></div>
             <div class="stat-info">
@@ -106,42 +124,52 @@ include __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <script>
+function getTimeframe() {
+    return document.querySelector('input[name="tf"]:checked').value;
+}
 
-async function loadStats() {
+function refreshDashboard() {
+    const tf = getTimeframe();
+    loadStats({ timeframe: tf });
+    loadUpcoming({ timeframe: tf });
+}
+
+async function loadStats(params = {}) {
     try {
-        const today     = new Date().toISOString().split('T')[0];
-        const weekEnd   = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-
-        const [todayRes, weekRes, pendingJobs] = await Promise.all([
-            Api.get(BASE + '/src/api/bookings.php', { status: 'confirmed', from: today, to: today }),
-            Api.get(BASE + '/src/api/bookings.php', { status: 'confirmed', from: today, to: weekEnd }),
+        const [kpis, pendingJobs] = await Promise.all([
+            Api.get(BASE + '/src/api/analytics.php', { type: 'kpis', ...params }),
             Api.get(BASE + '/src/api/dispatching.php'),
         ]);
 
-        document.getElementById('stat-today').textContent       = todayRes.bookings?.length || 0;
-        document.getElementById('stat-week').textContent        = weekRes.bookings?.length  || 0;
+        const tf = params.timeframe || 'week';
+        const labelMap = { day: 'Today', week: 'This Week', month: 'This Month', year: 'This Year' };
+        const label = labelMap[tf] || tf;
+
+        // Use standardized KPI values: active_bookings
+        document.getElementById('stat-count').textContent   = kpis.active_bookings || 0;
+        document.getElementById('label-count').textContent  = 'Events (' + label + ')';
+        
         document.getElementById('stat-pending-jobs').textContent = pendingJobs.pending_count || 0;
     } catch (e) {
         console.error('Stats fail:', e);
-        ['stat-today', 'stat-week', 'stat-pending-jobs'].forEach(id => {
-            document.getElementById(id).textContent = 'ERR';
-        });
     }
 }
 
-async function loadUpcoming() {
+async function loadUpcoming(params = {}) {
     try {
-        const from   = new Date().toISOString().split('T')[0];
-        const to     = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
         const d      = await Api.get(BASE + '/src/api/bookings.php', {
-            status: 'confirmed', from, to
+            status: 'confirmed', order: 'ASC', ...params
         });
         const tbody  = document.getElementById('upcomingBody');
         const events = d.bookings || [];
 
+        const tf = params.timeframe || 'week';
+        const label = tf.charAt(0).toUpperCase() + tf.slice(1);
+        document.querySelector('.card-subtitle').textContent = label;
+
         if (events.length === 0) {
             tbody.innerHTML = `<tr><td colspan="6"><div class="table-empty">
-                <i class="fas fa-calendar-check"></i><p>No confirmed events in the next 30 days.</p></div></td></tr>`;
+                <i class="fas fa-calendar-check"></i><p>No confirmed events found for this period.</p></div></td></tr>`;
             return;
         }
 
@@ -167,8 +195,6 @@ async function loadUpcoming() {
         `).join('');
     } catch (e) {
         console.error('Upcoming fail:', e);
-        document.getElementById('upcomingBody').innerHTML = `<tr><td colspan="6" class="text-center text-danger p-4">
-            <i class="fas fa-exclamation-triangle"></i> Failed to load events.</td></tr>`;
     }
 }
 
@@ -192,10 +218,7 @@ async function loadUnpaidBalances() {
                 <div class="fw-700" style="font-size:14px;">${esc(b.client_name)}</div>
                 <div class="text-sm text-muted">${Format.dateShort(b.event_date)} &mdash; ${esc(b.menu_name)}</div>
                 <div class="text-sm text-muted">${b.pax_count} pax</div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
-                    <span style="font-size:12px; font-weight:700; color:#C0392B;">Balance: ${Format.peso(balance)}</span>
-                    <a href="${BASE}/views/frontdesk/bookings.php?highlight=${b.id}" class="btn btn-outline-primary btn-sm">Pay</a>
-                </div>
+                
             </div>`;
         }).join('');
     } catch (e) {
@@ -204,9 +227,11 @@ async function loadUnpaidBalances() {
     }
 }
 
-loadStats();
-loadUpcoming();
-loadUnpaidBalances();
+// Initial Load
+(function() {
+    refreshDashboard();
+    loadUnpaidBalances();
+})();
 </script>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

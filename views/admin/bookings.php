@@ -25,9 +25,12 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
             </select>
+            <select class="form-control" id="filterOrder" style="width:160px;">
+                <option value="DESC">Latest First</option>
+                <option value="ASC">Upcoming First</option>
+            </select>
             <select class="form-control" id="filterPayment" style="width:160px;">
                 <option value="">All Payments</option>
-                <option value="unpaid">Unpaid</option>
                 <option value="partial">Partial</option>
                 <option value="paid">Paid</option>
             </select>
@@ -166,12 +169,14 @@ async function loadBookings() {
     const status  = document.getElementById('filterStatus').value;
     const payment = document.getElementById('filterPayment').value;
     const search  = document.getElementById('searchInput').value;
+    const order   = document.getElementById('filterOrder').value;
 
     try {
         const params = {};
         if (status)  params.status = status;
         if (payment) params.payment_status = payment;
         if (search)  params.search = search;
+        if (order)   params.order = order;
 
         const d = await Api.get(BASE + '/src/api/bookings.php', params);
         currentBookings = d.bookings || [];
@@ -379,7 +384,7 @@ async function requestCancellation() {
 
 
 // Wire up filters
-['filterStatus','filterPayment'].forEach(id => {
+['filterStatus','filterPayment','filterOrder'].forEach(id => {
     document.getElementById(id).addEventListener('change', loadBookings);
 });
 document.getElementById('searchInput').addEventListener('input', debounce(loadBookings, 400));

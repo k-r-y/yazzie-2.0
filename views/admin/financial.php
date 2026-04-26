@@ -12,6 +12,33 @@ include __DIR__ . '/../../includes/header.php';
 include __DIR__ . '/../../includes/sidebar.php';
 ?>
 
+<!-- DATE FILTER -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fas fa-chart-pie text-muted"></i>
+                    <span class="fw-bold">Financial Timeframe:</span>
+                </div>
+                <div class="btn-group" role="group">
+                    <input type="radio" class="btn-check" name="tf" id="tf-day" value="day" onchange="refreshStats()">
+                    <label class="btn btn-outline-primary btn-sm" for="tf-day">Daily</label>
+
+                    <input type="radio" class="btn-check" name="tf" id="tf-week" value="week" onchange="refreshStats()">
+                    <label class="btn btn-outline-primary btn-sm" for="tf-week">Weekly</label>
+
+                    <input type="radio" class="btn-check" name="tf" id="tf-month" value="month" checked onchange="refreshStats()">
+                    <label class="btn btn-outline-primary btn-sm" for="tf-month">Monthly</label>
+
+                    <input type="radio" class="btn-check" name="tf" id="tf-year" value="year" onchange="refreshStats()">
+                    <label class="btn btn-outline-primary btn-sm" for="tf-year">Yearly</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- SUMMARY KPIs -->
 <div class="row g-3 mb-4">
     <div class="col-sm-4">
@@ -249,7 +276,7 @@ async function initFinancial() {
         await onBookingChange();
     }
     await loadLedger();
-    await loadKPIs();
+    await refreshStats();
 }
 
 // Rebuild the booking dropdown with fresh live balances from the API
@@ -275,13 +302,26 @@ async function refreshBookingSelector() {
         }).join('');
 }
 
+function getTimeframe() {
+    return document.querySelector('input[name="tf"]:checked').value;
+}
+
+async function refreshStats() {
+    const tf = getTimeframe();
+    loadKPIs({ timeframe: tf });
+    loadLedger(); 
+}
+
 // ── KPIs ───────────────────────────────────────────────────────────────
-async function loadKPIs() {
+async function loadKPIs(params = {}) {
     try {
-        const d = await Api.get(BASE + '/src/api/analytics.php', { type: 'kpis' });
+        const d = await Api.get(BASE + '/src/api/analytics.php', { type: 'kpis', ...params });
         document.getElementById('stat-total-rev').textContent   = Format.peso(d.total_revenue);
+        document.querySelector('#stat-total-rev + .stat-label').textContent = 'Revenue (' + d.period_label + ')';
+        
         document.getElementById('stat-mtd').textContent         = Format.peso(d.revenue_mtd);
         document.getElementById('stat-outstanding').textContent = Format.peso(d.outstanding);
+        document.querySelector('#stat-outstanding + .stat-label').textContent = 'Outstanding (' + d.period_label + ')';
     } catch(e) {}
 }
 
@@ -369,11 +409,13 @@ function validateAmount() {
 async function loadLedger() {
     const status  = document.getElementById('filterStatus').value;
     const payment = document.getElementById('filterPayment').value;
+    const tf      = getTimeframe();
+    
     try {
-        const params = {};
+        const params = { timeframe: tf };
         if (status)  params.status = status;
         if (payment) params.payment_status = payment;
-
+        
         const d = await Api.get(BASE + '/src/api/bookings.php', params);
         const bookings = d.bookings || [];
         const tbody = document.getElementById('ledgerBody');

@@ -221,10 +221,15 @@ if (strpos($_SERVER['PHP_SELF'] ?? '', '/api/') !== false) {
 // ============================================================
 // Email Configuration (PHPMailer / Gmail SMTP)
 // ============================================================
-define('MAIL_HOST',     appSetting('smtp_host', getenv('MAIL_HOST') ?: 'smtp.gmail.com'));
-define('MAIL_PORT',     appSetting('smtp_port', getenv('MAIL_PORT') ?: 587));
-define('MAIL_USERNAME', appSetting('smtp_user', getenv('MAIL_USERNAME') ?: 'yazziecateringservices@gmail.com'));
-define('MAIL_PASSWORD', appSetting('smtp_pass', getenv('MAIL_PASSWORD') ?: '')); 
+$dbSmtpHost = appSetting('smtp_host');
+$dbSmtpPort = appSetting('smtp_port');
+$dbSmtpUser = appSetting('smtp_user');
+$dbSmtpPass = appSetting('smtp_pass');
+
+define('MAIL_HOST',     !empty($dbSmtpHost) ? $dbSmtpHost : (getenv('MAIL_HOST') ?: 'smtp.gmail.com'));
+define('MAIL_PORT',     !empty($dbSmtpPort) ? (int)$dbSmtpPort : (int)(getenv('MAIL_PORT') ?: 587));
+define('MAIL_USERNAME', !empty($dbSmtpUser) ? $dbSmtpUser : (getenv('MAIL_USERNAME') ?: 'yazziecateringservices@gmail.com'));
+define('MAIL_PASSWORD', !empty($dbSmtpPass) ? $dbSmtpPass : (getenv('MAIL_PASSWORD') ?: '')); 
 define('MAIL_FROM',     getenv('MAIL_FROM') ?: 'yazziecateringservices@gmail.com');
 define('MAIL_FROM_NAME', getenv('MAIL_FROM_NAME') ?: 'Yazzies Catering Services');
 define('MAIL_ENABLED',  filter_var(getenv('MAIL_ENABLED'), FILTER_VALIDATE_BOOLEAN));
