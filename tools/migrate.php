@@ -26,7 +26,7 @@ if (!$isCli) {
     ob_start();
     require_once __DIR__ . '/../config/config.php';
     require_once __DIR__ . '/../includes/auth.php';
-    $currentUser = currentUser();
+    $currentUser = getCurrentUser();
     if (!$currentUser || $currentUser['role'] !== 'super_admin') {
         http_response_code(403);
         die('<pre style="font-family:monospace; padding:20px; color:#C0392B;">403 Forbidden — Super Admin access required.</pre>');

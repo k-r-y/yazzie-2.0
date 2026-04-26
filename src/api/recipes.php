@@ -101,9 +101,9 @@ if ($method === 'POST') {
     ");
     $stmt->execute([
         ':did'   => (int)$d['dish_id'],
-        ':iname' => trim($d['ingredient_name']),
-        ':bqty'  => (float)$d['base_quantity'],
-        ':unit'  => trim($d['unit'])
+        ':iname' => trim(substr($d['ingredient_name'], 0, 100)),
+        ':bqty'  => max(0, (float)$d['base_quantity']),
+        ':unit'  => trim(substr($d['unit'], 0, 20))
     ]);
 
     jsonResponse(true, 'Ingredient added successfully.', ['id' => $pdo->lastInsertId()], 201);

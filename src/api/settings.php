@@ -85,7 +85,7 @@ if ($method === 'PUT') {
     }
 
     $stmt = $pdo->prepare("UPDATE settings SET value = :val WHERE `key` = :key");
-    $stmt->execute([':val' => (string)$value, ':key' => $key]);
+    $stmt->execute([':val' => trim(substr((string)$value, 0, 2000)), ':key' => $key]);
 
     // FIX: Use correct function name auditLog() instead of logAudit()
     auditLog($pdo, 'setting_updated', 'setting', 0,

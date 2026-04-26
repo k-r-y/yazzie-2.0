@@ -160,6 +160,9 @@ define('CANCEL_FORFEIT_PCT',   appSettingFloat('cancel_forfeiture_percent', 0.50
 define('DEFAULT_MAX_MAIN',     appSettingInt('default_max_main', 5));
 define('DEFAULT_MAX_DESSERT',  appSettingInt('default_max_dessert', 1));
 define('DEFAULT_MAX_ADDITIONAL', appSettingInt('default_max_additional', 1));
+define('EXTRA_MAIN_RATE',      appSettingFloat('extra_main_rate', 50.0));
+define('EXTRA_DESSERT_RATE',   appSettingFloat('extra_dessert_rate', 30.0));
+define('EXTRA_RICE_RATE',      appSettingFloat('extra_rice_rate', 20.0));
 
 define('APP_ENV', getenv('APP_ENV') ?: 'development');
 

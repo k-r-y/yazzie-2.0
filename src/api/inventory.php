@@ -40,9 +40,9 @@ if ($method === 'POST') {
         VALUES (:name, :unit, :cost, :active)
     ");
     $stmt->execute([
-        ':name'   => trim($d['name']),
-        ':unit'   => $d['unit'] ?? 'pcs',
-        ':cost'   => (float)$d['replacement_cost'],
+        ':name'   => trim(substr($d['name'], 0, 100)),
+        ':unit'   => trim(substr($d['unit'] ?? 'pcs', 0, 20)),
+        ':cost'   => max(0, (float)$d['replacement_cost']),
         ':active' => isset($d['is_active']) ? (int)$d['is_active'] : 1
     ]);
 

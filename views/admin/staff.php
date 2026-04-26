@@ -154,7 +154,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </div>
                     <div class="form-group">
                         <label class="form-label">Email <span class="required">*</span></label>
-                        <input type="email" class="form-control" name="email" id="sf-email" required placeholder="staff@email.com">
+                        <input type="email" class="form-control" name="email" id="sf-email" required placeholder="staff@email.com" maxlength="100">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Role</label>
@@ -435,14 +435,29 @@ function openEditModal(s) {
 
 async function saveStaff() {
     const form = document.getElementById('staffForm');
-    const id   = document.getElementById('sf-id').value;
+    const name = document.getElementById('sf-name').value.trim();
+    const email = document.getElementById('sf-email').value.trim();
+    const phone = document.getElementById('sf-phone').value.trim();
+    const password = document.getElementById('sf-pw').value;
+
+    // Frontend Validation
+    if (!name || !email || (!id && !password)) {
+        Toast.error('Please fill in all required fields.');
+        return;
+    }
+    if (name.length > 100) return Toast.error('Name too long (max 100).');
+    if (!/^[a-zA-Z\s\-.]+$/.test(name)) return Toast.error('Name contains invalid characters.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Toast.error('Invalid email address.');
+    if (phone && !/^(09|\+639)\d{9}$/.test(phone)) return Toast.error('Invalid PH phone number.');
+    if (password && password.length < 8) return Toast.error('Password must be at least 8 characters.');
+
     const data = {
-        name:      document.getElementById('sf-name').value.trim(),
-        email:     document.getElementById('sf-email').value.trim(),
-        phone:     document.getElementById('sf-phone').value.trim(),
+        name,
+        email,
+        phone,
         role:      document.getElementById('sf-role').value,
         job_class: document.getElementById('sf-job-class').value,
-        password:  document.getElementById('sf-pw').value,
+        password,
     };
     if (id) {
         data.id        = parseInt(id);

@@ -152,9 +152,9 @@ if ($method === 'POST') {
             ':booking_id'  => $bookingId,
             ':amount'      => $amount,
             ':method'      => $d['payment_method'],
-            ':ref'         => $d['reference_no'] ?? null,
+            ':ref'         => !empty($d['reference_no']) ? trim(substr((string)$d['reference_no'], 0, 100)) : null,
             ':date'        => $d['payment_date'],
-            ':notes'       => $d['notes']        ?? null,
+            ':notes'       => !empty($d['notes']) ? trim(substr((string)$d['notes'], 0, 500)) : null,
             ':recorded_by' => (int)$_SESSION['user_id'],
         ]);
         $newPaymentId = $pdo->lastInsertId();

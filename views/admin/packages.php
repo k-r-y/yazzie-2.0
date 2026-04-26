@@ -58,28 +58,28 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <div class="row g-3 mb-3">
                         <div class="col-7">
                             <label class="form-label">Package Name <span class="required">*</span></label>
-                            <input type="text" class="form-control" name="set_name" id="pkg_name" required placeholder="e.g. Premium">
+                            <input type="text" class="form-control" name="set_name" id="pkg_name" required placeholder="e.g. Premium" maxlength="100">
                         </div>
                         <div class="col-5">
                             <label class="form-label">Base Pax Count <span class="required">*</span></label>
-                            <input type="number" class="form-control" name="pax_count" id="pkg_pax" required placeholder="e.g. 50">
+                            <input type="number" class="form-control" name="pax_count" id="pkg_pax" required placeholder="e.g. 50" min="1">
                         </div>
                     </div>
 
                     <div class="form-group mb-3">
                         <label class="form-label">Package Price (₱) <span class="required">*</span></label>
-                        <input type="number" step="0.01" class="form-control" name="price" id="pkg_price" required placeholder="0.00" oninput="updatePerPax()">
+                        <input type="number" step="0.01" min="0" class="form-control" name="price" id="pkg_price" required placeholder="0.00" oninput="updatePerPax()">
                         <div id="pkg_rate_hint" style="font-size:11px; color:rgba(60,60,67,0.45); margin-top:4px;">Rate: ₱0.00 / pax</div>
                     </div>
 
                     <div class="row g-3 mb-3">
                         <div class="col-6">
                             <label class="form-label">Max Main Dishes <span class="required">*</span></label>
-                            <input type="number" class="form-control" name="max_main_dishes" id="pkg_main" required value="5">
+                            <input type="number" class="form-control" name="max_main_dishes" id="pkg_main" required value="5" min="0">
                         </div>
                         <div class="col-6">
                             <label class="form-label">Max Desserts <span class="required">*</span></label>
-                            <input type="number" class="form-control" name="max_desserts" id="pkg_dessert" required value="1">
+                            <input type="number" class="form-control" name="max_desserts" id="pkg_dessert" required value="1" min="0">
                         </div>
                     </div>
 
@@ -95,7 +95,7 @@ include __DIR__ . '/../../includes/sidebar.php';
 
                     <div class="form-group mt-3">
                         <label class="form-label">Package Inclusions (One per line)</label>
-                        <textarea class="form-control" name="inclusions" id="pkg_inclusions" rows="4" placeholder="e.g. Free delivery within Dasma&#10;Unlimited rice&#10;Uniformed servers..."></textarea>
+                        <textarea class="form-control" name="inclusions" id="pkg_inclusions" rows="4" placeholder="e.g. Free delivery within Dasma&#10;Unlimited rice&#10;Uniformed servers..." maxlength="1000"></textarea>
                     </div>
                 </form>
             </div>

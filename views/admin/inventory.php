@@ -53,17 +53,17 @@ include __DIR__ . '/../../includes/sidebar.php';
                     
                     <div class="form-group mb-3">
                         <label class="form-label">Item Name <span class="required">*</span></label>
-                        <input type="text" class="form-control" name="name" id="equip_name" required placeholder="e.g. Dinner Plate (Ceramic)">
+                        <input type="text" class="form-control" name="name" id="equip_name" required placeholder="e.g. Dinner Plate (Ceramic)" maxlength="100">
                     </div>
 
                     <div class="row g-3 mb-3">
                         <div class="col-6">
                             <label class="form-label">Unit <span class="required">*</span></label>
-                            <input type="text" class="form-control" name="unit" id="equip_unit" required placeholder="pcs, set, etc.">
+                            <input type="text" class="form-control" name="unit" id="equip_unit" required placeholder="pcs, set, etc." maxlength="20">
                         </div>
                         <div class="col-6">
                             <label class="form-label">Replacement Price (₱) <span class="required">*</span></label>
-                            <input type="number" step="0.01" class="form-control" name="replacement_cost" id="equip_cost" required placeholder="0.00">
+                            <input type="number" step="0.01" min="0" class="form-control" name="replacement_cost" id="equip_cost" required placeholder="0.00">
                         </div>
                     </div>
 

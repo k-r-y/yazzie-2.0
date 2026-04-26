@@ -49,9 +49,9 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <form id="userForm">
                     <input type="hidden" name="id" id="user_id">
                     <div class="form-group"><label class="form-label">Full Name <span class="required">*</span></label>
-                        <input class="form-control" name="name" id="u_name" required pattern="^[a-zA-Z\s\-\.]+$" title="Only letters, spaces, hyphens, and periods allowed."></div>
+                        <input class="form-control" name="name" id="u_name" required pattern="^[a-zA-Z\s\-\.]+$" title="Only letters, spaces, hyphens, and periods allowed." maxlength="100"></div>
                     <div class="form-group"><label class="form-label">Email Address <span class="required">*</span></label>
-                        <input class="form-control" name="email" id="u_email" type="email" required></div>
+                        <input class="form-control" name="email" id="u_email" type="email" required maxlength="100"></div>
                     <div class="form-group"><label class="form-label">Role <span class="required">*</span></label>
                         <select class="form-control" name="role" id="u_role" required onchange="onRoleChange()">
                             <?php if (($_SESSION['role'] ?? '') === 'super_admin'): ?>
@@ -179,6 +179,24 @@ function openEditUser(id, name, email, role, phone, active, jobClass = 'any') {
 async function saveUser() {
     const btn  = document.getElementById('userSaveBtn');
     const form = document.getElementById('userForm');
+    
+    const id = document.getElementById('user_id').value;
+    const name = document.getElementById('u_name').value.trim();
+    const email = document.getElementById('u_email').value.trim();
+    const phone = document.getElementById('u_phone').value.trim();
+    const password = document.getElementById('u_pw').value;
+
+    // Frontend Validation
+    if (!name || !email || (!id && !password)) {
+        Toast.error('Please fill in all required fields.');
+        return;
+    }
+    if (name.length > 100) return Toast.error('Name too long (max 100).');
+    if (!/^[a-zA-Z\s\-.]+$/.test(name)) return Toast.error('Name contains invalid characters.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Toast.error('Invalid email address.');
+    if (phone && !/^(09|\+639)\d{9}$/.test(phone)) return Toast.error('Invalid PH phone number.');
+    if (password && password.length < 8) return Toast.error('Password must be at least 8 characters.');
+
     if (!form.checkValidity()) { form.reportValidity(); return; }
     Form.setLoading(btn, true);
     const data = Form.serialize(form);

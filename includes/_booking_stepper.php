@@ -102,6 +102,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             <label class="form-label">Specify Event Type <span class="required">*</span></label>
                             <input type="text" class="form-control" id="s1_customType" 
                                    placeholder="e.g. Anniversary, Reunion"
+                                   maxlength="100"
                                    oninput="state.eventType = this.value">
                         </div>
 
@@ -109,6 +110,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             <label class="form-label">Event Venue / Address <span class="required">*</span></label>
                             <textarea class="form-control" id="s1_location"
                                       placeholder="Enter full address of the venue…"
+                                      maxlength="500"
                                       oninput="onLocationChange(this.value)" rows="3"></textarea>
                             <div id="transportFeePanel" style="display:none; margin-top:10px; padding:10px 12px; background:rgba(0,122,255,0.05); border-radius:10px; border:0.5px solid rgba(0,122,255,0.2);">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -156,7 +158,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             <div class="form-grid-2">
                                 <div class="form-group">
                                     <label class="form-label">Full Name <span class="required">*</span></label>
-                                    <input type="text" class="form-control" id="nc_name" placeholder="Maria Santos">
+                                    <input type="text" class="form-control" id="nc_name" placeholder="Maria Santos" maxlength="100">
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Phone Number <span class="required">*</span></label>
@@ -164,22 +166,22 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Email Address <span class="required">*</span></label>
-                                    <input type="email" class="form-control" id="nc_email" placeholder="email@example.com" required>
+                                    <input type="email" class="form-control" id="nc_email" placeholder="email@example.com" required maxlength="100">
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label">Messenger/Facebook Link <span class="required">*</span></label>
-                                    <input type="text" class="form-control" id="nc_messenger" placeholder="m.me/username" required>
+                                    <input type="text" class="form-control" id="nc_messenger" placeholder="m.me/username" required maxlength="100">
                                 </div>
                                 <div class="form-group" style="grid-column: span 2;">
                                     <label class="form-label">Address</label>
-                                    <input type="text" class="form-control" id="nc_address" placeholder="City, Province">
+                                    <input type="text" class="form-control" id="nc_address" placeholder="City, Province" maxlength="255">
                                 </div>
                             </div>
                         </div>
 
                         <div class="form-group" style="margin-bottom:0;">
                             <label class="form-label">Event Notes (Optional)</label>
-                            <textarea class="form-control" id="s2_notes" rows="2" placeholder="e.g. VIP guest attending..., Themes to follow"></textarea>
+                            <textarea class="form-control" id="s2_notes" rows="2" placeholder="e.g. VIP guest attending..., Themes to follow" maxlength="2000"></textarea>
                         </div>
 
                         <!-- Dietary / Allergy Notes -->
@@ -190,6 +192,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             </label>
                             <textarea class="form-control" id="s2_dietaryNotes" rows="2"
                                       placeholder="e.g. 2 guests are lactose intolerant; no pork for 5 guests; less salt for the elderly…"
+                                      maxlength="1000"
                                       style="border-color: rgba(255,149,0,0.4); background: rgba(255,149,0,0.03);"></textarea>
                             <div class="form-hint" style="color: rgba(180, 100, 0, 0.7);">This will be flagged on the grocery list and staff briefing.</div>
                         </div>
@@ -601,8 +604,17 @@ $stepperRole = $bookingStepperRole ?? 'admin';
     const minDpPct = <?= MIN_DP_PERCENT ?>;
     const rushDpPct = <?= RUSH_DP_PERCENT ?>;
     const rushThresholdHours = <?= RUSH_THRESHOLD_HOURS ?>;
-    const opStart = '<?= OPERATING_HOURS_START ?>';
-    const opEnd   = '<?= OPERATING_HOURS_END ?>';
+    const operatingHoursStart = '<?= OPERATING_HOURS_START ?>';
+    const operatingHoursEnd = '<?= OPERATING_HOURS_END ?>';
+
+    // Dynamic Dish Limits & Surcharge Rates
+    const defaultMaxMain = <?= DEFAULT_MAX_MAIN ?>;
+    const defaultMaxDessert = <?= DEFAULT_MAX_DESSERT ?>;
+    const defaultMaxRice = <?= DEFAULT_MAX_ADDITIONAL ?>;
+    const defaultRateMain = <?= EXTRA_MAIN_RATE ?>;
+    const defaultRateDessert = <?= EXTRA_DESSERT_RATE ?>;
+    const defaultRateRice = <?= EXTRA_RICE_RATE ?>;
+
     const mealB   = <?= MEAL_BREAKFAST_START ?>;
     const mealL   = <?= MEAL_LUNCH_START ?>;
     const mealD   = <?= MEAL_DINNER_START ?>;
@@ -675,9 +687,9 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 Api.get(BASE + '/src/api/availability.php', { booked_dates: 1 }),
             ]);
             allPackages          = pkgData.packages   || [];
-            state.additionalRates.main    = pkgData.rates.extra_main_rate || 50;
-            state.additionalRates.dessert = pkgData.rates.extra_dessert_rate || 30;
-            state.additionalRates.rice    = pkgData.rates.extra_rice_rate || 20;
+            state.additionalRates.main    = pkgData.rates.extra_main_rate || defaultRateMain;
+            state.additionalRates.dessert = pkgData.rates.extra_dessert_rate || defaultRateDessert;
+            state.additionalRates.rice    = pkgData.rates.extra_rice_rate || defaultRateRice;
 
             allDishesGroups      = dishData.dishes_grouped || {};
             allDishes            = [];
@@ -1189,10 +1201,10 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         state.extraCost   = extraCost;
         state.totalCost   = total;
         
-        // Update dish limits dynamically from package
-        state.maxMain = parseInt(pkg.max_main_dishes) || 5;
-        state.maxDessert = parseInt(pkg.max_desserts) || 1;
-        state.maxRice = 1;
+        // Update dish limits dynamically from package or dynamic fallback
+        state.maxMain = parseInt(pkg.max_main_dishes) || defaultMaxMain;
+        state.maxDessert = parseInt(pkg.max_desserts) || defaultMaxDessert;
+        state.maxRice = defaultMaxRice;
 
         // Dynamic Surcharge Logic
         const inclMain = state.maxMain;
@@ -1216,9 +1228,9 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             return sur * pax;
         };
 
-        const surchargeMain = getSurcharge(state.selectedMain, inclMain, parseFloat(state.additionalRates.main) || 50);
-        const surchargeDessert = getSurcharge(state.selectedDesserts, inclDessert, parseFloat(state.additionalRates.dessert) || 30);
-        const surchargeRice = getSurcharge(state.selectedAdditional, inclRice, parseFloat(state.additionalRates.rice) || 20);
+        const surchargeMain = getSurcharge(state.selectedMain, inclMain, parseFloat(state.additionalRates.main) || defaultRateMain);
+        const surchargeDessert = getSurcharge(state.selectedDesserts, inclDessert, parseFloat(state.additionalRates.dessert) || defaultRateDessert);
+        const surchargeRice = getSurcharge(state.selectedAdditional, inclRice, parseFloat(state.additionalRates.rice) || defaultRateRice);
 
         const extraDishSurcharge = surchargeMain + surchargeDessert + surchargeRice;
 
@@ -1232,8 +1244,8 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         const inclList = document.getElementById('s3_inclusionsList');
         if (inclBox && inclList) {
             const defaultItems = [
-                `Up to ${pkg.max_main_dishes || 5} Main Dishes`,
-                `Up to ${pkg.max_desserts || 1} Dessert${(pkg.max_desserts || 1) > 1 ? 's' : ''}`,
+                `Up to ${pkg.max_main_dishes || defaultMaxMain} Main Dishes`,
+                `Up to ${pkg.max_desserts || defaultMaxDessert} Dessert${(pkg.max_desserts || defaultMaxDessert) > 1 ? 's' : ''}`,
                 pkg.includes_rice == 1 ? 'Unlimited Rice' : null,
                 'Uniformed Servers',
                 'Complete Setup & Cleanup',

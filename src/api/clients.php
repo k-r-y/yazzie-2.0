@@ -46,7 +46,7 @@ if ($method === 'POST') {
     
     // Name validation
     if (strlen($d['name']) > 100) jsonResponse(false, 'Name cannot exceed 100 characters.', [], 422);
-    if (!preg_match('/^[a-zA-Z\s\-]+$/', $d['name'])) jsonResponse(false, 'Name can only contain letters, spaces, and hyphens.', [], 422);
+    if (!preg_match('/^[a-zA-Z\s\-.]+$/', $d['name'])) jsonResponse(false, 'Name can only contain letters, spaces, hyphens, and periods.', [], 422);
 
     // Email validation
     if(empty($d['email'])) {
@@ -102,7 +102,7 @@ if ($method === 'PUT') {
     // Name validation
     if (isset($d['name'])) {
         if (strlen($d['name']) > 100) jsonResponse(false, 'Name cannot exceed 100 characters.', [], 422);
-        if (!preg_match('/^[a-zA-Z\s\-]+$/', $d['name'])) jsonResponse(false, 'Name can only contain letters, spaces, and hyphens.', [], 422);
+        if (!preg_match('/^[a-zA-Z\s\-.]+$/', $d['name'])) jsonResponse(false, 'Name can only contain letters, spaces, hyphens, and periods.', [], 422);
     }
 
     // Phone validation

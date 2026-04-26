@@ -88,28 +88,28 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <input type="hidden" name="id" id="f-id">
                     <div class="form-group">
                         <label class="form-label">Full Name <span class="required">*</span></label>
-                        <input type="text" class="form-control" name="name" id="f-name" required placeholder="e.g. Juan Dela Cruz">
+                        <input type="text" class="form-control" name="name" id="f-name" required placeholder="e.g. Juan Dela Cruz" maxlength="100">
                     </div>
                     <div class="form-grid-2">
                         <div class="form-group">
                             <label class="form-label">Phone Number <span class="required">*</span></label>
-                            <input type="text" class="form-control" name="phone" id="f-phone" required placeholder="09XX XXX XXXX">
+                            <input type="text" class="form-control" name="phone" id="f-phone" required placeholder="09XX XXX XXXX" maxlength="11">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Email Address <span class="required">*</span></label>
-                            <input type="email" class="form-control" name="email" id="f-email" required placeholder="client@email.com">
+                            <input type="email" class="form-control" name="email" id="f-email" required placeholder="client@email.com" maxlength="100">
                         </div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Messenger Link</label>
                         <div style="position:relative;">
                             <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--label-4);font-size:12px;">m.me/</span>
-                            <input type="text" class="form-control" name="messenger_link" id="f-msgr" style="padding-left:50px;" placeholder="username">
+                            <input type="text" class="form-control" name="messenger_link" id="f-msgr" style="padding-left:50px;" placeholder="username" maxlength="100">
                         </div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Home / Event Address</label>
-                        <textarea class="form-control" name="address" id="f-address" rows="2" placeholder="Street, Barangay, City..."></textarea>
+                        <textarea class="form-control" name="address" id="f-address" rows="2" placeholder="Street, Barangay, City..." maxlength="255"></textarea>
                     </div>
                 </form>
             </div>
@@ -244,14 +244,31 @@ function openEditModal(id) {
 
 async function saveClient() {
     const id = document.getElementById('f-id').value;
-    const data = {
-        name: document.getElementById('f-name').value.trim(),
-        phone: document.getElementById('f-phone').value.trim(),
-        email: document.getElementById('f-email').value.trim(),
-        messenger_link: document.getElementById('f-msgr').value.trim(),
-        address: document.getElementById('f-address').value.trim()
-    };
+    const name = document.getElementById('f-name').value.trim();
+    const phone = document.getElementById('f-phone').value.trim();
+    const email = document.getElementById('f-email').value.trim();
+    const msgr = document.getElementById('f-msgr').value.trim();
+    const address = document.getElementById('f-address').value.trim();
 
+    // Frontend Validation
+    if (!name || !phone || !email) {
+        Toast.error('Please fill in all required fields.');
+        return;
+    }
+    if (name.length > 100) return Toast.error('Name too long (max 100).');
+    if (!/^[a-zA-Z\s\-.]+$/.test(name)) return Toast.error('Name contains invalid characters.');
+    
+    if (!/^09\d{9}$/.test(phone)) {
+        Toast.error('Invalid phone number. Must be 11 digits starting with 09.');
+        return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        Toast.error('Please enter a valid email address.');
+        return;
+    }
+    if (address.length > 255) return Toast.error('Address too long (max 255).');
+
+    const data = { name, phone, email, messenger_link: msgr, address };
     if (id) data.id = id;
 
     const btn = document.getElementById('saveBtn');

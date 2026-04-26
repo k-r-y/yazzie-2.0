@@ -599,8 +599,8 @@ if ($method === 'POST') {
             ':package_id'     => $pId > 0 ? $pId : null,
             ':event_date'     => $eventDate,
             ':event_time'     => $eventTime,
-            ':event_location' => !empty($data['event_location']) ? $data['event_location'] : null,
-            ':event_type'     => !empty($data['event_type']) ? trim($data['event_type']) : 'Wedding',
+            ':event_location' => !empty($data['event_location']) ? trim(substr($data['event_location'], 0, 500)) : null,
+            ':event_type'     => !empty($data['event_type']) ? trim(substr((string)$data['event_type'], 0, 100)) : 'Wedding',
             ':pax_count'      => $paxCount,
             ':base_pax'       => $basePax,
             ':extra_pax'      => $extraPax,
@@ -611,8 +611,8 @@ if ($method === 'POST') {
             ':total_cost'     => $totalCost,
             ':booking_status' => $initialStatus,
             ':invoice_token'  => bin2hex(random_bytes(16)),
-            ':notes'          => $data['notes'] ?? null,
-            ':dietary_notes'  => !empty($data['dietary_notes']) ? trim((string)$data['dietary_notes']) : null,
+            ':notes'          => !empty($data['notes']) ? trim(substr((string)$data['notes'], 0, 2000)) : null,
+            ':dietary_notes'  => !empty($data['dietary_notes']) ? trim(substr((string)$data['dietary_notes'], 0, 1000)) : null,
             ':created_by'     => $creatorId,
         ]);
         $newId = $pdo->lastInsertId();
