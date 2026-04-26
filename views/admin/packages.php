@@ -114,7 +114,7 @@ let allPackages = [];
 
 async function loadPackages() {
     try {
-        const d = await Api.get(BASE + '/src/api/packages.php');
+        const d = await Api.get(BASE + '/src/api/packages.php', { include_inactive: 1 });
         allPackages = d.packages || [];
         renderTable(allPackages);
     } catch(e) {

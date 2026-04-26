@@ -145,11 +145,11 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <div class="form-grid-2">
                         <div class="form-group">
                             <label class="form-label">Full Name <span class="required">*</span></label>
-                            <input type="text" class="form-control" name="name" id="sf-name" required placeholder="e.g. Maria Santos">
+                            <input type="text" class="form-control" name="name" id="sf-name" required placeholder="e.g. Maria Santos" pattern="^[a-zA-Z\s\-\.]+$" title="Only letters, spaces, hyphens, and periods allowed.">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Phone</label>
-                            <input type="text" class="form-control" name="phone" id="sf-phone" placeholder="09XX XXX XXXX">
+                            <input type="text" class="form-control" name="phone" id="sf-phone" placeholder="09XX XXX XXXX" pattern="^(09|\+639)\d{9}$" maxlength="13" title="Enter a valid PH mobile number (e.g. 09XXXXXXXXX or +639XXXXXXXXX)">
                         </div>
                     </div>
                     <div class="form-group">

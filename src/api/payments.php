@@ -86,7 +86,7 @@ if ($method === 'POST') {
     $amount    = (float)$d['amount'];
 
     // Verify booking exists + get current booking_status for auto-promotion
-    $bStmt = $pdo->prepare("SELECT id, total_cost, booking_status FROM bookings WHERE id = :id");
+    $bStmt = $pdo->prepare("SELECT id, total_cost, booking_status, event_date FROM bookings WHERE id = :id");
     $bStmt->execute([':id' => $bookingId]);
     $booking = $bStmt->fetch();
     if (!$booking) jsonResponse(false, 'Booking not found.', [], 404);
@@ -175,20 +175,9 @@ if ($method === 'POST') {
             ':id'     => $bookingId,
         ]);
 
-        // ── Auto-promote: pending → confirmed when cumulative paid >= 30% (MIN_DP_PERCENT) ──
-        $currentBookingStatus = $booking['booking_status'];
-        $dpPercent   = defined('MIN_DP_PERCENT') ? MIN_DP_PERCENT : 0.30;
-        $minDPThresh = round($totalCost * $dpPercent, 2);
+        // ── Auto-promote logic removed: pending status is deprecated ────────
         $finalStatus = $currentBookingStatus;
-        if ($currentBookingStatus === 'pending' && $newPaid >= $minDPThresh - 0.01) {
-            $finalStatus = 'confirmed';
-            $pdo->prepare("UPDATE bookings SET booking_status = 'confirmed' WHERE id = :id")
-                ->execute([':id' => $bookingId]);
-            auditLog($pdo, 'booking_confirmed', 'booking', $bookingId,
-                ['booking_status' => 'pending'],
-                ['booking_status' => 'confirmed', 'trigger' => 'payment_reached_dp_threshold']
-            );
-        }
+
 
         $pdo->commit();
     } catch (Exception $e) {
@@ -248,9 +237,10 @@ if ($method === 'DELETE') {
         $paidStmt->execute([':bid' => $bookingId]);
         $newPaid = (float)$paidStmt->fetchColumn();
 
-        $costStmt = $pdo->prepare("SELECT total_cost FROM bookings WHERE id = :id");
+        $costStmt = $pdo->prepare("SELECT total_cost, event_date FROM bookings WHERE id = :id");
         $costStmt->execute([':id' => $bookingId]);
-        $totalCost = (float)$costStmt->fetchColumn();
+        $bk = $costStmt->fetch();
+        $totalCost = (float)$bk['total_cost'];
 
         $status = ($newPaid >= $totalCost - 0.01) ? 'paid'
                 : ($newPaid > 0                   ? 'partial' : 'unpaid');
@@ -268,7 +258,12 @@ if ($method === 'DELETE') {
         ]);
 
         // ── Demote booking_status if paid falls below DP threshold ──
-        $dpPercent   = defined('MIN_DP_PERCENT') ? MIN_DP_PERCENT : 0.30;
+        $eventDateObj = new DateTime($bk['event_date']);
+        $now = new DateTime();
+        $interval = $now->diff($eventDateObj);
+        $diffHours = ($interval->days * 24) + $interval->h;
+        $dpPercent = (!$interval->invert && $diffHours < RUSH_THRESHOLD_HOURS) ? RUSH_DP_PERCENT : MIN_DP_PERCENT;
+        
         $minDPThresh = round($totalCost * $dpPercent, 2);
         
         if ($newPaid < $minDPThresh - 0.01) {
@@ -276,14 +271,8 @@ if ($method === 'DELETE') {
             $curStatusStmt->execute([':id' => $bookingId]);
             $curStatus = $curStatusStmt->fetchColumn();
             
-            if ($curStatus === 'confirmed') {
-                $pdo->prepare("UPDATE bookings SET booking_status = 'pending' WHERE id = :id")
-                    ->execute([':id' => $bookingId]);
-                auditLog($pdo, 'booking_demoted', 'booking', $bookingId,
-                    ['booking_status' => 'confirmed'],
-                    ['booking_status' => 'pending', 'trigger' => 'payment_deleted_below_threshold']
-                );
-            }
+            // Auto-demotion removed: pending status deprecated
+
         }
 
         $pdo->commit();

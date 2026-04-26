@@ -106,6 +106,12 @@ if ($method === 'POST') {
         if (empty($d[$f])) jsonResponse(false, "Field '$f' is required.", [], 422);
     }
 
+    if (strlen($d['name']) > 100) jsonResponse(false, 'Name too long.', [], 422);
+    if (!preg_match('/^[a-zA-Z\s\-\.]+$/', trim($d['name']))) {
+        jsonResponse(false, 'Invalid name format. Only letters, spaces, hyphens, and periods are allowed.', [], 422);
+    }
+
+    if (strlen($d['email']) > 100) jsonResponse(false, 'Email too long.', [], 422);
     if (!filter_var($d['email'], FILTER_VALIDATE_EMAIL)) {
         jsonResponse(false, 'Invalid email address.', [], 422);
     }
@@ -148,6 +154,7 @@ if ($method === 'POST') {
     // Phone validation — PH mobile format (09XXXXXXXXX or +639XXXXXXXXX)
     if (!empty($d['phone'])) {
         $phone = preg_replace('/\s+/', '', (string)$d['phone']);
+        if (strlen($phone) > 20) jsonResponse(false, 'Phone number too long.', [], 422);
         if (!preg_match('/^(09|\+639)\d{9}$/', $phone)) {
             jsonResponse(false, 'Invalid phone number. Use PH format: 09XXXXXXXXX or +639XXXXXXXXX.', [], 422);
         }
@@ -226,6 +233,11 @@ if ($method === 'PUT') {
         if ($pwError) jsonResponse(false, $pwError, [], 422);
         $pwSql = ", password = :pw";
         $params[':pw'] = password_hash($d['password'], PASSWORD_BCRYPT);
+    }
+
+    // Name validation
+    if (isset($d['name']) && !preg_match('/^[a-zA-Z\s\-\.]+$/', trim($d['name']))) {
+        jsonResponse(false, 'Invalid name format. Only letters, spaces, hyphens, and periods are allowed.', [], 422);
     }
 
     // Phone validation on update

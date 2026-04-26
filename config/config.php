@@ -4,7 +4,6 @@
 // ============================================================
 
 // Application Constants
-define('APP_NAME',    'Yazzies Catering OMS');
 define('APP_VERSION', '1.0.0');
 define('BASE_URL',    'http://localhost/test');
 
@@ -29,30 +28,6 @@ function loadEnv($path) {
 loadEnv(__DIR__ . '/../.env');
 
 // ============================================================
-// Business Logic Constants
-// Change these values here ONLY — they propagate everywhere.
-// ============================================================
-define('MIN_LEAD_TIME_DAYS', 1);
-define('MIN_PAX',            50);   // Minimum guests per booking
-define('MAX_PAX',            300);  // Maximum guests per booking
-define('MIN_DP_PERCENT',     0.30); // Minimum downpayment (30%)
-define('APP_ENV', getenv('APP_ENV') ?: 'development'); // Set APP_ENV=production on server
-
-// Timezone
-date_default_timezone_set('Asia/Manila');
-
-// ── Secure session cookie (CSRF protection) ──────────────────────────────
-if (session_status() === PHP_SESSION_NONE) {
-    session_set_cookie_params([
-        'lifetime' => 0,
-        'path'     => '/',
-        'secure'   => false,    // Set to true when HTTPS is enabled
-        'httponly' => true,     // Prevent JS access to session cookie
-        'samesite' => 'Lax',    // CSRF protection (Lax is better for local dev with fetch)
-    ]);
-}
-
-// ============================================================
 // Database Configuration
 // ============================================================
 define('DB_HOST',    getenv('DB_HOST') ?: 'localhost');
@@ -61,7 +36,34 @@ define('DB_USER',    getenv('DB_USER') ?: 'root');
 define('DB_PASS',    getenv('DB_PASS') ?: '');
 define('DB_CHARSET', 'utf8mb4');
 
-$dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
+// ── DSN: On XAMPP macOS, CLI uses 'localhost' which triggers
+//         Unix socket lookup in the wrong path. Auto-detect the
+//         correct socket and use it so both CLI and web work.
+function buildDsn(): string {
+    $host    = DB_HOST;
+    $name    = DB_NAME;
+    $charset = DB_CHARSET;
+
+    // Only apply socket override when host is 'localhost' (not an IP)
+    if ($host === 'localhost' && php_sapi_name() === 'cli') {
+        $knownSockets = [
+            '/Applications/XAMPP/xamppfiles/var/mysql/mysql.sock', // XAMPP macOS
+            '/tmp/mysql.sock',                                       // Homebrew / Linux default
+            '/var/run/mysqld/mysqld.sock',                           // Ubuntu / Debian
+        ];
+        foreach ($knownSockets as $sock) {
+            if (file_exists($sock)) {
+                return "mysql:unix_socket={$sock};dbname={$name};charset={$charset}";
+            }
+        }
+        // Fallback: force TCP to avoid socket resolution
+        return "mysql:host=127.0.0.1;dbname={$name};charset={$charset}";
+    }
+
+    return "mysql:host={$host};dbname={$name};charset={$charset}";
+}
+
+$dsn = buildDsn();
 
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
@@ -86,21 +88,8 @@ try {
 }
 
 // ============================================================
-// Security Helpers (XSS escape, password policy)
-// ============================================================
-require_once __DIR__ . '/../includes/security.php';
-require_once __DIR__ . '/../includes/csrf.php';
-require_once __DIR__ . '/../includes/formatters.php';
-
-// ============================================================
 // Settings (dynamic business rules from DB)
 // ============================================================
-/**
- * Read application settings from `settings` table (if present).
- * Falls back to provided default when table/key is missing.
- *
- * NOTE: This is intentionally lightweight for this codebase (no framework).
- */
 function appSetting(string $key, mixed $default = null): mixed
 {
     global $pdo;
@@ -127,6 +116,7 @@ function appSetting(string $key, mixed $default = null): mixed
 
     return match ($t) {
         'int'  => (int)$v,
+        'boolean' => filter_var($v, FILTER_VALIDATE_BOOLEAN),
         'bool' => filter_var($v, FILTER_VALIDATE_BOOLEAN),
         'json' => (json_decode((string)$v, true) ?: $default),
         default => $v,
@@ -143,18 +133,78 @@ function appSettingFloat(string $key, float $default): float {
     return is_numeric($v) ? (float)$v : $default;
 }
 
+// ============================================================
+// Business Logic Constants (Dynamically loaded)
+// ============================================================
+define('APP_NAME',             appSetting('company_name', 'Yazzies Catering OMS'));
+define('MIN_LEAD_TIME_DAYS',   appSettingInt('min_lead_time_days', 1));
+define('MIN_PAX',              appSettingInt('min_pax', 50));
+define('MAX_PAX',              appSettingInt('max_pax', 300));
+define('MIN_DP_PERCENT',       appSettingFloat('standard_dp_percent', 0.30)); 
+define('RUSH_DP_PERCENT',      appSettingFloat('rush_dp_percent', 1.00));
+define('EXTRA_PAX_RATE',       appSettingFloat('extra_pax_rate', 125.0));
+define('EVENT_DURATION_HOURS', appSettingInt('event_duration_hours', 4));
+define('OVERTIME_RATE',        appSettingFloat('overtime_rate_per_hour', 200.0));
+define('RUSH_THRESHOLD_HOURS', appSettingInt('rush_threshold_hours', 72));
+define('OPERATING_HOURS_START', appSetting('operating_hours_start', '07:00'));
+define('OPERATING_HOURS_END',   appSetting('operating_hours_end', '23:00'));
+define('MEAL_BREAKFAST_START', appSettingInt('meal_breakfast_start', 6));
+define('MEAL_LUNCH_START',     appSettingInt('meal_lunch_start', 11));
+define('MEAL_DINNER_START',    appSettingInt('meal_dinner_start', 17));
+
+define('TIER_BASE_PRICE',      appSettingFloat('tier_base_price', 5000.0));
+define('TIER_PAX_RATE',        appSettingFloat('tier_pax_rate', 100.0));
+define('TIER_SNAP_STEP',       appSettingInt('tier_snap_step', 50));
+define('CANCEL_FORFEIT_PCT',   appSettingFloat('cancel_forfeiture_percent', 0.50));
+
+define('DEFAULT_MAX_MAIN',     appSettingInt('default_max_main', 5));
+define('DEFAULT_MAX_DESSERT',  appSettingInt('default_max_dessert', 1));
+define('DEFAULT_MAX_ADDITIONAL', appSettingInt('default_max_additional', 1));
+
+define('APP_ENV', getenv('APP_ENV') ?: 'development');
+
+// Global System Settings
+define('MAINTENANCE_MODE', appSetting('maintenance_mode', 0));
+define('DEBUG_MODE', appSetting('debug_mode', 0));
+if (DEBUG_MODE) {
+    ini_set('display_errors', 1);
+    error_reporting(E_ALL);
+} else {
+    ini_set('display_errors', 0);
+    error_reporting(0);
+}
+
+// Timezone
+$tz = appSetting('system_timezone', 'Asia/Manila');
+date_default_timezone_set($tz);
+
+// ── Secure session cookie (CSRF protection) ──────────────────────────────
+if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'secure'   => false,    // Set to true when HTTPS is enabled
+        'httponly' => true,     // Prevent JS access to session cookie
+        'samesite' => 'Lax',    // CSRF protection (Lax is better for local dev with fetch)
+    ]);
+}
+
+// ============================================================
+// Security Helpers (XSS escape, password policy)
+// ============================================================
+require_once __DIR__ . '/../includes/security.php';
+require_once __DIR__ . '/../includes/csrf.php';
+require_once __DIR__ . '/../includes/formatters.php';
+
 // ── Global exception handler for API routes ──────────────────────
-// Catches any unhandled PDOException (e.g. missing table) and returns
-// a JSON error instead of a blank HTTP 500 page.
 if (strpos($_SERVER['PHP_SELF'] ?? '', '/api/') !== false) {
     set_exception_handler(function (Throwable $e) {
-        // Clear any partial output
         if (ob_get_level()) ob_end_clean();
         if (!headers_sent()) {
             header('Content-Type: application/json');
             http_response_code(500);
         }
-        $isDev = (APP_ENV === 'development'); // Controlled by APP_ENV env var
+        $isDev = (APP_ENV === 'development' || DEBUG_MODE);
         echo json_encode([
             'success' => false,
             'message' => $isDev
@@ -167,20 +217,18 @@ if (strpos($_SERVER['PHP_SELF'] ?? '', '/api/') !== false) {
 
 // ============================================================
 // Email Configuration (PHPMailer / Gmail SMTP)
-// Update these values when setting up email notifications
 // ============================================================
-define('MAIL_HOST',     getenv('MAIL_HOST') ?: 'smtp.gmail.com');
-define('MAIL_PORT',     getenv('MAIL_PORT') ?: 587);
-define('MAIL_USERNAME', getenv('MAIL_USERNAME') ?: 'yazziecateringservices@gmail.com');
-define('MAIL_PASSWORD', getenv('MAIL_PASSWORD') ?: ''); // (Google App Password)
+define('MAIL_HOST',     appSetting('smtp_host', getenv('MAIL_HOST') ?: 'smtp.gmail.com'));
+define('MAIL_PORT',     appSetting('smtp_port', getenv('MAIL_PORT') ?: 587));
+define('MAIL_USERNAME', appSetting('smtp_user', getenv('MAIL_USERNAME') ?: 'yazziecateringservices@gmail.com'));
+define('MAIL_PASSWORD', appSetting('smtp_pass', getenv('MAIL_PASSWORD') ?: '')); 
 define('MAIL_FROM',     getenv('MAIL_FROM') ?: 'yazziecateringservices@gmail.com');
 define('MAIL_FROM_NAME', getenv('MAIL_FROM_NAME') ?: 'Yazzies Catering Services');
-define('MAIL_ENABLED',  filter_var(getenv('MAIL_ENABLED'), FILTER_VALIDATE_BOOLEAN)); // True if enabled
+define('MAIL_ENABLED',  filter_var(getenv('MAIL_ENABLED'), FILTER_VALIDATE_BOOLEAN));
 
 // ============================================================
 // SMS Configuration (Semaphore PH)
-// Register free at semaphore.co.ph
 // ============================================================
-define('SMS_API_KEY',   getenv('SMS_API_KEY') ?: 'your_semaphore_api_key');
-define('SMS_SENDER',    getenv('SMS_SENDER') ?: 'YAZZIES'); // Registered sender name (max 11 chars)
-define('SMS_ENABLED',   filter_var(getenv('SMS_ENABLED'), FILTER_VALIDATE_BOOLEAN)); // True if enabled
+define('SMS_API_KEY',   appSetting('sms_api_key', getenv('SMS_API_KEY') ?: ''));
+define('SMS_SENDER',    getenv('SMS_SENDER') ?: 'YAZZIES');
+define('SMS_ENABLED',   filter_var(getenv('SMS_ENABLED'), FILTER_VALIDATE_BOOLEAN));

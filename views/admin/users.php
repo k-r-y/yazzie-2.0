@@ -49,7 +49,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <form id="userForm">
                     <input type="hidden" name="id" id="user_id">
                     <div class="form-group"><label class="form-label">Full Name <span class="required">*</span></label>
-                        <input class="form-control" name="name" id="u_name" required></div>
+                        <input class="form-control" name="name" id="u_name" required pattern="^[a-zA-Z\s\-\.]+$" title="Only letters, spaces, hyphens, and periods allowed."></div>
                     <div class="form-group"><label class="form-label">Email Address <span class="required">*</span></label>
                         <input class="form-control" name="email" id="u_email" type="email" required></div>
                     <div class="form-group"><label class="form-label">Role <span class="required">*</span></label>

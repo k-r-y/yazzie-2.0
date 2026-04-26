@@ -193,7 +193,7 @@ function renderClients(list) {
                 </div>
             </td>
             <td class="text-center">
-                <span class="badge ${c.total_bookings > 0 ? 'badge-accepted' : 'badge-pending'}">
+                <span class="badge ${c.total_bookings > 0 ? 'badge-accepted' : 'badge-secondary'}">
                     ${c.total_bookings} Booking${c.total_bookings == 1 ? '' : 's'}
                 </span>
             </td>

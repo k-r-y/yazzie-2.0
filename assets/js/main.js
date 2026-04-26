@@ -33,10 +33,11 @@ const Toast = {
                 showConfirmButton: false,
                 timer: 2000,
                 timerProgressBar: true,
-                padding: '1em',
-                color: 'var(--label)',
-                background: 'var(--glass-ultra)',
-                backdrop: `rgba(0,0,0,0.4)`,
+                padding: '2em',
+                background: 'rgba(255, 255, 255, 0.95)',
+                backdrop: `rgba(0,0,0,0.45)`,
+                showClass: { popup: 'animate__animated animate__fadeInUp animate__faster' },
+                hideClass: { popup: 'animate__animated animate__fadeOutDown animate__faster' },
                 customClass: { popup: 'swal2-bento' }
             });
         }
@@ -50,9 +51,11 @@ const Toast = {
             showConfirmButton: false,
             timer: duration,
             timerProgressBar: true,
-            background: 'var(--glass-ultra)',
+            background: 'rgba(255, 255, 255, 0.98)',
             color: 'var(--label)',
-            backdrop: false,
+            padding: '12px 16px',
+            showClass: { popup: 'animate__animated animate__slideInRight animate__faster' },
+            hideClass: { popup: 'animate__animated animate__slideOutRight animate__faster' },
             customClass: { popup: 'swal2-bento-toast' }
         });
     },
@@ -229,7 +232,6 @@ const Format = {
     /** Get booking status badge HTML */
     bookingBadge(status) {
         const map = {
-            pending:   ['badge-pending',   '⏳ Pending DP'],
             confirmed: ['badge-confirmed', 'Confirmed'],
             completed: ['badge-completed', 'Completed'],
             cancelled: ['badge-cancelled', 'Cancelled'],
@@ -379,16 +381,17 @@ const CustomConfirm = {
             confirmButtonColor: options.confirmColor || 'var(--sys-blue)',
             cancelButtonColor: options.cancelColor || '#aaa',
             reverseButtons: true,
-            padding: '1.5em',
-            background: 'var(--glass-ultra)',
+            padding: '2em',
+            background: 'rgba(255, 255, 255, 0.95)',
             color: 'var(--label)',
+            showClass: { popup: 'animate__animated animate__zoomIn animate__faster' },
+            hideClass: { popup: 'animate__animated animate__zoomOut animate__faster' },
             customClass: {
-                popup: 'swal2-bento',
-                confirmButton: 'btn btn-primary',
-                cancelButton: 'btn btn-secondary'
+                popup: 'swal2-bento confirm-glass',
+                confirmButton: 'btn btn-primary btn-lg',
+                cancelButton: 'btn btn-secondary btn-lg'
             },
             preConfirm: () => {
-                // Return an object of all input IDs and their values
                 const data = {};
                 const container = Swal.getHtmlContainer();
                 if (!container) return data;

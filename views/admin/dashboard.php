@@ -41,11 +41,11 @@ include __DIR__ . '/../../includes/sidebar.php';
         </div>
     </div>
     <div class="col-sm-6 col-xl-3">
-        <div class="stat-card" style="cursor:pointer;" onclick="location.href='<?= BASE_URL ?>/views/admin/bookings.php?status=pending'">
-            <div class="stat-icon orange"><i class="fas fa-clock"></i></div>
+        <div class="stat-card" style="cursor:pointer;" onclick="location.href='<?= BASE_URL ?>/views/admin/bookings.php?filter=unpaid'">
+            <div class="stat-icon orange"><i class="fas fa-credit-card"></i></div>
             <div class="stat-info">
-                <div class="stat-value" id="kpi-pending">—</div>
-                <div class="stat-label">Awaiting Downpayment</div>
+                <div class="stat-value" id="kpi-unpaid">—</div>
+                <div class="stat-label">Pending Payments</div>
                 <div class="stat-label text-sm" id="kpi-outstanding" style="margin-top:2px;"></div>
             </div>
         </div>
@@ -124,7 +124,7 @@ async function loadKPIs() {
         document.getElementById('kpi-revenue-mtd').textContent  = Format.peso(d.revenue_mtd);
         document.getElementById('kpi-active').textContent       = d.active_bookings;
         document.getElementById('kpi-clients').textContent      = d.total_clients;
-        document.getElementById('kpi-pending').textContent      = d.pending_bookings ?? d.unpaid_count ?? 0;
+        document.getElementById('kpi-unpaid').textContent       = d.unpaid_count ?? 0;
         document.getElementById('kpi-outstanding').textContent  = 'Outstanding: ' + Format.peso(d.outstanding);
     } catch (e) { console.error(e); }
 }

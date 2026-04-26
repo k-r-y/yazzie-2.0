@@ -46,13 +46,14 @@ include __DIR__ . '/../../includes/sidebar.php';
                         </div>
                         <i class="fas fa-chevron-right text-muted opacity-50"></i>
                     </a>
-                    <div class="list-group-item d-flex align-items-center py-3 opacity-50" style="cursor:not-allowed;">
+                    <a href="#" onclick="runBackup(event)" class="list-group-item list-group-item-action d-flex align-items-center py-3">
                         <div class="stat-icon teal me-3"><i class="fas fa-database"></i></div>
                         <div style="flex:1;">
                             <div class="fw-700 text-sm">Database Backup</div>
-                            <div class="text-xs text-muted">Snapshot system state (coming soon)</div>
+                            <div class="text-xs text-muted">Download an SQL snapshot of the system state</div>
                         </div>
-                    </div>
+                        <i class="fas fa-download text-muted opacity-50"></i>
+                    </a>
                 </div>
             </div>
         </div>
@@ -89,6 +90,12 @@ include __DIR__ . '/../../includes/sidebar.php';
 </style>
 
 <script>
+async function runBackup(e) {
+    e.preventDefault();
+    if (!await confirmDialog('Generate and download a full database backup?')) return;
+    window.location.href = BASE + '/src/api/backup.php';
+}
+
 async function loadSettings() {
     try {
         const d = await Api.get(BASE + '/src/api/settings.php');
@@ -96,6 +103,7 @@ async function loadSettings() {
         const groups = {};
 
         d.settings.forEach(s => {
+            if (s.category !== 'system') return;
             if (!groups[s.category]) groups[s.category] = [];
             groups[s.category].push(s);
         });
@@ -104,14 +112,32 @@ async function loadSettings() {
         for (const cat in groups) {
             html += `<h6 class="text-uppercase text-xs fw-800 text-muted mt-4 mb-2" style="letter-spacing:0.5px;">${cat}</h6>`;
             groups[cat].forEach(s => {
-                const inputType = s.type === 'int' ? 'number' : 'text';
+                let inputHtml = '';
+                if (s.type === 'boolean') {
+                    inputHtml = `
+                        <select class="form-control form-control-sm" style="max-width:200px;" id="set_${s.key}">
+                            <option value="1" ${s.value == '1' ? 'selected' : ''}>ON</option>
+                            <option value="0" ${s.value == '0' ? 'selected' : ''}>OFF</option>
+                        </select>
+                    `;
+                } else if (s.key === 'smtp_pass' || s.key === 'sms_api_key') {
+                    inputHtml = `<input class="form-control form-control-sm" style="max-width:200px;" type="password" id="set_${s.key}" value="${s.value}">`;
+                } else {
+                    let extras = '';
+                    if (s.key === 'max_login_attempts') extras = 'min="1" max="100"';
+                    else if (s.key === 'session_timeout_minutes') extras = 'min="5" max="1440"';
+                    else if (s.key === 'max_file_upload_mb') extras = 'min="1" max="50"';
+                    else if (s.key === 'audit_log_retention_days') extras = 'min="1" max="3650"';
+                    const inputType = s.type === 'int' ? 'number' : 'text';
+                    inputHtml = `<input class="form-control form-control-sm" style="max-width:200px;" type="${inputType}" id="set_${s.key}" value="${s.value}" ${extras}>`;
+                }
+                
                 html += `
                     <div class="setting-item">
                         <div class="setting-label">${s.key.replace(/_/g, ' ').toUpperCase()}</div>
                         <div class="setting-desc">${s.description}</div>
                         <div class="d-flex gap-2">
-                            <input class="form-control form-control-sm" style="max-width:200px;" 
-                                   type="${inputType}" id="set_${s.key}" value="${s.value}">
+                            ${inputHtml}
                             <button class="btn btn-primary btn-sm px-3" onclick="updateSetting('${s.key}')">
                                 <i class="fas fa-save"></i>
                             </button>

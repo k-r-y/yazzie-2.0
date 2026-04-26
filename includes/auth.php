@@ -4,6 +4,28 @@
  * Include this file on every protected page AFTER config.php
  */
 
+/**
+ * Check if the system is in maintenance mode.
+ * Only Super Admins can bypass this.
+ */
+function checkMaintenanceMode(): void
+{
+    if (defined('MAINTENANCE_MODE') && MAINTENANCE_MODE) {
+        $user = getCurrentUser();
+        if (!$user || $user['role'] !== 'super_admin') {
+            $isApi = str_contains($_SERVER['REQUEST_URI'], '/src/api/');
+            if ($isApi) {
+                jsonResponse(false, 'System is currently under maintenance. Please try again later.', [], 503);
+            } else {
+                // Check if already on maintenance page to avoid loops
+                if (!str_contains($_SERVER['REQUEST_URI'], 'maintenance.php') && !str_contains($_SERVER['REQUEST_URI'], 'index.php')) {
+                     die("<h1>System Under Maintenance</h1><p>The system is currently undergoing scheduled maintenance. Please check back later.</p><p><a href='".BASE_URL."/index.php'>Return to Home</a></p>");
+                }
+            }
+        }
+    }
+}
+
 function startSession(): void
 {
     if (session_status() === PHP_SESSION_NONE) {
@@ -29,6 +51,7 @@ function isLoggedIn(): bool
 function requireRole(string|array $roles): void
 {
     startSession();
+    checkMaintenanceMode();
 
     if (!isLoggedIn()) {
         header('Location: ' . BASE_URL . '/index.php?error=auth');
@@ -36,12 +59,7 @@ function requireRole(string|array $roles): void
     }
 
     $roles = (array) $roles;
-
-    // super_admin inherits all roles — they can access any admin/frontdesk page
     $userRole = $_SESSION['role'] ?? '';
-    if ($userRole === 'super_admin' && !in_array('super_admin', $roles, true)) {
-        $roles[] = 'super_admin';
-    }
 
     if (!in_array($userRole, $roles, true)) {
         header('Location: ' . BASE_URL . '/index.php?error=forbidden');
@@ -76,7 +94,7 @@ function getCurrentUser(): ?array
 function redirectByRole(string $role): void
 {
     $redirectMap = [
-        'super_admin' => BASE_URL . '/views/admin/dashboard.php', // super_admin uses admin dashboard
+        'super_admin' => BASE_URL . '/views/admin/superadmin.php',
         'admin'       => BASE_URL . '/views/admin/dashboard.php',
         'frontdesk'   => BASE_URL . '/views/frontdesk/dashboard.php',
         'staff'       => BASE_URL . '/views/staff/dashboard.php',
@@ -140,6 +158,7 @@ function jsonResponse(bool $success, string $message = '', array $data = [], int
 function requireApiRole(string|array $roles): array
 {
     startSession();
+    checkMaintenanceMode();
 
     if (!isLoggedIn()) {
         jsonResponse(false, 'Unauthorized. Please log in.', [], 401);

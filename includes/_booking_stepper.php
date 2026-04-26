@@ -73,7 +73,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             <div class="form-group">
                                 <label class="form-label">Event Date <span class="required">*</span></label>
                                 <input type="date" class="form-control" id="s1_date"
-                                       min="<?= date('Y-m-d', strtotime('+1 days')) ?>"
+                                       min="<?= date('Y-m-d', strtotime('+' . MIN_LEAD_TIME_DAYS . ' days')) ?>"
                                        max="<?= date('Y-m-d', strtotime('+1 year')) ?>">
                             </div>
                             <div class="form-group">
@@ -227,12 +227,12 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                 <div class="input-group">
                                     <span class="input-prefix" style="font-weight:700;">👥</span>
                                     <input type="number" class="form-control" id="s3_pax"
-                                           min="50" step="5" placeholder="e.g. 75"
+                                           min="<?= MIN_PAX ?>" max="<?= MAX_PAX ?>" step="5" placeholder="e.g. <?= MIN_PAX + 25 ?>"
                                            style="font-size:20px; font-weight:700; letter-spacing:-0.3px;"
                                            oninput="calcPricing()">
                                 </div>
                                 <div style="font-size:11.5px; color:rgba(60,60,67,0.4); margin-top:4px;">
-                                    Minimum 50 guests.
+                                    Min <?= MIN_PAX ?> guests, Max <?= MAX_PAX ?> guests.
                                 </div>
                                 <div id="s3_paxError" style="font-size:11.5px; color:#C0392B; margin-top:4px; display:none;"></div>
                             </div>
@@ -309,7 +309,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                 <span id="pr_perPax" style="font-size:11px; font-weight:600; color:rgba(60,60,67,0.45);"></span>
                             </div>
                             <div id="pr_dpNotice" style="display:none; margin-top:12px; padding:10px 12px; background:rgba(255,149,0,0.08); border-radius:9px; border:0.5px solid rgba(255,149,0,0.2);">
-                                <div style="font-size:11px; font-weight:700; color:#9A5400; margin-bottom:2px;">Minimum Downpayment (30%)</div>
+                                <div style="font-size:11px; font-weight:700; color:#9A5400; margin-bottom:2px;">Minimum Downpayment (<?= round(MIN_DP_PERCENT * 100) ?>%)</div>
                                 <div id="pr_minDP" style="font-size:15px; font-weight:800; color:#9A5400;"></div>
                             </div>
                         </div>
@@ -384,7 +384,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                     <span style="font-weight:700;" id="s4_total">—</span>
                                 </div>
                                 <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                                    <span style="font-size:13px; color:rgba(60,60,67,0.6);">Minimum Downpayment (30%)</span>
+                                    <span style="font-size:13px; color:rgba(60,60,67,0.6);">Minimum Downpayment (<?= round(MIN_DP_PERCENT * 100) ?>%)</span>
                                     <span style="font-weight:700; color:#9A5400;" id="s4_minDP">—</span>
                                 </div>
                                 <div style="height:0.5px; background:rgba(60,60,67,0.1); margin:10px 0;"></div>
@@ -397,7 +397,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             <div class="form-group">
                                 <label class="form-label" id="dpLabel">
                                     Downpayment Amount (₱)
-                                    <span style="font-size:11px; font-weight:400; color:rgba(60,60,67,0.4);"> — minimum 30% required (100% within 3 days)</span>
+                                    <span style="font-size:11px; font-weight:400; color:rgba(60,60,67,0.4);"> — minimum <?= round(MIN_DP_PERCENT * 100) ?>% required (<?= round(RUSH_DP_PERCENT * 100) ?>% within <?= round(RUSH_THRESHOLD_HOURS / 24) ?> days)</span>
                                 </label>
                                 <div class="input-group">
                                     <span class="input-prefix">₱</span>
@@ -435,7 +435,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                     <button type="button" onclick="Modal.open('termsModal')" style="background:none; border:none; padding:0; color:#C0392B; font-size:11.5px; font-weight:600; cursor:pointer; text-decoration:underline;">View Terms</button>
                                 </div>
                                 <p style="font-size:11.5px; color:rgba(60,60,67,0.65); line-height:1.7; margin-bottom:10px;">
-                                    The client acknowledges full liability for any missing, damaged, or unreturned equipment and supplies provided by Yazzies Catering. A minimum downpayment of <strong>30%</strong> is required to confirm the booking. The remaining balance must be settled on or before the event date.
+                                    The client acknowledges full liability for any missing, damaged, or unreturned equipment and supplies provided by Yazzies Catering. A minimum downpayment of <strong><?= round(MIN_DP_PERCENT * 100) ?>%</strong> is required to confirm the booking. The remaining balance must be settled on or before the event date.
                                 </p>
                                 <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
                                     <input type="checkbox" id="s4_terms" onchange="onTermsChange()"
@@ -576,7 +576,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 <button type="button" class="btn-close" onclick="Modal.close('termsModal')"></button>
             </div>
             <div class="modal-body" style="padding:24px; max-height:60vh; overflow-y:auto; font-size:13px; color:var(--label-2); line-height:1.7;">
-                <p style="margin-bottom:15px;"><strong>1. Reservation & Downpayment</strong><br>A non-refundable 30% downpayment is required to officially lock in the date. The remaining balance must be settled on or before the event date.</p>
+                <p style="margin-bottom:15px;"><strong>1. Reservation & Downpayment</strong><br>A non-refundable <?= round(MIN_DP_PERCENT * 100) ?>% downpayment is required to officially lock in the date. The remaining balance must be settled on or before the event date.</p>
                 <p style="margin-bottom:15px;"><strong>2. Cancellations</strong><br>Any cancellations made less than 7 days prior to the event will forfeit the entire downpayment to cover material preparations.</p>
                 <p style="margin-bottom:15px;"><strong>3. Time Exceedance</strong><br>Standard staffing and catering services run for a maximum of 4 hours. Extensions are subject to an hourly charge.</p>
                 <p style="margin-bottom:15px;"><strong>4. Venue Regulations</strong><br>The client is responsible for acquiring all necessary permits and clearances required by the event venue.</p>
@@ -595,6 +595,18 @@ $stepperRole = $bookingStepperRole ?? 'admin';
     /* ── HELPERS ─────────────────────────────────────────────── */
     const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+    // ── SYSTEM CONSTANTS (DYNAMIC) ──────────────────────────────
+    const minPax = <?= MIN_PAX ?>;
+    const maxPax = <?= MAX_PAX ?>;
+    const minDpPct = <?= MIN_DP_PERCENT ?>;
+    const rushDpPct = <?= RUSH_DP_PERCENT ?>;
+    const rushThresholdHours = <?= RUSH_THRESHOLD_HOURS ?>;
+    const opStart = '<?= OPERATING_HOURS_START ?>';
+    const opEnd   = '<?= OPERATING_HOURS_END ?>';
+    const mealB   = <?= MEAL_BREAKFAST_START ?>;
+    const mealL   = <?= MEAL_LUNCH_START ?>;
+    const mealD   = <?= MEAL_DINNER_START ?>;
+
     /* ── STATE ────────────────────────────────────────────────── */
     const state = {
         step:           1,
@@ -612,7 +624,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         packageId:      null,
         packageData:    null,
         pax:            0,
-        tierPax:        50,
+        tierPax:        <?= MIN_PAX ?>,
         totalCost:      0,
         basePrice:       0,
         extraPax:       0,
@@ -621,9 +633,9 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         selectedMain:   [],   // array of dish IDs
         selectedDesserts: [], // array of dish IDs
         selectedAdditional: [], // array of dish IDs
-        maxMain:        5,
-        maxDessert:     1,
-        maxRice:        1,
+        maxMain:        <?= DEFAULT_MAX_MAIN ?>,
+        maxDessert:     <?= DEFAULT_MAX_DESSERT ?>,
+        maxRice:        <?= DEFAULT_MAX_ADDITIONAL ?>,
         mealType:       'all', // all, breakfast, lunch, dinner
         // Payment
         dpAmount:       0,
@@ -707,7 +719,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             clientId:null, isNewClient:false,
             status:'confirmed', notes:'',
             packageId:null, packageData:null,
-            pax:0, tierPax:50, totalCost:0, basePrice:0, extraPax:0, extraCost:0, customFees:0,
+            pax:0, tierPax: <?= MIN_PAX ?>, totalCost:0, basePrice:0, extraPax:0, extraCost:0, customFees:0,
             selectedMain:[], selectedDesserts:[], selectedAdditional:[], maxMain:5, maxDessert:1,
             dpAmount:0, dpMethod:'cash', dpRef:'', termsOk:false
         });
@@ -814,8 +826,10 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             if (!timeVal) { Toast.error('Please select an event time.'); return false; }
             const parts = timeVal.split(':');
             const hour = parseInt(parts[0], 10);
-            if (hour < 7 || hour >= 23) {
-                Toast.error('Event hours strictly limited between 07:00 AM and 11:00 PM.'); return false;
+            const opStartHour = parseInt((opStart || '07:00').split(':')[0], 10);
+            const opEndHour   = parseInt((opEnd   || '23:00').split(':')[0], 10);
+            if (hour < opStartHour || hour >= opEndHour) {
+                Toast.error(`Event hours strictly limited between ${Format.time(opStart)} and ${Format.time(opEnd)}.`); return false;
             }
             state.time = timeVal;
             
@@ -901,8 +915,6 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         if (step === 3) {
             // Pax validation (moved from removed staff step)
             const pax = state.pax;
-            const minPax = <?= (int)appSettingInt('min_pax', MIN_PAX) ?>;
-            const maxPax = <?= (int)appSettingInt('max_pax', MAX_PAX) ?>;
             if (pax < minPax) { Toast.error('Minimum guest count is ' + minPax + '.'); return false; }
             if (pax > maxPax) { Toast.error('Maximum guest count is ' + maxPax + '.'); return false; }
             // Removed 5-pax increments check
@@ -926,21 +938,22 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             const eventDate = new Date(state.date);
             const now       = new Date();
             const diffHours = (eventDate - now) / (1000 * 60 * 60);
-            const isLastMinute = diffHours < 72;
-            const dpPct        = isLastMinute ? 1.0 : 0.3;
+            const isLastMinute = diffHours < rushThresholdHours;
+            const dpPct        = isLastMinute ? rushDpPct : minDpPct;
 
             const dp = parseFloat(document.getElementById('s4_dp').value) || 0;
             const minDP = Math.ceil(state.totalCost * dpPct * 100) / 100;
 
-            if (dp > 0 && dp < minDP - 0.01) { 
-                Toast.error(isLastMinute ? `Full payment is required for bookings made within 3 days (72h).` : `Downpayment is below the 30% minimum (₱${minDP.toLocaleString()}).`); 
+            if (dp < minDP - 0.01) { 
+                const rushDays = Math.round(rushThresholdHours / 24);
+                Toast.error(isLastMinute ? `${Math.round(rushDpPct * 100)}% payment is required for bookings made within ${rushDays} days (${rushThresholdHours}h).` : `Downpayment is below the ${Math.round(minDpPct * 100)}% minimum (₱${minDP.toLocaleString()}).`); 
                 return false; 
             }
 
             // Reference No. Validation for digital payments
             const method = document.getElementById('s4_dpMethod').value;
             const ref = document.getElementById('s4_dpRef').value.trim();
-            if (dp > 0 && method !== 'cash' && !ref) {
+            if (method !== 'cash' && !ref) {
                 Toast.error(`Reference number is required for ${method.toUpperCase()} payments.`);
                 return false;
             }
@@ -1054,22 +1067,17 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         state.time = val;
         if (!val) return;
 
-        const parts = val.split(':');
-        const h = parseInt(parts[0], 10);
-
-        if(h < 7 || h >= 23) {
-            Toast.warning('Operating hours are from 07:00 AM to 11:00 PM. Please adjust your selection.');
-            // We no longer auto-clear to prevent confusing the user; validateStep will catch it.
+        if (val < opStart || val >= opEnd) {
+            Toast.warning(`Operating hours are from ${Format.time(opStart)} to ${Format.time(opEnd)}. Please adjust your selection.`);
         }
 
-        // Determine Meal Type
-        if (h >= 6 && h < 11) state.mealType = 'breakfast';
-        else if (h >= 11 && h < 17) state.mealType = 'lunch';
-        else if (h >= 17) state.mealType = 'dinner';
+        // Determine Meal Type — use the `h` hour integer derived from val
+        const h = parseInt(val.split(':')[0], 10);
+        if (h >= mealB && h < mealL) state.mealType = 'breakfast';
+        else if (h >= mealL && h < mealD) state.mealType = 'lunch';
+        else if (h >= mealD) state.mealType = 'dinner';
         else state.mealType = 'all';
 
-        console.log('Detected Meal Type:', state.mealType);
-        
         // Refresh dish selection UI based on meal type
         buildDishSelection();
         calcPricing();
@@ -1092,11 +1100,11 @@ $stepperRole = $bookingStepperRole ?? 'admin';
     // Update pricing when pax changes
     window.updateStaffMin = function() {
         let p = parseInt(document.getElementById('s3_pax')?.value) || state.pax || 0;
-        if (p > 300) {
-            p = 300;
+        if (p > maxPax) {
+            p = maxPax;
             const paxEl = document.getElementById('s3_pax');
             if (paxEl) paxEl.value = p;
-            Toast.warning('Maximum guest count is capped at 300.');
+            Toast.warning(`Maximum guest count is capped at ${maxPax}.`);
         }
 
         state.pax = p;
@@ -1139,9 +1147,9 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         if (isNaN(eventDate.getTime())) return;
         const now = new Date();
         const diffHours = (eventDate - now) / (1000 * 60 * 60);
-        const isLastMinute = (diffHours < 72);
-        if (pax < 50) {
-            errEl.textContent   = 'Minimum of 50 guests is required.';
+        const isLastMinute = (diffHours < rushThresholdHours);
+        if (pax < minPax) {
+            errEl.textContent   = `Minimum of ${minPax} guests is required.`;
             errEl.style.display = 'block';
             badge.style.display = 'none';
             dishPanel.style.display = 'none';
@@ -1181,10 +1189,15 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         state.extraCost   = extraCost;
         state.totalCost   = total;
         
+        // Update dish limits dynamically from package
+        state.maxMain = parseInt(pkg.max_main_dishes) || 5;
+        state.maxDessert = parseInt(pkg.max_desserts) || 1;
+        state.maxRice = 1;
+
         // Dynamic Surcharge Logic
-        const inclMain = 5;
-        const inclDessert = 1;
-        const inclRice = 1;
+        const inclMain = state.maxMain;
+        const inclDessert = state.maxDessert;
+        const inclRice = state.maxRice;
 
         const getSurcharge = (selectedIds, limit, fallbackRate) => {
             let sur = 0;
@@ -1218,7 +1231,6 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         const inclBox  = document.getElementById('s3_inclusionsBox');
         const inclList = document.getElementById('s3_inclusionsList');
         if (inclBox && inclList) {
-            // Build list: custom inclusions from DB + always-on defaults
             const defaultItems = [
                 `Up to ${pkg.max_main_dishes || 5} Main Dishes`,
                 `Up to ${pkg.max_desserts || 1} Dessert${(pkg.max_desserts || 1) > 1 ? 's' : ''}`,
@@ -1232,9 +1244,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 .map(l => l.trim())
                 .filter(l => l.length > 0);
 
-            const allItems = [...customLines, ...defaultItems];
-
-            inclList.innerHTML = allItems.map(l =>
+            inclList.innerHTML = [...customLines, ...defaultItems].map(l =>
                 `<span style="display:inline-flex; align-items:center; gap:5px; background:rgba(48,209,88,0.1); color:#1A7A32;
                              border:0.5px solid rgba(48,209,88,0.25); border-radius:20px; padding:4px 12px;
                              font-size:11.5px; font-weight:600; white-space:nowrap;">
@@ -1244,90 +1254,90 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             inclBox.style.display = 'block';
         }
 
-        // ── Price Card ────────────────────────────────────────────
-        tierRow.style.display = 'block';
-        document.getElementById('pr_tierName').textContent =
-            `${pkg.set_name} · ${tierPax} pax (base ₱${basePrice.toLocaleString()})`;
-        document.getElementById('pr_baseDesc').textContent =
-            `${tierPax} pax × ₱${ratePerPax.toLocaleString('en-PH',{minimumFractionDigits:2})}/pax`;
-        document.getElementById('pr_basePrice').textContent =
-            `₱${basePrice.toLocaleString('en-PH',{minimumFractionDigits:2})}`;
-
-        if (extraPax > 0) {
-            document.getElementById('pr_extraRow').style.display = 'flex';
-            document.getElementById('pr_extraDesc').textContent  =
-                `${extraPax} extra pax × ₱${ratePerPax.toLocaleString('en-PH',{minimumFractionDigits:2})}/pax`;
-            document.getElementById('pr_extraCost').textContent  =
-                `+₱${extraCost.toLocaleString('en-PH',{minimumFractionDigits:2})}`;
-        } else {
-            document.getElementById('pr_extraRow').style.display = 'none';
-        }
-
-        if (state.transportFee > 0) {
-            document.getElementById('pr_transportRow').style.display = 'flex';
-            document.getElementById('pr_transportCost').textContent = `+₱${state.transportFee.toLocaleString('en-PH',{minimumFractionDigits:2})}`;
-        } else {
-            document.getElementById('pr_transportRow').style.display = 'none';
-        }
-
-        // Surcharges already calculated above in extraDishSurcharge
+        // ── Compute final totals ──────────────────────────────────
         state.customFees = extraDishSurcharge;
 
         const addOnSum = state.customItems.reduce((acc, item) => {
             const p = parseFloat(item.price) || 0;
-            // Per-pax for food categories, flat for 'other'
-            if (item.category === 'main' || item.category === 'dessert') {
-                return acc + (p * state.pax);
-            }
-            return acc + p;
+            return acc + ((item.category === 'main' || item.category === 'dessert') ? p * state.pax : p);
         }, 0);
         const totalSurcharge = extraDishSurcharge + addOnSum;
 
-        if (totalSurcharge > 0) {
-            document.getElementById('pr_customFeeRow').style.display = 'flex';
-            document.getElementById('pr_customFeeCost').textContent = '+' + Format.peso(totalSurcharge);
-        } else {
-            document.getElementById('pr_customFeeRow').style.display = 'none';
-        }
-
         total = Math.round((basePrice + extraCost + totalSurcharge + state.transportFee) * 100) / 100;
         const finalPerPax = Math.round((total / pax) * 100) / 100;
+        state.totalCost = total;
 
-        document.getElementById('pr_total').textContent  = '₱' + total.toLocaleString('en-PH',{minimumFractionDigits:2});
-        document.getElementById('pr_perPax').textContent = '₱' + finalPerPax.toLocaleString('en-PH',{minimumFractionDigits:2}) + '/pax';
-
-        // ── 30% DP or 100% if < 72h ────
-        const dpPct        = isLastMinute ? 1.0 : 0.3;
+        const dpPct = isLastMinute ? rushDpPct : minDpPct;
         const minDP = Math.ceil(total * dpPct);
-        document.getElementById('pr_dpNotice').style.display = 'flex';
-        document.getElementById('pr_minDP').textContent = '₱' + minDP.toLocaleString('en-PH',{minimumFractionDigits:2});
-        
-        if (isLastMinute) {
-             document.getElementById('pr_dpNotice').style.background = 'rgba(255,59,48,0.08)';
-             document.getElementById('pr_dpNotice').style.borderColor = 'rgba(255,59,48,0.2)';
-             document.getElementById('pr_minDP').style.color = '#C0392B';
-             document.querySelector('#pr_dpNotice div:first-child').textContent = 'Full Payment Required (<72h)';
-             document.querySelector('#pr_dpNotice div:first-child').style.color = '#C0392B';
-        } else {
-             document.getElementById('pr_dpNotice').style.background = 'rgba(255,149,0,0.08)';
-             document.getElementById('pr_dpNotice').style.borderColor = 'rgba(255,149,0,0.2)';
-             document.getElementById('pr_minDP').style.color = '#9A5400';
-             document.querySelector('#pr_dpNotice div:first-child').textContent = 'Minimum Downpayment (30%)';
-             document.querySelector('#pr_dpNotice div:first-child').style.color = '#9A5400';
-        }
-        
-        state.totalCost = total; // Update state
+
+        // ── Single render call — all DOM writes go here ──────────
+        renderPriceCard({
+            pkg, tierPax, basePrice, ratePerPax,
+            extraPax, extraCost,
+            transportFee: state.transportFee,
+            totalSurcharge,
+            total, finalPerPax,
+            minDP, dpPct, isLastMinute,
+        });
 
         updateDishCounters();
-
-        // Show dish selection panel
         dishPanel.style.display = 'block';
 
-        // Prefill downpayment
         const dpEl = document.getElementById('s4_dp');
         if (!dpEl.value) dpEl.value = minDP.toFixed(2);
         updateSummaryBalances();
     };
+
+    /* ── PRICE CARD RENDERER (single render function — #2 state cleanup) ── */
+    function renderPriceCard(s) {
+        const el = (id) => document.getElementById(id);
+        const fmt = (n) => n.toLocaleString('en-PH', { minimumFractionDigits: 2 });
+
+        // Tier row
+        el('pr_tierRow').style.display = 'block';
+        el('pr_tierName').textContent  = `${s.pkg.set_name} · ${s.tierPax} pax (base ₱${fmt(s.basePrice)})`;
+        el('pr_baseDesc').textContent  = `${s.tierPax} pax × ₱${fmt(s.ratePerPax)}/pax`;
+        el('pr_basePrice').textContent = `₱${fmt(s.basePrice)}`;
+
+        // Extra pax row
+        el('pr_extraRow').style.display = s.extraPax > 0 ? 'flex' : 'none';
+        if (s.extraPax > 0) {
+            el('pr_extraDesc').textContent = `${s.extraPax} extra pax × ₱${fmt(s.ratePerPax)}/pax`;
+            el('pr_extraCost').textContent = `+₱${fmt(s.extraCost)}`;
+        }
+
+        // Transport row
+        el('pr_transportRow').style.display = s.transportFee > 0 ? 'flex' : 'none';
+        if (s.transportFee > 0) el('pr_transportCost').textContent = `+₱${fmt(s.transportFee)}`;
+
+        // Surcharge row
+        el('pr_customFeeRow').style.display = s.totalSurcharge > 0 ? 'flex' : 'none';
+        if (s.totalSurcharge > 0) el('pr_customFeeCost').textContent = '+' + Format.peso(s.totalSurcharge);
+
+        // Total & per-pax
+        el('pr_total').textContent  = '₱' + fmt(s.total);
+        el('pr_perPax').textContent = '₱' + fmt(s.finalPerPax) + '/pax';
+
+        // DP notice
+        el('pr_dpNotice').style.display = 'flex';
+        el('pr_minDP').textContent = '₱' + fmt(s.minDP);
+
+        const noticeEl  = el('pr_dpNotice');
+        const noticeLabel = noticeEl.querySelector('div:first-child');
+        if (s.isLastMinute) {
+            noticeEl.style.background   = 'rgba(255,59,48,0.08)';
+            noticeEl.style.borderColor  = 'rgba(255,59,48,0.2)';
+            el('pr_minDP').style.color  = '#C0392B';
+            noticeLabel.textContent     = `${Math.round(rushDpPct * 100)}% Payment Required (<${rushThresholdHours}h)`;
+            noticeLabel.style.color     = '#C0392B';
+        } else {
+            noticeEl.style.background   = 'rgba(255,149,0,0.08)';
+            noticeEl.style.borderColor  = 'rgba(255,149,0,0.2)';
+            el('pr_minDP').style.color  = '#9A5400';
+            noticeLabel.textContent     = `Minimum Downpayment (${Math.round(minDpPct * 100)}%)`;
+            noticeLabel.style.color     = '#9A5400';
+        }
+    }
 
     /* ── DISH SELECTION RENDERER ── */
     function buildDishSelection() {
@@ -1359,13 +1369,13 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 if (isSelected) {
                     if (isMain) {
                         const idx = state.selectedMain.indexOf(d.id);
-                        if (idx >= 5) isExtra = true;
+                        if (idx >= state.maxMain) isExtra = true;
                     } else if (isDessert) {
                         const idx = state.selectedDesserts.indexOf(d.id);
-                        if (idx >= 1) isExtra = true;
+                        if (idx >= state.maxDessert) isExtra = true;
                     } else {
                         const idx = state.selectedAdditional.indexOf(d.id);
-                        if (idx >= 1) isExtra = true;
+                        if (idx >= state.maxRice) isExtra = true;
                     }
                 }
 
@@ -1438,14 +1448,14 @@ $stepperRole = $bookingStepperRole ?? 'admin';
 
     function updateDishCounters() {
         const mNode = document.getElementById('mainDishCounter');
-        if(mNode) mNode.textContent = `${state.selectedMain.length} items`;
+        if(mNode) mNode.textContent = `${state.selectedMain.length} / ${state.maxMain}`;
         const dNode = document.getElementById('dessertCounter');
-        if(dNode) dNode.textContent = `${state.selectedDesserts.length} items`;
+        if(dNode) dNode.textContent = `${state.selectedDesserts.length} / ${state.maxDessert}`;
         
         const ml = document.getElementById('maxMainLabel');
-        if(ml) ml.textContent = 5;
+        if(ml) ml.textContent = state.maxMain;
         const md = document.getElementById('maxDessertLabel');
-        if(md) md.textContent = 1;
+        if(md) md.textContent = state.maxDessert;
     }
 
     /* ── STEP 4 DOWNPAYMENT ── */
@@ -1470,8 +1480,8 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         const eventDate = new Date(state.date);
         const now       = new Date();
         const diffHours = (eventDate - now) / (1000 * 60 * 60);
-        const isLastMinute = diffHours < 72;
-        const dpPct        = isLastMinute ? 1.0 : 0.3;
+        const isLastMinute = diffHours < rushThresholdHours;
+        const dpPct        = isLastMinute ? rushDpPct : minDpPct;
 
         const minDP  = Math.ceil(total * dpPct * 100) / 100;
         const balance = Math.max(0, total - dp);
@@ -1482,16 +1492,20 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         document.getElementById('s4_minDP').textContent   = Format.peso(minDP);
         document.getElementById('s4_balance').textContent = Format.peso(balance);
         
-        const minLabel = isLastMinute ? 'Full Payment Required' : 'Minimum Downpayment (30%)';
+        const minLabel = isLastMinute ? `${Math.round(rushDpPct * 100)}% Payment Required` : `Minimum Downpayment (${Math.round(minDpPct * 100)}%)`;
         document.querySelector('#s4_minDP').previousElementSibling.textContent = minLabel;
-        document.getElementById('dpLabel').querySelector('span').textContent = isLastMinute ? ' — full payment required' : ' — minimum 30% required';
+        document.getElementById('dpLabel').querySelector('span').textContent = isLastMinute ? ` — minimum ${Math.round(rushDpPct * 100)}% required` : ` — minimum ${Math.round(minDpPct * 100)}% required`;
 
         state.dpAmount = dp;
 
-        if (dp > 0 && dp < minDP - 0.01) {
-            errEl.textContent   = isLastMinute ? `Full payment is required for bookings within 3 days (72h).` : `Minimum downpayment is 30% of total (${Format.peso(minDP)}).`;
+        if (dp < minDP - 0.01) {
+            const dpLabel = Math.round((isLastMinute ? rushDpPct : minDpPct) * 100);
+            errEl.textContent   = isLastMinute 
+                ? `${dpLabel}% payment is required for bookings within ${rushThresholdHours} hours.` 
+                : `Minimum downpayment is ${dpLabel}% of total (${Format.peso(minDP)}).`;
             errEl.style.display = 'block';
             subBtn.disabled     = true;
+            console.log(`${dpLabel}`);
         } else if (dp > total + 0.01) {
             errEl.textContent   = `Cannot exceed total cost of ${Format.peso(total)}.`;
             errEl.style.display = 'block';
@@ -1507,13 +1521,13 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         const eventDate = new Date(state.date);
         const now       = new Date();
         const diffHours = (eventDate - now) / (1000 * 60 * 60);
-        const isLastMinute = diffHours < 72;
-        const dpPct        = isLastMinute ? 1.0 : 0.3;
+        const isLastMinute = diffHours < rushThresholdHours;
+        const dpPct        = isLastMinute ? rushDpPct : minDpPct;
 
         state.termsOk     = document.getElementById('s4_terms').checked;
         const dp          = parseFloat(document.getElementById('s4_dp').value) || 0;
         const minDP       = Math.ceil(total * dpPct * 100) / 100;
-        const dpOk        = dp === 0 || (dp >= minDP - 0.01 && dp <= total + 0.01);
+        const dpOk        = (dp >= minDP - 0.01 && dp <= total + 0.01);
         document.getElementById('stepSubmitBtn').disabled = !(state.termsOk && dpOk);
     };
 
@@ -1581,8 +1595,8 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         const eventDate = new Date(state.date);
         const now       = new Date();
         const diffHours = (eventDate - now) / (1000 * 60 * 60);
-        const isLastMinute = diffHours < 72;
-        const dpPct        = isLastMinute ? 1.0 : 0.3;
+        const isLastMinute = diffHours < rushThresholdHours;
+        const dpPct        = isLastMinute ? rushDpPct : minDpPct;
 
         const dpEl = document.getElementById('s4_dp');
         if (!dpEl.value) dpEl.value = Math.ceil(state.totalCost * dpPct).toFixed(2);
@@ -1658,13 +1672,14 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         const eventDate = new Date(state.date);
         const now       = new Date();
         const diffHours = (eventDate - now) / (1000 * 60 * 60);
-        const isLastMinute = diffHours < 72;
-        const dpPct        = isLastMinute ? 1.0 : 0.3;
+        const isLastMinute = diffHours < rushThresholdHours;
+        const dpPct        = isLastMinute ? rushDpPct : minDpPct;
 
         const dpAmt = parseFloat(document.getElementById('s4_dp').value) || 0;
         const minDP = Math.ceil(total * dpPct * 100) / 100;
         if (dpAmt < minDP - 0.01) {
-            Toast.error(isLastMinute ? 'Full payment is required for bookings made within 3 days (72h).' : 'Downpayment is below the 30% minimum.'); 
+            const rushDays = Math.round(rushThresholdHours / 24);
+            Toast.error(isLastMinute ? `${Math.round(rushDpPct * 100)}% payment is required for bookings made within ${rushDays} days (${rushThresholdHours}h).` : `Downpayment is below the ${Math.round(minDpPct * 100)}% minimum.`); 
             return;
         }
 
@@ -1714,8 +1729,8 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 const eventDate = new Date(state.date);
                 const now       = new Date();
                 const diffHours = (eventDate - now) / (1000 * 60 * 60);
-                const isLastMinute = diffHours < 72;
-                const dpPct        = isLastMinute ? 1.0 : 0.3;
+                const isLastMinute = diffHours < rushThresholdHours;
+                const dpPct        = isLastMinute ? rushDpPct : minDpPct;
 
                 Toast.warning(
                     `${res.package_name} booking saved as Pending. ` +

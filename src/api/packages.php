@@ -19,11 +19,12 @@ $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'GET') {
 
     if (isset($_GET['dishes'])) {
+        $where = empty($_GET['include_inactive']) ? "WHERE is_active = 1" : "";
         // Return dishes grouped by category
         $stmt = $pdo->query("
             SELECT id, name, category, meal_type, is_active, custom_fee
             FROM dishes
-            WHERE is_active = 1
+            $where
             ORDER BY category, name
         ");
         $all = $stmt->fetchAll();
@@ -53,12 +54,13 @@ if ($method === 'GET') {
         ]);
     }
 
+    $where = empty($_GET['include_inactive']) ? "WHERE is_active = 1" : "";
     // Default: return all packages
     $stmt = $pdo->query("
         SELECT id, set_name, pax_count, price,
-               max_main_dishes, max_desserts, includes_rice, inclusions
+               max_main_dishes, max_desserts, includes_rice, inclusions, is_active
         FROM packages
-        WHERE is_active = 1
+        $where
         ORDER BY pax_count ASC
     ");
     $pkgs = $stmt->fetchAll();
@@ -82,8 +84,10 @@ if ($method === 'POST') {
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
 
     if (isset($d['type']) && $d['type'] === 'package') {
-        if (empty($d['set_name'])) jsonResponse(false, 'Package name is required.', [], 422);
-        
+        if (strlen($d['set_name']) > 100) jsonResponse(false, 'Package name cannot exceed 100 characters.', [], 422);
+        if ((float)$d['price'] < 0) jsonResponse(false, 'Price cannot be negative.', [], 422);
+        if ((int)$d['pax_count'] < 1) jsonResponse(false, 'Pax count must be at least 1.', [], 422);
+
         $stmt = $pdo->prepare("
             INSERT INTO packages (set_name, pax_count, price, max_main_dishes, max_desserts, includes_rice, inclusions) 
             VALUES (:name, :pax, :price, :opt_main, :opt_dessert, :rice, :inclusions)
@@ -92,10 +96,10 @@ if ($method === 'POST') {
             ':name'        => trim($d['set_name']),
             ':pax'         => (int)$d['pax_count'],
             ':price'       => (float)$d['price'],
-            ':opt_main'    => (int)($d['max_main_dishes'] ?? 5),
-            ':opt_dessert' => (int)($d['max_desserts'] ?? 1),
+            ':opt_main'    => max(0, (int)($d['max_main_dishes'] ?? 5)),
+            ':opt_dessert' => max(0, (int)($d['max_desserts'] ?? 1)),
             ':rice'        => (int)($d['includes_rice'] ?? 1),
-            ':inclusions'  => trim($d['inclusions'] ?? '')
+            ':inclusions'  => trim(substr($d['inclusions'] ?? '', 0, 1000))
         ]);
         jsonResponse(true, 'Package added.', ['id' => $pdo->lastInsertId()], 201);
         exit;
@@ -103,13 +107,16 @@ if ($method === 'POST') {
 
     // Default POST: add dish
     if (empty($d['name']))     jsonResponse(false, 'Dish name is required.', [], 422);
+    if (strlen($d['name']) > 100) jsonResponse(false, 'Dish name cannot exceed 100 characters.', [], 422);
     if (empty($d['category'])) jsonResponse(false, 'Category is required.', [], 422);
+    if (strlen($d['category']) > 50) jsonResponse(false, 'Category name too long.', [], 422);
+
     $stmt = $pdo->prepare("INSERT INTO dishes (name, category, meal_type, custom_fee) VALUES (:name, :cat, :meal, :fee)");
     $stmt->execute([
         ':name' => trim($d['name']), 
         ':cat' => trim($d['category']), 
-        ':meal' => trim($d['meal_type'] ?? 'all'),
-        ':fee' => (float)($d['custom_fee'] ?? 0)
+        ':meal' => trim(substr($d['meal_type'] ?? 'all', 0, 50)),
+        ':fee' => max(0, (float)($d['custom_fee'] ?? 0))
     ]);
     jsonResponse(true, 'Dish added.', ['id' => $pdo->lastInsertId()], 201);
 }
@@ -121,21 +128,23 @@ if ($method === 'PUT') {
 
     if (isset($d['type']) && $d['type'] === 'package') {
         if (empty($d['id'])) jsonResponse(false, 'Package ID required.', [], 422);
+        if (strlen($d['set_name'] ?? '') > 100) jsonResponse(false, 'Package name too long.', [], 422);
 
         $pdo->prepare("
             UPDATE packages 
             SET set_name = :name, pax_count = :pax, price = :price, 
                 max_main_dishes = :opt_main, max_desserts = :opt_dessert, includes_rice = :rice,
-                inclusions = :inclusions
+                inclusions = :inclusions, is_active = :is_active
             WHERE id = :id
         ")->execute([
-            ':name'        => trim($d['set_name'] ?? 'Tier'),
-            ':pax'         => (int)$d['pax_count'],
-            ':price'       => (float)$d['price'],
-            ':opt_main'    => (int)($d['max_main_dishes'] ?? 5),
-            ':opt_dessert' => (int)($d['max_desserts'] ?? 1),
+            ':name'        => trim(substr($d['set_name'] ?? 'Tier', 0, 100)),
+            ':pax'         => max(1, (int)($d['pax_count'] ?? 50)),
+            ':price'       => max(0, (float)($d['price'] ?? 0)),
+            ':opt_main'    => max(0, (int)($d['max_main_dishes'] ?? 5)),
+            ':opt_dessert' => max(0, (int)($d['max_desserts'] ?? 1)),
             ':rice'        => (int)($d['includes_rice'] ?? 1),
-            ':inclusions'  => trim($d['inclusions'] ?? ''),
+            ':inclusions'  => trim(substr($d['inclusions'] ?? '', 0, 1000)),
+            ':is_active'   => isset($d['is_active']) ? (int)$d['is_active'] : 1,
             ':id'          => (int)$d['id']
         ]);
         jsonResponse(true, 'Package updated.');
@@ -145,13 +154,14 @@ if ($method === 'PUT') {
     // Default PUT: update dish
     if (empty($d['id']))   jsonResponse(false, 'Dish ID required.', [], 422);
     if (empty($d['name'])) jsonResponse(false, 'Dish name required.', [], 422);
+    if (strlen($d['name']) > 100) jsonResponse(false, 'Dish name too long.', [], 422);
 
     $pdo->prepare("UPDATE dishes SET name = :name, category = :cat, meal_type = :meal, custom_fee = :fee WHERE id = :id")
         ->execute([
-            ':name' => trim($d['name']),
-            ':cat'  => trim($d['category'] ?? 'main'),
-            ':meal' => trim($d['meal_type'] ?? 'all'),
-            ':fee'  => (float)($d['custom_fee'] ?? 0),
+            ':name' => trim(substr($d['name'], 0, 100)),
+            ':cat'  => trim(substr($d['category'] ?? 'main', 0, 50)),
+            ':meal' => trim(substr($d['meal_type'] ?? 'all', 0, 50)),
+            ':fee'  => max(0, (float)($d['custom_fee'] ?? 0)),
             ':id'   => (int)$d['id'],
         ]);
     jsonResponse(true, 'Dish updated.');

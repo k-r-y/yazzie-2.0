@@ -29,7 +29,8 @@ $nav = [
         ['financial',   'Financials',   'fa-coins',        '/views/admin/financial.php'],
         ['section' => 'Human Resources'],
         ['staff',       'Staff',        'fa-id-badge',     '/views/admin/staff.php'],
-        ['section' => 'System'],
+        ['section' => 'Business Rules'],
+        ['settings',    'Business Settings', 'fa-sliders',      '/views/admin/settings.php'],
         ['archive',     'Archive',      'fa-box-archive',  '/views/admin/archive.php'],
     ],
     'frontdesk' => [
@@ -51,21 +52,12 @@ $items = $nav[$role] ?? $nav['staff'];
 
 // ── Superadmin specific additions ───────────────────────────
 if ($role === 'super_admin') {
-    // Ensure we start with the admin list if we don't have a dedicated super_admin entry
-    if ($role === 'super_admin' && !isset($nav['super_admin'])) {
-        $items = $nav['admin']; 
-        
-        // Add Superadmin Console at the very beginning
-        array_unshift($items, ['section' => 'Super Admin Control']);
-        array_splice($items, 1, 0, [['superadmin', 'Superadmin Console', 'fa-shield-halved', '/views/admin/superadmin.php']]);
-
-        // Add User Management before Archive
-        $archiveIdx = -1;
-        foreach($items as $idx => $item) { if(($item[0] ?? '') === 'archive') $archiveIdx = $idx; }
-        if($archiveIdx !== -1) {
-            array_splice($items, $archiveIdx, 0, [['users', 'User Accounts', 'fa-users', '/views/admin/users.php']]);
-        }
-    }
+    $items = [
+        ['section' => 'Super Admin Control'],
+        ['superadmin', 'System Settings', 'fa-shield-halved', '/views/admin/superadmin.php'],
+        ['section' => 'Security & Access'],
+        ['users', 'User Accounts', 'fa-users', '/views/admin/users.php']
+    ];
 }
 ?>
 

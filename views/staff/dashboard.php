@@ -72,6 +72,16 @@ $user = getCurrentUser();
 
 <!-- ── TAB: My Schedule ── -->
 <div class="job-tab-panel" id="tab-accepted">
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="card-title">My Calendar</div>
+        </div>
+        <div class="card-body" style="padding:16px;">
+            <div id="calendar"></div>
+        </div>
+    </div>
+    
+    <h5 style="font-size:15px; font-weight:700; color:var(--label-1); margin-bottom:12px;">Upcoming Job Details</h5>
     <div id="acceptedJobs"><div class="spinner"></div></div>
 </div>
 
@@ -124,8 +134,35 @@ $user = getCurrentUser();
     <div id="historyJobs"><div class="spinner"></div></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
 <script>
 let allJobs = [];
+let calendar;
+
+function initCalendar(acceptedJobs) {
+    if (calendar) {
+        calendar.destroy();
+    }
+    const calendarEl = document.getElementById('calendar');
+    calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,listWeek'
+        },
+        height: 'auto',
+        events: acceptedJobs.map(j => ({
+            title: j.role_required + ' - ' + j.client_name,
+            start: j.event_date + (j.event_time ? 'T' + j.event_time : ''),
+            extendedProps: { ...j }
+        })),
+        eventClick: function(info) {
+            Toast.info(info.event.title + ' on ' + Format.dateShort(info.event.start));
+        }
+    });
+    calendar.render();
+}
 
 function switchTab(tab, el) {
     document.querySelectorAll('.job-tab').forEach(t => t.classList.remove('active'));
@@ -133,6 +170,7 @@ function switchTab(tab, el) {
     el.classList.add('active');
     document.getElementById('tab-' + tab).classList.add('active');
     if (tab === 'leaves') loadMyLeaves();
+    if (tab === 'accepted' && calendar) calendar.render(); // re-render layout
 }
 
 function renderJob(j, showActions = true) {
@@ -182,6 +220,9 @@ async function loadJobs() {
 
         document.getElementById('pendingJobs').innerHTML  = pending.length  ? pending.map(j => renderJob(j, true)).join('')  : emptyState('inbox','No Pending Offers','No new job offers at the moment.');
         document.getElementById('acceptedJobs').innerHTML = accepted.length ? accepted.map(j => renderJob(j, false)).join('') : emptyState('calendar-check','No Upcoming Jobs','You have no accepted upcoming events.');
+        
+        initCalendar(accepted);
+        
         document.getElementById('historyJobs').innerHTML  = history.length  ? history.map(j => renderJob(j, false)).join('')  : emptyState('history','No History','Past jobs will appear here.');
     } catch (e) {
         document.getElementById('pendingJobs').innerHTML = `<div class="empty-state"><p>Failed to load jobs. Please refresh.</p></div>`;

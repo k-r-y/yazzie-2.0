@@ -66,7 +66,7 @@ include __DIR__ . '/../../includes/sidebar.php';
 
                     <select class="form-control" id="filterStatus" style="min-width:130px; flex:1;">
                         <option value="">All Statuses</option>
-                        <option value="pending">⏳ Pending DP</option>
+
                         <option value="confirmed">Confirmed</option>
                         <option value="completed">Completed</option>
                         <option value="cancelled">Cancelled</option>
@@ -603,7 +603,6 @@ async function loadRefunds() {
                     <td style="font-weight:700; color:#1A7A32;">${Format.peso(r.refundable_amount)}</td>
                     <td><small class="text-muted">${esc(r.reason || '—')}</small></td>
                     <td>${statusBadge}</td>
-                    <td class="td-actions">
                         ${r.refund_status === 'pending' ? `
                             <button class="btn btn-success btn-sm" onclick="processRefund(${r.id}, ${r.refundable_amount})" title="Process Refund">
                                 <i class="fas fa-check"></i>
@@ -613,6 +612,11 @@ async function loadRefunds() {
                                 <i class="fas fa-lock"></i>
                             </button>
                         `}
+                        ${r.refund_status !== 'reversed' ? `
+                            <button class="btn btn-warning btn-sm ms-1" onclick="uncancelBooking(${r.id})" title="Un-Cancel Booking">
+                                <i class="fas fa-undo"></i>
+                            </button>
+                        ` : ''}
                     </td>
                 </tr>
             `;
@@ -620,6 +624,18 @@ async function loadRefunds() {
     } catch(e) {
         document.getElementById('refundsBody').innerHTML = '<tr><td colspan="7" class="text-center text-muted">Failed to load refunds.</td></tr>';
     }
+}
+
+async function uncancelBooking(id) {
+    if (!await confirmDialog('Are you sure you want to un-cancel this booking? It will be restored to confirmed status.')) return;
+    try {
+        await Api.put(BASE + '/src/api/cancellations.php', { id: id, action: 'uncancel' });
+        Toast.success('Booking restored.');
+        loadRefunds();
+        loadKPIs();
+        loadLedger();
+        refreshBookingSelector();
+    } catch(e) { Toast.error(e.message); }
 }
 
 async function processRefund(id, amount) {

@@ -80,26 +80,38 @@ if ($type === 'menu_popularity') {
 // KPIs — summary stats for dashboard cards
 // ----------------------------------------------------------------
 if ($type === 'kpis') {
-    // Total revenue (all time)
-    $totalRevenue = $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM payments")->fetchColumn();
-
-    // Revenue this month
-    $revenueThisMonth = $pdo->query("
-        SELECT COALESCE(SUM(amount), 0) FROM payments
-        WHERE MONTH(payment_date) = MONTH(CURDATE()) AND YEAR(payment_date) = YEAR(CURDATE())
+    // Total revenue (all time) — SUM(amount) naturally deducts negative refund entries
+    // Only count payments from non-cancelled bookings for accurate revenue
+    $totalRevenue = $pdo->query("
+        SELECT COALESCE(SUM(p.amount), 0) 
+        FROM payments p
+        JOIN bookings b ON b.id = p.booking_id
+        WHERE b.booking_status != 'cancelled'
     ")->fetchColumn();
 
-    // Active bookings (pending + confirmed, future dates)
+    // Revenue this month (same logic — exclude cancelled)
+    $revenueThisMonth = $pdo->query("
+        SELECT COALESCE(SUM(p.amount), 0) 
+        FROM payments p
+        JOIN bookings b ON b.id = p.booking_id
+        WHERE b.booking_status != 'cancelled'
+        AND MONTH(p.payment_date) = MONTH(CURDATE()) 
+        AND YEAR(p.payment_date) = YEAR(CURDATE())
+    ")->fetchColumn();
+
+    // Total processed refunds (for transparency)
+    $totalRefunds = $pdo->query("
+        SELECT COALESCE(SUM(ABS(p.amount)), 0)
+        FROM payments p
+        WHERE p.amount < 0
+    ")->fetchColumn();
+
+    // Active bookings (confirmed, future dates)
     $activeBookings = $pdo->query("
         SELECT COUNT(*) FROM bookings
-        WHERE booking_status IN ('pending','confirmed') AND event_date >= CURDATE()
+        WHERE booking_status = 'confirmed' AND event_date >= CURDATE()
     ")->fetchColumn();
 
-    // Pending bookings (awaiting downpayment)
-    $pendingBookings = $pdo->query("
-        SELECT COUNT(*) FROM bookings
-        WHERE booking_status = 'pending' AND event_date >= CURDATE()
-    ")->fetchColumn();
 
     // Events this month
     $eventsThisMonth = $pdo->query("
@@ -115,7 +127,7 @@ if ($type === 'kpis') {
     $unpaidCount = $pdo->query("
         SELECT COUNT(*) FROM bookings
         WHERE payment_status IN ('unpaid','partial')
-        AND booking_status IN ('pending','confirmed')
+        AND booking_status = 'confirmed'
     ")->fetchColumn();
 
     // Outstanding balance — include breakages + event cost - live payments
@@ -139,8 +151,8 @@ if ($type === 'kpis') {
     jsonResponse(true, '', [
         'total_revenue'     => (float)$totalRevenue,
         'revenue_mtd'       => (float)$revenueThisMonth,
+        'total_refunds'     => (float)$totalRefunds,
         'active_bookings'   => (int)$activeBookings,
-        'pending_bookings'  => (int)$pendingBookings,
         'events_this_month' => (int)$eventsThisMonth,
         'total_clients'     => (int)$totalClients,
         'unpaid_count'      => (int)$unpaidCount,

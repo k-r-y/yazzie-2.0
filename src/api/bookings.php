@@ -70,17 +70,18 @@ function normalizePaymentMethod(?string $method): string {
  *  - 300 pax => base_pax=300 base_price=35000
  */
 function computePaxPricing($pdo, int $paxCount, $packageId = null): array {
-    $tierStep = 50;
-    $basePax  = (int)(floor($paxCount / $tierStep) * $tierStep);
-    if ($basePax < 50) $basePax = 50;
+    $tierStep = TIER_SNAP_STEP;
+    $basePax  = (int)(ceil($paxCount / $tierStep) * $tierStep);
+    if ($basePax < MIN_PAX) $basePax = MIN_PAX;
     
     $maxPaxSetting = function_exists('appSettingInt') ? appSettingInt('max_pax', MAX_PAX) : MAX_PAX;
     if ($basePax > $maxPaxSetting) $basePax = $maxPaxSetting;
 
-    $basePrice = round(5000 + ($basePax * 100), 2);
+    $basePrice = round(TIER_BASE_PRICE + ($basePax * TIER_PAX_RATE), 2);
     $pkgName = "Pax Tier {$basePax}";
-    $maxMain = 5;
-    $maxDesserts = 1;
+    $maxMain = DEFAULT_MAX_MAIN;
+    $maxDesserts = DEFAULT_MAX_DESSERT;
+    $maxRice = DEFAULT_MAX_ADDITIONAL;
 
     // Use Package from DB if provided
     if ($pdo && $packageId > 0) {
@@ -93,19 +94,14 @@ function computePaxPricing($pdo, int $paxCount, $packageId = null): array {
             $pkgName = $pkg['set_name'] . ' (' . $basePax . ' Pax)';
             $maxMain = (int)$pkg['max_main_dishes'];
             $maxDesserts = (int)$pkg['max_desserts'];
+            $maxRice = (int)$pkg['max_additional_dishes'];
         }
     }
 
     $ratePerPax = $basePax > 0 ? ($basePrice / $basePax) : 0.0;
     $extraPax   = max(0, $paxCount - $basePax);
-    $extraCost  = round($extraPax * $ratePerPax, 2);
+    $extraCost  = round($extraPax * EXTRA_PAX_RATE, 2);
     $totalCost  = round($basePrice + $extraCost, 2);
-
-    // Fixed Limits (May 2026 Shift): 5 Mains, 1 Dessert, 1 Rice
-    if (!$packageId || empty($pkg)) {
-        $maxMain = 5;
-        $maxDesserts = 1;
-    }
 
     return [
         'base_pax'       => $basePax,
@@ -144,11 +140,30 @@ function validateSelectedDishes(PDO $pdo, array $selectedDishIds): array {
 
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 
+/**
+ * Auto-complete past confirmed bookings.
+ * Transitions confirmed → completed when event_date (+ event_time) is in the past.
+ */
+function autoCompleteExpiredBookings(PDO $pdo): int {
+    // Past days: any confirmed booking with event_date before today
+    $stmt = $pdo->prepare("
+        UPDATE bookings
+        SET booking_status = 'completed'
+        WHERE booking_status = 'confirmed'
+          AND (
+              event_date < CURDATE()
+              OR (event_date = CURDATE() AND event_time IS NOT NULL AND event_time < CURTIME())
+          )
+    ");
+    $stmt->execute();
+    return $stmt->rowCount();
+}
+
 // Public: active booking count for login page
 if ($method === 'GET' && isset($_GET['count_active'])) {
     $count = $pdo->query("
         SELECT COUNT(*) FROM bookings
-        WHERE booking_status IN ('pending','confirmed')
+        WHERE booking_status = 'confirmed'
         AND event_date >= CURDATE()
     ")->fetchColumn();
     jsonResponse(true, '', ['count' => (int)$count]);
@@ -161,6 +176,7 @@ requireCsrf();
 // GET
 // ────────────────────────────────────────────────────────────────
 if ($method === 'GET') {
+    autoCompleteExpiredBookings($pdo);
 
     if (isset($_GET['id'])) {
         $stmt = $pdo->prepare("
@@ -423,9 +439,9 @@ if ($method === 'POST') {
     requireFields($data, ['client_id', 'event_date', 'pax_count']);
 
     // ── 1) Validate inputs ────────────────────────────────────────────────
-    $minLeadDays = function_exists('appSettingInt') ? appSettingInt('min_lead_time_days', MIN_LEAD_TIME_DAYS) : MIN_LEAD_TIME_DAYS;
-    $minPax = function_exists('appSettingInt') ? appSettingInt('min_pax', MIN_PAX) : MIN_PAX;
-    $maxPax = function_exists('appSettingInt') ? appSettingInt('max_pax', MAX_PAX) : MAX_PAX;
+    $minLeadDays = MIN_LEAD_TIME_DAYS;
+    $minPax      = MIN_PAX;
+    $maxPax      = MAX_PAX;
 
     $eventDate = validateYmdDate((string)$data['event_date'], 'event date');
     $minAllowedDate = date('Y-m-d', strtotime('+' . $minLeadDays . ' days'));
@@ -441,12 +457,8 @@ if ($method === 'POST') {
     $eventTime = validateEventTime($data['event_time'] ?? null);
 
     $paxCount = (int)($data['pax_count'] ?? 0);
-    if ($paxCount < $minPax) {
-        jsonResponse(false, "Minimum of $minPax guests is required.", [], 422);
-    }
-    if ($paxCount > $maxPax) {
-        jsonResponse(false, "Maximum guest count is capped at $maxPax.", [], 422);
-    }
+    if ($paxCount < MIN_PAX) jsonResponse(false, 'Minimum ' . MIN_PAX . ' guests required.', [], 422);
+    if ($paxCount > MAX_PAX) jsonResponse(false, 'Maximum ' . MAX_PAX . ' guests allowed.', [], 422);
     // Removed 5-pax check as requested
 
 
@@ -520,16 +532,16 @@ if ($method === 'POST') {
     $now          = new DateTime();
     $interval     = $now->diff($eventDateObj);
     $diffHours    = ($interval->days * 24) + $interval->h;
-    if (!$interval->invert && $diffHours < 72) {
-        $minDpPct = 1.0; // Last minute: force full payment (within 3 days)
+    if (!$interval->invert && $diffHours < RUSH_THRESHOLD_HOURS) {
+        $minDpPct = RUSH_DP_PERCENT; // Last minute: force rush payment (within 3 days)
     } else {
-        $minDpPct = (float)appSetting('min_dp_percent', MIN_DP_PERCENT);
+        $minDpPct = MIN_DP_PERCENT;
     }
 
     $minDPVal = round($totalCost * $minDpPct, 2);
-    if ($downpayment > 0 && $downpayment < $minDPVal - 0.01) {
+    if ($downpayment < $minDPVal - 0.01) {
         $msg = ($minDpPct >= 1.0) 
-            ? 'Full payment is required for bookings made within 3 days (72h) of the event.'
+            ? 'Full payment is required for bookings made within ' . RUSH_THRESHOLD_HOURS . ' hours of the event.'
             : 'Minimum downpayment is ' . (int)round($minDpPct * 100) . '% of total cost (₱' . number_format($minDPVal, 2) . ').';
             
         jsonResponse(false, $msg, ['min_downpayment' => $minDPVal, 'total_cost' => $totalCost], 422);
@@ -580,9 +592,7 @@ if ($method === 'POST') {
                :pax_count, :base_pax, :extra_pax, :base_price, :extra_cost,
                :transport_fee, :surcharge_total, :total_cost, :booking_status, :invoice_token, :notes, :dietary_notes, :created_by)
         ");
-        // ── Determine initial booking_status based on downpayment ────────────
-        // 'confirmed' requires meeting the threshold (30% or 100% if <72h).
-        $initialStatus = ($downpayment >= $minDPVal - 0.01) ? 'confirmed' : 'pending';
+        $initialStatus = 'confirmed';
 
         $bookingStmt->execute([
             ':client_id'      => (int)$data['client_id'],
@@ -672,7 +682,7 @@ if ($method === 'POST') {
             $amountPaid = (float)$paidRow->fetchColumn();
 
             $dpStatus = ($amountPaid >= $totalCost - 0.01) ? 'paid' : 'partial';
-            $finalStatus = ($amountPaid >= $minDPVal - 0.01) ? 'confirmed' : 'pending';
+            $finalStatus = 'confirmed'; // DP is mandatory — always confirmed on creation
 
             $pdo->prepare("
                 UPDATE bookings SET
@@ -768,8 +778,8 @@ if ($method === 'PUT') {
     $current = $cur->fetch();
     if (!$current) jsonResponse(false, 'Booking not found.', [], 404);
 
-    if ($current['booking_status'] === 'cancelled' && ($data['booking_status'] ?? '') !== 'pending') {
-        jsonResponse(false, 'This booking is cancelled and cannot be modified. Reset status to pending to edit.', [], 403);
+    if ($current['booking_status'] === 'cancelled') {
+        jsonResponse(false, 'This booking is cancelled and cannot be modified. Use the Un-Cancel feature to restore it first.', [], 403);
     }
 
     $archCheck = $pdo->prepare("SELECT is_archived FROM bookings WHERE id = :id");
@@ -796,7 +806,7 @@ if ($method === 'PUT') {
 
     // Validate status transition: pending can't skip to completed
     $newStatus = $data['booking_status'] ?? null;
-    $validStatuses = ['pending', 'confirmed', 'completed', 'cancelled'];
+    $validStatuses = ['confirmed', 'completed', 'cancelled'];
     if ($newStatus !== null && !in_array($newStatus, $validStatuses, true)) {
         jsonResponse(false, 'Invalid booking status.', [], 422);
     }
@@ -824,7 +834,7 @@ if ($method === 'PUT') {
             jsonResponse(false, 'This booking has already been rescheduled once and cannot be moved again.', [], 422);
         }
 
-        $minLeadDays = function_exists('appSettingInt') ? appSettingInt('min_lead_time_days', 14) : 14;
+        $minLeadDays = MIN_LEAD_TIME_DAYS;
         $todayTs = strtotime(date('Y-m-d'));
         $origTs  = strtotime($current['event_date']);
         $newTs   = strtotime($newDate);

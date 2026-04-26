@@ -20,7 +20,7 @@ include __DIR__ . '/../../includes/sidebar.php';
             </div>
             <select class="form-control" id="filterStatus" style="width:160px;">
                 <option value="">All Statuses</option>
-                <option value="pending">⏳ Pending DP</option>
+
                 <option value="confirmed">Confirmed</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
@@ -80,6 +80,7 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
             <div class="modal-body">
                 <form id="editBookingForm">
                     <input type="hidden" name="id" id="edit_id">
+                    <input type="hidden" name="updated_at" id="edit_updated_at">
                     <div class="form-grid-2">
                         <div class="form-group">
                             <label class="form-label">Event Date
@@ -94,7 +95,7 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                         <div class="form-group">
                             <label class="form-label">Booking Status</label>
                             <select class="form-control" name="booking_status" id="edit_booking_status">
-                                <option value="pending">⏳ Pending DP</option>
+
                                 <option value="confirmed">Confirmed</option>
                                 <option value="completed">Completed</option>
                                 <option value="cancelled">Cancelled</option>
@@ -229,6 +230,7 @@ async function openEdit(id) {
         const d = await Api.get(BASE + '/src/api/bookings.php', { id });
         const b = d.booking;
         document.getElementById('edit_id').value = b.id;
+        document.getElementById('edit_updated_at').value = b.updated_at || '';
         document.getElementById('editBookingId').textContent = '#' + b.id;
         document.getElementById('edit_event_date').value = b.event_date;
         document.getElementById('edit_event_time').value = b.event_time || '';
@@ -326,7 +328,7 @@ async function requestCancellation() {
     const isConfirmed = (b.booking_status === 'confirmed');
     
     // Preview the logic
-    const forfeit = isConfirmed ? (totalCost * 0.5) : 0;
+    const forfeit = isConfirmed ? (totalCost * <?= CANCEL_FORFEIT_PCT ?>) : 0;
     const refund  = Math.max(0, totalPaid - forfeit);
     
     let html = `
@@ -338,7 +340,7 @@ async function requestCancellation() {
                     <span style="font-weight:700; color:#1A7A32;">${Format.peso(totalPaid)}</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                    <span>Forfeiture Fee (50%):</span>
+                    <span>Forfeiture Fee (<?= round(CANCEL_FORFEIT_PCT * 100) ?>%):</span>
                     <span style="font-weight:700; color:#C0392B;">${Format.peso(forfeit)}</span>
                 </div>
                 <hr style="margin:10px 0;">

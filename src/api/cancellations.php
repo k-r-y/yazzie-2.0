@@ -67,11 +67,10 @@ if ($method === 'POST') {
     }
 
     // ── Calculate Forfeiture & Refund ─────────────────────────────
-    // Rule: if status was 'confirmed', forfeit 50% of total_cost.
-    // If 'pending', forfeit 0%.
+    // Rule: if status was 'confirmed', forfeit based on settings.
     $forfeitureFee = 0.00;
     if ($booking['booking_status'] === 'confirmed') {
-        $forfeitureFee = round($booking['total_cost'] * 0.50, 2);
+        $forfeitureFee = round($booking['total_cost'] * CANCEL_FORFEIT_PCT, 2);
     }
 
     $totalPaid = (float)$booking['amount_paid'];
@@ -131,18 +130,90 @@ if ($method === 'POST') {
 }
 
 // ────────────────────────────────────────────────────────────────
-// PUT — Update Refund Status
+// PUT — Update Refund Status OR Un-Cancel
 // ────────────────────────────────────────────────────────────────
 if ($method === 'PUT') {
     requireApiRole('admin'); // Only admins can process refunds
     $data = json_decode(file_get_contents('php://input'), true) ?? [];
-    if (empty($data['id']) || empty($data['refund_status'])) {
-        jsonResponse(false, 'ID and refund_status are required.', [], 422);
+    if (empty($data['id'])) {
+        jsonResponse(false, 'ID is required.', [], 422);
+    }
+    $id = (int)$data['id'];
+
+    if (isset($data['action']) && $data['action'] === 'uncancel') {
+        $pdo->beginTransaction();
+        try {
+            // Get cancellation details
+            $cstmt = $pdo->prepare("SELECT * FROM booking_cancellations WHERE id = :id FOR UPDATE");
+            $cstmt->execute([':id' => $id]);
+            $cancel = $cstmt->fetch();
+            if (!$cancel) throw new Exception('Cancellation not found.');
+
+            $bookingId = (int)$cancel['booking_id'];
+            
+            // Delete associated negative payment if it was processed
+            if ($cancel['refund_status'] === 'processed') {
+                $pdo->prepare("DELETE FROM payments WHERE booking_id = :bid AND amount < 0 AND notes = 'Refund'")->execute([':bid' => $bookingId]);
+            }
+            
+            // Recalculate amount_paid from remaining positive payments
+            $paidRow = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM payments WHERE booking_id = :bid");
+            $paidRow->execute([':bid' => $bookingId]);
+            $amountPaid = (float)$paidRow->fetchColumn();
+
+            // Get total_cost to derive correct payment_status
+            $costRow = $pdo->prepare("SELECT total_cost FROM bookings WHERE id = :bid");
+            $costRow->execute([':bid' => $bookingId]);
+            $totalCost = (float)$costRow->fetchColumn();
+
+            if ($amountPaid >= $totalCost - 0.01) {
+                $paymentStatus = 'paid';
+            } elseif ($amountPaid > 0) {
+                $paymentStatus = 'partial';
+            } else {
+                $paymentStatus = 'unpaid';
+            }
+
+            // Restore booking: confirmed status + recalculated financials
+            $pdo->prepare("
+                UPDATE bookings SET 
+                    booking_status = 'confirmed',
+                    amount_paid    = :paid,
+                    payment_status = :pstatus
+                WHERE id = :bid
+            ")->execute([
+                ':paid'    => round($amountPaid, 2),
+                ':pstatus' => $paymentStatus,
+                ':bid'     => $bookingId,
+            ]);
+
+            // Mark cancellation record as reversed
+            $pdo->prepare("UPDATE booking_cancellations SET refund_status = 'reversed' WHERE id = :id")->execute([':id' => $id]);
+            
+            // Audit trail
+            auditLog($pdo, 'booking_uncancelled', 'booking', $bookingId,
+                ['booking_status' => 'cancelled'],
+                ['booking_status' => 'confirmed', 'amount_paid' => $amountPaid, 'payment_status' => $paymentStatus]
+            );
+
+            $pdo->commit();
+            jsonResponse(true, 'Booking restored successfully.', [
+                'amount_paid'    => round($amountPaid, 2),
+                'payment_status' => $paymentStatus,
+            ]);
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            jsonResponse(false, 'Failed to un-cancel: ' . $e->getMessage(), [], 500);
+        }
+        exit;
     }
 
-    $id     = (int)$data['id'];
+    if (empty($data['refund_status'])) {
+        jsonResponse(false, 'refund_status is required.', [], 422);
+    }
+
     $status = $data['refund_status'];
-    $method = $data['refund_method'] ?? null;
+    $rmethod = $data['refund_method'] ?? null;
     $ref    = $data['refund_reference'] ?? null;
 
     if (!in_array($status, ['pending', 'processed', 'waived'])) {
@@ -151,19 +222,51 @@ if ($method === 'PUT') {
 
     $pdo->beginTransaction();
     try {
+        $cstmt = $pdo->prepare("SELECT * FROM booking_cancellations WHERE id = :id FOR UPDATE");
+        $cstmt->execute([':id' => $id]);
+        $cancel = $cstmt->fetch();
+        if (!$cancel) throw new Exception('Cancellation not found.');
+
+        // Transitioning to 'processed'
+        if ($status === 'processed' && $cancel['refund_status'] !== 'processed' && $cancel['refundable_amount'] > 0) {
+            $ins = $pdo->prepare("INSERT INTO payments (booking_id, amount, payment_method, reference_no, notes, payment_date, recorded_by) VALUES (:bid, :amt, :meth, :ref, 'Refund', NOW(), :uid)");
+            $ins->execute([
+                ':bid' => $cancel['booking_id'],
+                ':amt' => -abs($cancel['refundable_amount']),
+                ':meth' => $rmethod,
+                ':ref' => $ref,
+                ':uid' => (int)$_SESSION['user_id']
+            ]);
+
+            $paidRow = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM payments WHERE booking_id = :bid");
+            $paidRow->execute([':bid' => $cancel['booking_id']]);
+            $amountPaid = (float)$paidRow->fetchColumn();
+            $pdo->prepare("UPDATE bookings SET amount_paid = :amt WHERE id = :bid")->execute([':amt' => $amountPaid, ':bid' => $cancel['booking_id']]);
+        }
+        
+        // Transitioning away from 'processed'
+        if ($status !== 'processed' && $cancel['refund_status'] === 'processed') {
+            $pdo->prepare("DELETE FROM payments WHERE booking_id = :bid AND amount < 0 AND notes = 'Refund'")->execute([':bid' => $cancel['booking_id']]);
+            
+            $paidRow = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM payments WHERE booking_id = :bid");
+            $paidRow->execute([':bid' => $cancel['booking_id']]);
+            $amountPaid = (float)$paidRow->fetchColumn();
+            $pdo->prepare("UPDATE bookings SET amount_paid = :amt WHERE id = :bid")->execute([':amt' => $amountPaid, ':bid' => $cancel['booking_id']]);
+        }
+
         $stmt = $pdo->prepare("
             UPDATE booking_cancellations SET 
                 refund_status       = :st,
                 refund_method       = :meth,
                 refund_reference    = :ref,
-                refund_processed_at = NOW(),
-                refund_processed_by = :uid
+                refund_processed_at = IF(:st='processed', NOW(), NULL),
+                refund_processed_by = IF(:st='processed', :uid, NULL)
             WHERE id = :id
         ");
         $stmt->execute([
             ':id'   => $id,
             ':st'   => $status,
-            ':meth' => $method,
+            ':meth' => $rmethod,
             ':ref'  => $ref,
             ':uid'  => (int)$_SESSION['user_id']
         ]);

@@ -108,7 +108,7 @@ let allDishes = [];
 
 async function loadDishes() {
     try {
-        const d = await Api.get(BASE + '/src/api/packages.php', { dishes: 1 });
+        const d = await Api.get(BASE + '/src/api/packages.php', { dishes: 1, include_inactive: 1 });
         
         // Flatten the dynamically grouped dishes array into a single array for the table
         allDishes = [];

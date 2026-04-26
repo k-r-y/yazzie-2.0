@@ -21,7 +21,7 @@ include __DIR__ . '/../../includes/sidebar.php';
             </div>
             <select class="form-control" id="filterStatus" style="width:160px;">
                 <option value="">All Statuses</option>
-                <option value="pending">⏳ Pending DP</option>
+
                 <option value="confirmed">Confirmed</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
@@ -79,7 +79,7 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                     <div class="form-group">
                         <label class="form-label">Booking Status</label>
                         <select class="form-control" name="booking_status" id="edit_bs">
-                            <option value="pending">⏳ Pending DP</option>
+
                             <option value="confirmed">Confirmed</option>
                             <option value="completed">Completed</option>
                             <option value="cancelled">Cancelled</option>

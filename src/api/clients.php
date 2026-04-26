@@ -43,19 +43,29 @@ if ($method === 'POST') {
     if (empty($d['name']) || empty($d['phone'])) {
         jsonResponse(false, 'Name and phone are required.', [], 422);
     }
+    
+    // Name validation
+    if (strlen($d['name']) > 100) jsonResponse(false, 'Name cannot exceed 100 characters.', [], 422);
+    if (!preg_match('/^[a-zA-Z\s\-]+$/', $d['name'])) jsonResponse(false, 'Name can only contain letters, spaces, and hyphens.', [], 422);
 
+    // Email validation
     if(empty($d['email'])) {
         jsonResponse(false, 'Email is required.', [], 422);
     }
-
+    if (strlen($d['email']) > 100) jsonResponse(false, 'Email cannot exceed 100 characters.', [], 422);
     if(filter_var($d['email'], FILTER_VALIDATE_EMAIL) === false) {
         jsonResponse(false, 'Invalid email address.', [], 422);
     }
 
-    if(strlen($d['phone']) < 11 || !str_starts_with($d['phone'], '09')) {
-        jsonResponse(false, 'Invalid phone number.', [], 422);
+    // Phone validation
+    if(!preg_match('/^09\d{9}$/', $d['phone'])) {
+        jsonResponse(false, 'Phone number must be exactly 11 digits starting with 09.', [], 422);
     }
     
+    // Address & Link validation
+    if (!empty($d['address']) && strlen($d['address']) > 255) jsonResponse(false, 'Address cannot exceed 255 characters.', [], 422);
+    if (!empty($d['messenger_link']) && strlen($d['messenger_link']) > 255) jsonResponse(false, 'Messenger link cannot exceed 255 characters.', [], 422);
+
     // Enforce unique email
     $dupChk = $pdo->prepare("SELECT id FROM clients WHERE email = :email LIMIT 1");
     $dupChk->execute([':email' => trim($d['email'])]);
@@ -89,8 +99,26 @@ if ($method === 'PUT') {
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
     if (empty($d['id'])) jsonResponse(false, 'Client ID required.', [], 422);
 
+    // Name validation
+    if (isset($d['name'])) {
+        if (strlen($d['name']) > 100) jsonResponse(false, 'Name cannot exceed 100 characters.', [], 422);
+        if (!preg_match('/^[a-zA-Z\s\-]+$/', $d['name'])) jsonResponse(false, 'Name can only contain letters, spaces, and hyphens.', [], 422);
+    }
+
+    // Phone validation
+    if (isset($d['phone']) && !preg_match('/^09\d{9}$/', $d['phone'])) {
+        jsonResponse(false, 'Phone number must be exactly 11 digits starting with 09.', [], 422);
+    }
+
+    // Address & Link validation
+    if (isset($d['address']) && strlen($d['address']) > 255) jsonResponse(false, 'Address cannot exceed 255 characters.', [], 422);
+    if (isset($d['messenger_link']) && strlen($d['messenger_link']) > 255) jsonResponse(false, 'Messenger link cannot exceed 255 characters.', [], 422);
+
     // Enforce unique email on update (exclude self)
     if (!empty($d['email'])) {
+        if (strlen($d['email']) > 100) jsonResponse(false, 'Email cannot exceed 100 characters.', [], 422);
+        if(filter_var($d['email'], FILTER_VALIDATE_EMAIL) === false) jsonResponse(false, 'Invalid email address.', [], 422);
+
         $emailChk = $pdo->prepare("SELECT id FROM clients WHERE email = :email AND id != :id LIMIT 1");
         $emailChk->execute([':email' => trim($d['email']), ':id' => (int)$d['id']]);
         if ($emailChk->fetch()) {

@@ -96,8 +96,8 @@ if ($method === 'POST') {
     // ── Calculate overtime ──
     $overtimeMinutes = 0;
     $overtimeTotal   = 0.00;
-    $eventDuration   = function_exists('appSettingInt') ? appSettingInt('event_duration_hours', 4) : 4;
-    $overtimeRate    = function_exists('appSetting') ? (float)appSetting('overtime_rate_per_hour', '200') : 200;
+    $eventDuration   = EVENT_DURATION_HOURS;
+    $overtimeRate    = OVERTIME_RATE;
 
     if ($startTime && $endTime) {
         $start = strtotime($startTime);
