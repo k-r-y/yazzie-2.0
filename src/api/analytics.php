@@ -151,12 +151,12 @@ if ($type === 'kpis') {
         $eventFilter = "AND MONTH(event_date) = MONTH(CURDATE()) AND YEAR(event_date) = YEAR(CURDATE())";
     }
 
-    // 1. Revenue in Period
+    // 1. Revenue in Period (Count all payments, even from cancelled bookings, to account for refunds/forfeiture)
     $revenue = $pdo->query("
         SELECT COALESCE(SUM(p.amount), 0) 
         FROM payments p
         JOIN bookings b ON b.id = p.booking_id
-        WHERE b.booking_status != 'cancelled'
+        WHERE 1=1
         $dateFilter
     ")->fetchColumn();
 
@@ -209,7 +209,7 @@ if ($type === 'kpis') {
         SELECT COALESCE(SUM(p.amount), 0) 
         FROM payments p
         JOIN bookings b ON b.id = p.booking_id
-        WHERE b.booking_status != 'cancelled'
+        WHERE 1=1
         AND MONTH(p.payment_date) = MONTH(CURDATE()) 
         AND YEAR(p.payment_date) = YEAR(CURDATE())
     ")->fetchColumn();

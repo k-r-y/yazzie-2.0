@@ -78,7 +78,10 @@ if ($method === 'POST') {
 
     $pdo->beginTransaction();
     try {
-        // 1. Insert into booking_cancellations
+        // 1. Clear any existing cancellation record for this booking (if it was un-cancelled before)
+        $pdo->prepare("DELETE FROM booking_cancellations WHERE booking_id = :bid")->execute([':bid' => $bookingId]);
+
+        // 2. Insert into booking_cancellations
         $ins = $pdo->prepare("
             INSERT INTO booking_cancellations (
                 booking_id, requested_by, reason, total_paid, 
@@ -105,11 +108,11 @@ if ($method === 'POST') {
         ]);
         $cancelId = $pdo->lastInsertId();
 
-        // 2. Update booking status
+        // 3. Update booking status
         $pdo->prepare("UPDATE bookings SET booking_status = 'cancelled' WHERE id = :id")
              ->execute([':id' => $bookingId]);
 
-        // 3. Audit Log
+        // 4. Audit Log
         auditLog($pdo, 'booking_cancelled', 'booking', $bookingId, 
             ['status' => $booking['booking_status']], 
             ['status' => 'cancelled', 'forfeiture' => $forfeitureFee, 'refundable' => $refundableAmount]
@@ -187,8 +190,8 @@ if ($method === 'PUT') {
                 ':bid'     => $bookingId,
             ]);
 
-            // Mark cancellation record as reversed
-            $pdo->prepare("UPDATE booking_cancellations SET refund_status = 'reversed' WHERE id = :id")->execute([':id' => $id]);
+            // 4. Delete the cancellation record (it is no longer needed since booking is restored)
+            $pdo->prepare("DELETE FROM booking_cancellations WHERE id = :id")->execute([':id' => $id]);
             
             // Audit trail
             auditLog($pdo, 'booking_uncancelled', 'booking', $bookingId,
@@ -259,16 +262,18 @@ if ($method === 'PUT') {
                 refund_status       = :st,
                 refund_method       = :meth,
                 refund_reference    = :ref,
-                refund_processed_at = IF(:st='processed', NOW(), NULL),
-                refund_processed_by = IF(:st='processed', :uid, NULL)
+                refund_processed_at = IF(:st_at='processed', NOW(), NULL),
+                refund_processed_by = IF(:st_by='processed', :uid, NULL)
             WHERE id = :id
         ");
         $stmt->execute([
-            ':id'   => $id,
-            ':st'   => $status,
-            ':meth' => $rmethod,
-            ':ref'  => $ref,
-            ':uid'  => (int)$_SESSION['user_id']
+            ':id'    => $id,
+            ':st'    => $status,
+            ':st_at' => $status,
+            ':st_by' => $status,
+            ':meth'  => $rmethod,
+            ':ref'   => $ref,
+            ':uid'   => (int)$_SESSION['user_id']
         ]);
         
         $pdo->commit();

@@ -281,7 +281,7 @@ async function initFinancial() {
 
 // Rebuild the booking dropdown with fresh live balances from the API
 async function refreshBookingSelector() {
-    const d  = await Api.get(BASE + 'src/api/bookings.php', {});
+    const d  = await Api.get(BASE + 'src/api/bookings.php', { limit: 1000 });
     const bs = (d.bookings || []).filter(b => b.booking_status !== 'cancelled');
     const sel = document.getElementById('bookingSelect');
     const cur = sel.value; // preserve current selection
