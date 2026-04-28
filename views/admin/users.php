@@ -13,14 +13,35 @@ include __DIR__ . '/../../includes/sidebar.php';
 
 <div class="card mb-3">
     <div class="card-body" style="padding:14px 20px;">
-        <div class="d-flex justify-content-between align-items-center">
-            <div class="search-input-wrap" style="max-width:320px;flex:1;">
-                <i class="fas fa-search"></i>
-                <input type="text" class="search-input" id="userSearch" placeholder="Search users…">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <div class="search-input-wrap">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="search-input" id="userSearch" placeholder="Search name/email…">
+                </div>
             </div>
-            <button class="btn btn-primary" onclick="openAddUser()">
-                <i class="fas fa-user-plus"></i> Add User
-            </button>
+            <div class="col-md-3">
+                <label class="form-label" style="font-size:12px;margin-bottom:4px;">Role</label>
+                <select class="form-control" id="roleFilter" onchange="applyFilters()">
+                    <option value="">All Roles</option>
+                    <option value="admin">Administrator</option>
+                    <option value="frontdesk">Front Desk</option>
+                    <option value="staff">On-Call Staff</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" style="font-size:12px;margin-bottom:4px;">Status</label>
+                <select class="form-control" id="statusFilter" onchange="applyFilters()">
+                    <option value="">All Status</option>
+                    <option value="1">Active</option>
+                    <option value="0">Deactivated</option>
+                </select>
+            </div>
+            <div class="col-md-2 text-end">
+                <button class="btn btn-primary" onclick="openAddUser()">
+                    <i class="fas fa-user-plus"></i> Add User
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -34,6 +55,15 @@ include __DIR__ . '/../../includes/sidebar.php';
             </thead>
             <tbody id="userBody"><tr><td colspan="7"><div class="spinner"></div></td></tr></tbody>
         </table>
+    </div>
+    <div class="table-pagination" id="usersPagination">
+        <button type="button" class="pagination-button" id="usersPrevBtn" onclick="changeUserPage(currentUserPage - 1)" disabled>
+            <i class="fas fa-chevron-left"></i> Previous
+        </button>
+        <div class="pagination-info" id="usersPageInfo">Page 1 of 1</div>
+        <button type="button" class="pagination-button" id="usersNextBtn" onclick="changeUserPage(currentUserPage + 1)" disabled>
+            Next <i class="fas fa-chevron-right"></i>
+        </button>
     </div>
 </div>
 
@@ -54,16 +84,13 @@ include __DIR__ . '/../../includes/sidebar.php';
                         <input class="form-control" name="email" id="u_email" type="email" required maxlength="100"></div>
                     <div class="form-group"><label class="form-label">Role <span class="required">*</span></label>
                         <select class="form-control" name="role" id="u_role" required onchange="onRoleChange()">
-                            <?php if (($_SESSION['role'] ?? '') === 'super_admin'): ?>
-                                <option value="super_admin">⭐ Super Admin</option>
-                                <option value="admin">Administrator</option>
-                            <?php endif; ?>
-                            <?php if (($_SESSION['role'] ?? '') !== 'admin'): ?>
-                                <!-- admin role only visible to super_admin (handled above) -->
-                            <?php endif; ?>
+                            <option value="">— Select Role —</option>
+                            <option value="admin" id="opt_admin">Administrator</option>
                             <option value="frontdesk">Front Desk</option>
                             <option value="staff" selected>On-Call Staff</option>
-                        </select></div>
+                        </select>
+                        <div class="form-hint" id="adminQuotaMsg" style="color:#ff9500;margin-top:6px;display:none;"></div>
+                    </div>
                     <!-- Job Class: visible only for staff role -->
                     <div class="form-group" id="jobClassGroup">
                         <label class="form-label">Job Classification <span class="required">*</span></label>
@@ -79,10 +106,10 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </div>
                     <div class="form-group"><label class="form-label">Phone</label>
                         <input class="form-control" name="phone" id="u_phone"
-                               placeholder="09XXXXXXXXX"
-                               pattern="^(09|\+639)\d{9}$"
+                               placeholder="11 digits only"
+                               pattern="\d{11}"
                                maxlength="11"
-                               title="Enter a valid PH mobile number (e.g. 09XXXXXXXXX or +639XXXXXXXXX)"></div>
+                               title="Enter exactly 11 digits (e.g. 09123456789)"></div>
                     <div class="form-group">
                         <label class="form-label">Password <span class="required" id="pwReq">*</span></label>
                         <input class="form-control" name="password" id="u_pw" type="password" placeholder="Min 8 characters">
@@ -107,9 +134,47 @@ include __DIR__ . '/../../includes/sidebar.php';
 
 <script>
 
-async function loadUsers() {
-    const d = await Api.get(BASE + '/src/api/staff.php');
+let currentUserPage = 1;
+let userTotalPages = 1;
+let maxAdmins = 5;
+let activeAdmins = 0;
+
+async function loadSettings() {
+    try {
+        const d = await Api.get(BASE + 'src/api/settings.php');
+        maxAdmins = d.settings?.find(s => s.key === 'max_admins')?.value || 5;
+        maxAdmins = parseInt(maxAdmins);
+    } catch (e) {
+        console.error('Failed to load settings:', e);
+        maxAdmins = 5;
+    }
+}
+
+async function loadUsers(page = null) {
+    if (page !== null) {
+        currentUserPage = Math.max(1, page);
+    }
+
+    const search = document.getElementById('userSearch').value;
+    const role = document.getElementById('roleFilter').value;
+    const status = document.getElementById('statusFilter').value;
+    
+    const params = {
+        page: currentUserPage,
+        limit: 10,
+    };
+    if (search) params.search = search;
+    if (role) params.role = role;
+    if (status !== '') params.active_only = (status === '1' ? 1 : 0);
+
+    const d = await Api.get(BASE + 'src/api/staff.php', params);
     const users = d.users || [];
+    userTotalPages = d.meta?.totalPages || 1;
+    
+    // Count active admins
+    activeAdmins = users.filter(u => u.role === 'admin' && u.is_active).length;
+    
+    renderUserPagination();
     const tbody = document.getElementById('userBody');
     const roleLabel = { super_admin: '⭐ Super Admin', admin: 'Administrator', frontdesk: 'Front Desk', staff: 'On-Call Staff' };
     const roleBadge = { super_admin: 'badge-admin', admin: 'badge-admin', frontdesk: 'badge-frontdesk', staff: 'badge-staff' };
@@ -135,7 +200,25 @@ async function loadUsers() {
                 ${u.is_active ? `<button class="btn btn-danger btn-sm" onclick="deactivateUser(${u.id})"><i class="fas fa-user-slash"></i></button>` : ''}
             </td>
         </tr>`).join('');
-    initTableSearch('userSearch', 'userTable');
+}
+
+function applyFilters() {
+    loadUsers(1);
+}
+
+function updateAdminOption() {
+    const optAdmin = document.getElementById('opt_admin');
+    const adminQuotaMsg = document.getElementById('adminQuotaMsg');
+    if (activeAdmins >= maxAdmins) {
+        optAdmin.disabled = true;
+        optAdmin.textContent = `Administrator (${activeAdmins}/${maxAdmins} - limit reached)`;
+        adminQuotaMsg.textContent = `Maximum admins (${maxAdmins}) reached. Deactivate one to create another.`;
+        adminQuotaMsg.style.display = 'block';
+    } else {
+        optAdmin.disabled = false;
+        optAdmin.textContent = `Administrator (${activeAdmins}/${maxAdmins})`;
+        adminQuotaMsg.style.display = 'none';
+    }
 }
 
 function openAddUser() {
@@ -146,6 +229,7 @@ function openAddUser() {
     document.getElementById('pwHint').style.display = 'none';
     document.getElementById('statusGroup').style.display = 'none';
     document.getElementById('u_pw').required = true;
+    updateAdminOption();
     onRoleChange();
     Modal.open('userModal');
 }
@@ -172,8 +256,20 @@ function openEditUser(id, name, email, role, phone, active, jobClass = 'any') {
     document.getElementById('statusGroup').style.display = '';
     document.getElementById('u_pw').required = false;
     document.getElementById('u_pw').value = '';
+    updateAdminOption();
     onRoleChange();
     Modal.open('userModal');
+}
+
+function changeUserPage(newPage) {
+    if (newPage < 1 || newPage > userTotalPages) return;
+    loadUsers(newPage);
+}
+
+function renderUserPagination() {
+    document.getElementById('usersPageInfo').textContent = `Page ${currentUserPage} of ${userTotalPages}`;
+    document.getElementById('usersPrevBtn').disabled = currentUserPage <= 1;
+    document.getElementById('usersNextBtn').disabled = currentUserPage >= userTotalPages;
 }
 
 async function saveUser() {
@@ -185,6 +281,7 @@ async function saveUser() {
     const email = document.getElementById('u_email').value.trim();
     const phone = document.getElementById('u_phone').value.trim();
     const password = document.getElementById('u_pw').value;
+    const role = document.getElementById('u_role').value;
 
     // Frontend Validation
     if (!name || !email || (!id && !password)) {
@@ -194,15 +291,19 @@ async function saveUser() {
     if (name.length > 100) return Toast.error('Name too long (max 100).');
     if (!/^[a-zA-Z\s\-.]+$/.test(name)) return Toast.error('Name contains invalid characters.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Toast.error('Invalid email address.');
-    if (phone && !/^(09|\+639)\d{9}$/.test(phone)) return Toast.error('Invalid PH phone number.');
+    if (phone && !/^\d{11}$/.test(phone.replace(/\D/g, ''))) return Toast.error('Phone must be exactly 11 digits.');
     if (password && password.length < 8) return Toast.error('Password must be at least 8 characters.');
 
     if (!form.checkValidity()) { form.reportValidity(); return; }
     Form.setLoading(btn, true);
     const data = Form.serialize(form);
+    // Strip non-digits from phone
+    if (data.phone) {
+        data.phone = data.phone.replace(/\D/g, '');
+    }
     try {
-        if (data.id) { await Api.put(BASE + '/src/api/staff.php', data); Toast.success('User updated.'); }
-        else         { await Api.post(BASE + '/src/api/staff.php', data); Toast.success('User created. They can now log in.'); }
+        if (data.id) { await Api.put(BASE + 'src/api/staff.php', data); Toast.success('User updated.'); }
+        else         { await Api.post(BASE + 'src/api/staff.php', data); Toast.success('User created. They can now log in.'); }
         Modal.close('userModal');
         await loadUsers();
     } catch (e) { Toast.error(e.message); }
@@ -212,13 +313,18 @@ async function saveUser() {
 async function deactivateUser(id) {
     if (!await confirmDialog('Deactivate this user? They will no longer be able to log in.')) return;
     try {
-        await Api.delete(BASE + '/src/api/staff.php', { id });
+        await Api.delete(BASE + 'src/api/staff.php', { id });
         Toast.success('User deactivated.');
-        await loadUsers();
+        await loadUsers(currentUserPage);
     } catch (e) { Toast.error(e.message); }
 }
 
-loadUsers();
+document.getElementById('userSearch').addEventListener('input', debounce(() => loadUsers(1), 400));
+
+// Initialize
+loadSettings().then(() => {
+    loadUsers();
+});
 </script>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

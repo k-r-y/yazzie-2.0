@@ -3,7 +3,7 @@
  * Rate Limiter — Prevents brute-force login attacks.
  *
  * Uses the `login_attempts` database table to track failed attempts per IP.
- * Blocks an IP for 15 minutes after 5 consecutive failures.
+ * Blocks an IP for the configured lockout minutes after exceeding max attempts.
  *
  * Usage (in auth.php API):
  *   checkLoginRateLimit($pdo);           // Before password check
@@ -11,7 +11,25 @@
  *   clearLoginAttempts($pdo);            // After successful login
  */
 
-define('MAX_LOGIN_ATTEMPTS', 5);
+// Get MAX_LOGIN_ATTEMPTS from settings table, default to 5
+$maxLoginAttemptsCache = null;
+function getMaxLoginAttempts(PDO $pdo): int
+{
+    global $maxLoginAttemptsCache;
+    if ($maxLoginAttemptsCache !== null) return $maxLoginAttemptsCache;
+    
+    try {
+        $stmt = $pdo->prepare("SELECT value FROM settings WHERE `key` = 'max_login_attempts' LIMIT 1");
+        $stmt->execute();
+        $result = $stmt->fetch();
+        $maxLoginAttemptsCache = $result ? (int)$result['value'] : 5;
+    } catch (\Throwable $e) {
+        error_log('[RateLimiter] Failed to fetch max_login_attempts: ' . $e->getMessage());
+        $maxLoginAttemptsCache = 5;
+    }
+    return $maxLoginAttemptsCache;
+}
+
 define('LOGIN_LOCKOUT_MINUTES', 15);
 
 function getClientIp(): string
@@ -27,6 +45,7 @@ function getClientIp(): string
 function checkLoginRateLimit(PDO $pdo): void
 {
     $ip = getClientIp();
+    $maxAttempts = getMaxLoginAttempts($pdo);
     $windowStart = date('Y-m-d H:i:s', strtotime('-' . LOGIN_LOCKOUT_MINUTES . ' minutes'));
 
     try {
@@ -39,7 +58,7 @@ function checkLoginRateLimit(PDO $pdo): void
         $stmt->execute([':ip' => $ip, ':window' => $windowStart]);
         $row = $stmt->fetch();
 
-        if ($row && (int)$row['attempts'] >= MAX_LOGIN_ATTEMPTS) {
+        if ($row && (int)$row['attempts'] >= $maxAttempts) {
             header('Content-Type: application/json');
             http_response_code(429);
             echo json_encode([

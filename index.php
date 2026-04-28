@@ -13,6 +13,8 @@ $errorMessages = [
     'forbidden' => 'You do not have permission to view that page.',
     'invalid'   => 'Incorrect email or password.',
     'inactive'  => 'Your account has been deactivated.',
+    'timeout'   => 'Your session has expired due to inactivity. Please sign in again.',
+    'debug'     => 'System is in debug mode. All users have been logged out. Please try again later.',
 ];
 $successMessages = ['logged_out' => "You've been signed out."];
 ?>

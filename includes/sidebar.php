@@ -38,6 +38,7 @@ $nav = [
         ['dashboard',   'Dashboard',    'fa-house',        '/views/frontdesk/dashboard.php'],
         ['section' => 'Operations'],
         ['bookings',    'Bookings',     'fa-calendar-days','/views/frontdesk/bookings.php'],
+        ['financial',   'Financials',   'fa-coins',        '/views/admin/financial.php'],
         ['dispatching', 'Staff Dispatching', 'fa-bullhorn',  '/views/frontdesk/dispatching.php'],
         ['costing',     'Grocery List', 'fa-cart-shopping','/views/frontdesk/costing.php'],
     ],

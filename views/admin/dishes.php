@@ -17,10 +17,39 @@ include __DIR__ . '/../../includes/sidebar.php';
             <div class="card-title">Food & Menu Catalog</div>
             <div class="card-subtitle">Items that clients can pick in the booking UI</div>
         </div>
-        <button class="btn btn-primary" onclick="openAddModal()">
+        <button class="btn btn-primary py-3" onclick="openAddModal()">
             <i class="fas fa-plus"></i> Add Dish
         </button>
     </div>
+
+    <!-- Filter Bar -->
+    <div class="card-body dishes-filter-bar">
+        <div class="row g-3 align-items-center">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-prefix"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control" id="searchFilter" placeholder="Search dish name..." oninput="filterDishes()">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-control" id="catFilter" onchange="filterDishes()">
+                    <option value="all">All Categories</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-control" id="mealFilter" onchange="filterDishes()">
+                    <option value="all">All Meal Types</option>
+                    <option value="breakfast">🍳 Breakfast</option>
+                    <option value="lunch">🍱 Lunch</option>
+                    <option value="dinner">🍷 Dinner</option>
+                </select>
+            </div>
+            <div class="col-md-2 text-end">
+                <div id="filterCount" class="filter-summary"></div>
+            </div>
+        </div>
+    </div>
+
     <div class="table-wrapper">
         <table class="data-table" id="dishesTable">
             <thead>
@@ -37,6 +66,15 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <tr><td colspan="5"><div class="spinner"></div></td></tr>
             </tbody>
         </table>
+    </div>
+    <div class="table-pagination dishes-pagination" id="dishesPagination">
+        <button type="button" class="pagination-button dishes-pagination-button" id="dishesPrevBtn" onclick="changeDishPage(currentDishPage - 1)" disabled>
+            <i class="fas fa-chevron-left"></i> Previous
+        </button>
+        <div class="pagination-info" id="dishesPageInfo">Page 1 of 1</div>
+        <button type="button" class="pagination-button dishes-pagination-button" id="dishesNextBtn" onclick="changeDishPage(currentDishPage + 1)" disabled>
+            Next <i class="fas fa-chevron-right"></i>
+        </button>
     </div>
 </div>
 
@@ -58,16 +96,23 @@ include __DIR__ . '/../../includes/sidebar.php';
                             <label class="form-label">Dish Name <span class="required">*</span></label>
                             <input type="text" class="form-control" name="name" id="dish_name" required placeholder="e.g. Beef Caldereta">
                         </div>
-                        <div class="col-4">
+                        <div class="col-12">
                             <label class="form-label">Meal Type <span class="required">*</span></label>
-                            <select class="form-control" name="meal_type" id="dish_meal_type" required>
-                                <option value="all">All Meals</option>
-                                <option value="breakfast">Breakfast</option>
-                                <option value="lunch">Lunch</option>
-                                <option value="dinner">Dinner</option>
-                            </select>
+                            <div class="d-flex gap-3 p-2 bg-light border rounded-3" style="border-style: dashed !important;">
+                                <label class="d-flex align-items-center gap-2 mb-0" style="font-size:13px; cursor:pointer; font-weight:600;">
+                                    <input type="checkbox" name="meal_type" value="breakfast" style="width:16px; height:16px;"> Breakfast
+                                </label>
+                                <label class="d-flex align-items-center gap-2 mb-0" style="font-size:13px; cursor:pointer; font-weight:600;">
+                                    <input type="checkbox" name="meal_type" value="lunch" style="width:16px; height:16px;"> Lunch
+                                </label>
+                                <label class="d-flex align-items-center gap-2 mb-0" style="font-size:13px; cursor:pointer; font-weight:600;">
+                                    <input type="checkbox" name="meal_type" value="dinner" style="width:16px; height:16px;"> Dinner
+                                </label>
+                            </div>
+                            <div class="form-hint" style="font-size:11px;">A dish can belong to multiple meal types. If none selected, it defaults to 'all'.</div>
                         </div>
                     </div>
+                    <div class="row g-3 mb-3">
                         <div class="col-7">
                             <label class="form-label">Category Classification <span class="required">*</span></label>
                             <select class="form-control" name="category" id="dish_category" required>
@@ -105,22 +150,83 @@ include __DIR__ . '/../../includes/sidebar.php';
 
 <script>
 let allDishes = [];
+let currentDishPage = 1;
+let dishTotalPages = 1;
 
-async function loadDishes() {
+async function loadDishes(page = null) {
+    if (page !== null) {
+        currentDishPage = Math.max(1, page);
+    }
+
+    const search = document.getElementById('searchFilter').value.trim();
+    const category = document.getElementById('catFilter').value;
+    const meal = document.getElementById('mealFilter').value;
+
     try {
-        const d = await Api.get(BASE + '/src/api/packages.php', { dishes: 1, include_inactive: 1 });
-        
-        // Flatten the dynamically grouped dishes array into a single array for the table
-        allDishes = [];
-        if (d.dishes_grouped) {
-            Object.values(d.dishes_grouped).forEach(catArray => {
-                allDishes = allDishes.concat(catArray);
+        const params = {
+            dishes: 1,
+            include_inactive: 1,
+            page: currentDishPage,
+            limit: 10,
+        };
+
+        if (search) {
+            params.search = search;
+        }
+        if (category && category !== 'all') {
+            params.category = category;
+        }
+        if (meal && meal !== 'all') {
+            params.meal_type = meal;
+        }
+
+        const d = await Api.get(BASE + 'src/api/packages.php', params);
+        allDishes = d.dishes || [];
+        if (!allDishes.length && d.dishes_grouped) {
+            Object.values(d.dishes_grouped).forEach(group => {
+                allDishes = allDishes.concat(group);
             });
         }
+
+        const categorySelect = document.getElementById('catFilter');
+        const currentCat = categorySelect.value;
+        const categories = new Set(d.categories || []);
+        if (!categories.size && allDishes.length) {
+            allDishes.forEach(item => categories.add(item.category));
+        }
+        categorySelect.innerHTML = '<option value="all">All Categories</option>';
+        Array.from(categories).sort().forEach(cat => {
+            categorySelect.innerHTML += `<option value="${cat}" ${cat === currentCat ? 'selected' : ''}>${cat}</option>`;
+        });
+
+        dishTotalPages = d.meta?.totalPages || 1;
+        const totalRecords = d.meta?.totalRecords ?? allDishes.length;
+        document.getElementById('filterCount').textContent = `${totalRecords} item${totalRecords === 1 ? '' : 's'} found`;
+        renderDishPagination();
         renderTable(allDishes);
     } catch(e) {
         document.getElementById('dishesBody').innerHTML = '<tr><td colspan="5" class="text-center text-muted p-4">Failed to load dishes.</td></tr>';
     }
+}
+
+function filterDishes() {
+    loadDishes(1);
+}
+
+function renderDishPagination() {
+    const prevBtn = document.getElementById('dishesPrevBtn');
+    const nextBtn = document.getElementById('dishesNextBtn');
+    const pageInfo = document.getElementById('dishesPageInfo');
+
+    pageInfo.textContent = `Page ${currentDishPage} of ${dishTotalPages}`;
+    prevBtn.disabled = currentDishPage <= 1;
+    nextBtn.disabled = currentDishPage >= dishTotalPages;
+}
+
+function changeDishPage(page) {
+    if (page < 1 || page > dishTotalPages) return;
+    currentDishPage = page;
+    loadDishes();
 }
 
 function renderTable(items) {
@@ -137,7 +243,7 @@ function renderTable(items) {
                 <span class="badge badge-light text-dark fw-500 border border-secondary" style="font-size:11px;">${i.category}</span>
             </td>
             <td>
-                <span class="badge badge-info" style="font-size:10px; text-transform:uppercase;">${i.meal_type || 'all'}</span>
+                <span class="badge badge-info" style="font-size:10px; text-transform:uppercase;">${(i.meal_type && i.meal_type.trim()) ? i.meal_type.replace(/,/g, ', ') : 'all'}</span>
             </td>
             <td class="td-mono">${parseFloat(i.custom_fee || 0) > 0 ? '+ ' + Format.peso(i.custom_fee) : '<span class="text-muted">₱0.00</span>'}</td>
             <td>
@@ -172,7 +278,11 @@ function openEditModal(id) {
     document.getElementById('dish_id').value = item.id;
     document.getElementById('dish_name').value = item.name;
     document.getElementById('dish_category').value = item.category;
-    document.getElementById('dish_meal_type').value = item.meal_type || 'all';
+    const form = document.getElementById('dishForm');
+    const types = (item.meal_type || 'all').split(',');
+    form.querySelectorAll('input[name="meal_type"]').forEach(cb => {
+        cb.checked = types.includes(cb.value) || types.includes('all');
+    });
     document.getElementById('dish_fee').value = item.custom_fee || 0;
     Modal.open('dishModal');
 }
@@ -182,15 +292,17 @@ async function saveDish() {
     if (!form.checkValidity()) { form.reportValidity(); return; }
 
     const data = Form.serialize(form);
+    const selectedTypes = Array.from(form.querySelectorAll('input[name="meal_type"]:checked')).map(cb => cb.value);
+    data.meal_type = selectedTypes.length > 0 ? selectedTypes.join(',') : 'all';
     const btn = document.getElementById('saveBtn');
     Form.setLoading(btn, true);
 
     try {
         if (data.id) {
-            await Api.put(BASE + '/src/api/packages.php', data);
+            await Api.put(BASE + 'src/api/packages.php', data);
             Toast.success('Dish updated.');
         } else {
-            await Api.post(BASE + '/src/api/packages.php', data);
+            await Api.post(BASE + 'src/api/packages.php', data);
             Toast.success('Dish added successfully.');
         }
         Modal.close('dishModal');
@@ -202,7 +314,7 @@ async function saveDish() {
 
 async function toggleStatus(id) {
     try {
-        await Api.delete(BASE + '/src/api/packages.php', { id });
+        await Api.delete(BASE + 'src/api/packages.php', { id });
         Toast.success('Status updated.');
         loadDishes();
     } catch(e) { Toast.error(e.message); }

@@ -99,7 +99,7 @@ let confirmedBookings = [], availStaff = [], allJobs = [];
 
 async function initDispatch() {
     try {
-        const bd = await Api.get(BASE + '/src/api/bookings.php', {
+        const bd = await Api.get(BASE + 'src/api/bookings.php', {
             status: 'confirmed',
             from: new Date().toISOString().split('T')[0]
         });
@@ -206,8 +206,8 @@ async function loadExistingOrders() {
     try {
         // Use the suggest endpoint for staff + recommendations, roster from dispatching
         const [d, sg] = await Promise.all([
-            Api.get(BASE + '/src/api/dispatching.php', { booking_id: bookingId }),
-            Api.get(BASE + '/src/api/dispatching.php', { suggest: 1, booking_id: bookingId })
+            Api.get(BASE + 'src/api/dispatching.php', { booking_id: bookingId }),
+            Api.get(BASE + 'src/api/dispatching.php', { suggest: 1, booking_id: bookingId })
         ]);
         
         allJobs = d.job_orders || [];
@@ -296,7 +296,7 @@ document.getElementById('dispatchForm').addEventListener('submit', async functio
     const btn = document.getElementById('dispatchBtn');
     Form.setLoading(btn, true, 'Sending…');
     try {
-        const d = await Api.post(BASE + '/src/api/dispatching.php', {
+        const d = await Api.post(BASE + 'src/api/dispatching.php', {
             booking_id: bookingId, staff_ids: staffIds, role_required: roleReq, notes
         });
         Toast.success(d.message || 'Job orders dispatched!');
@@ -310,7 +310,7 @@ document.getElementById('dispatchForm').addEventListener('submit', async functio
 async function cancelJob(id) {
     if (!await confirmDialog('Cancel this job order?')) return;
     try {
-        await Api.delete(BASE + '/src/api/dispatching.php', { id });
+        await Api.delete(BASE + 'src/api/dispatching.php', { id });
         Toast.success('Job order cancelled.');
         await loadExistingOrders();
     } catch (e) { Toast.error(e.message); }

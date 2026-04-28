@@ -86,16 +86,46 @@ if ($method === 'GET') {
         $where[] = 'is_active = 1';
     }
 
+    if (!empty($_GET['search'])) {
+        $where[] = '(name LIKE :search OR email LIKE :search OR phone LIKE :search)';
+        $params[':search'] = '%' . trim($_GET['search']) . '%';
+    }
+
     $whereClause = implode(' AND ', $where);
+
+    $page  = max(1, (int)($_GET['page'] ?? 1));
+    $limit = (int)($_GET['limit'] ?? 10);
+    if ($limit < 1) $limit = 10;
+    $offset = ($page - 1) * $limit;
+
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE $whereClause");
+    $countStmt->execute($params);
+    $totalRecords = (int)$countStmt->fetchColumn();
+    $totalPages = (int)ceil($totalRecords / $limit);
+
     $stmt = $pdo->prepare("
         SELECT id, name, email, role, phone, job_class, is_active,
                DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s') AS created_at
         FROM users
         WHERE $whereClause
         ORDER BY role ASC, name ASC
+        LIMIT :limit OFFSET :offset
     ");
-    $stmt->execute($params);
-    jsonResponse(true, '', ['users' => $stmt->fetchAll()]);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->bindValue(':limit',  $limit,  PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+
+    jsonResponse(true, '', [
+        'users' => $stmt->fetchAll(),
+        'meta' => [
+            'currentPage'  => $page,
+            'totalPages'   => $totalPages,
+            'totalRecords' => $totalRecords,
+        ]
+    ]);
 }
 
 if ($method === 'POST') {
@@ -119,20 +149,27 @@ if ($method === 'POST') {
     $requestedRole  = $d['role'];
     $callerRole     = $currentUser['role'] ?? '';
 
-    // ── SUPERADMIN QUOTA ENFORCEMENT ────────────────────────────
+    // ── PREVENT SUPER_ADMIN CREATION ────────────────────────────
+    // Only 1 superadmin can exist in the system; it cannot be created, only assigned
     if ($requestedRole === 'super_admin') {
-        $countStmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'super_admin' AND is_active = 1");
-        if ((int)$countStmt->fetchColumn() >= 1) {
-            jsonResponse(false, 'Only one Super Admin can exist. Please downgrade an existing Super Admin before creating a new one.', [], 409);
+        jsonResponse(false, 'Super Admin accounts cannot be created. Only a system administrator can promote an existing admin.', [], 403);
+    }
+
+    // ── ADMIN QUOTA ENFORCEMENT ────────────────────────────
+    if ($requestedRole === 'admin') {
+        $maxAdmins = appSettingInt('max_admins', 5);
+        $activeAdmins = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1")->fetchColumn();
+        if ((int)$activeAdmins >= $maxAdmins) {
+            jsonResponse(false, "Maximum number of administrators ($maxAdmins) reached. Deactivate an admin account before creating a new one.", [], 409);
         }
     }
 
     // Role creation rules:
-    // - super_admin  → can create any role
+    // - super_admin  → can create admin, frontdesk, staff (not super_admin)
     // - admin        → can only create 'staff' or 'frontdesk'
     // - frontdesk    → cannot reach this endpoint (requireApiRole blocks them)
     if ($callerRole === 'super_admin') {
-        $allowedRoles = ['super_admin', 'admin', 'frontdesk', 'staff'];
+        $allowedRoles = ['admin', 'frontdesk', 'staff'];
     } else {
         // Regular admin: cannot create admin or super_admin
         $allowedRoles = ['frontdesk', 'staff'];
@@ -151,12 +188,11 @@ if ($method === 'POST') {
     $pwError = validatePasswordPolicy($d['password']);
     if ($pwError) jsonResponse(false, $pwError, [], 422);
 
-    // Phone validation — PH mobile format (09XXXXXXXXX or +639XXXXXXXXX)
+    // Phone validation — 11 digits only, no letters
     if (!empty($d['phone'])) {
-        $phone = preg_replace('/\s+/', '', (string)$d['phone']);
-        if (strlen($phone) > 20) jsonResponse(false, 'Phone number too long.', [], 422);
-        if (!preg_match('/^(09|\+639)\d{9}$/', $phone)) {
-            jsonResponse(false, 'Invalid phone number. Use PH format: 09XXXXXXXXX or +639XXXXXXXXX.', [], 422);
+        $phone = preg_replace('/[^\d]/', '', (string)$d['phone']); // Strip all non-digits
+        if (strlen($phone) !== 11) {
+            jsonResponse(false, 'Phone number must be exactly 11 digits.', [], 422);
         }
     }
 
@@ -240,11 +276,11 @@ if ($method === 'PUT') {
         jsonResponse(false, 'Invalid name format. Only letters, spaces, hyphens, and periods are allowed.', [], 422);
     }
 
-    // Phone validation on update
+    // Phone validation on update — 11 digits only, no letters
     if (!empty($d['phone'])) {
-        $phone = preg_replace('/\s+/', '', (string)$d['phone']);
-        if (!preg_match('/^(09|\+639)\d{9}$/', $phone)) {
-            jsonResponse(false, 'Invalid phone number. Use PH format: 09XXXXXXXXX or +639XXXXXXXXX.', [], 422);
+        $phone = preg_replace('/[^\d]/', '', (string)$d['phone']); // Strip all non-digits
+        if (strlen($phone) !== 11) {
+            jsonResponse(false, 'Phone number must be exactly 11 digits.', [], 422);
         }
         $params[':phone'] = $phone;
     }

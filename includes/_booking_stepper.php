@@ -20,12 +20,12 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         <div class="modal-content" style="border-radius:24px; overflow:hidden;">
 
             <!-- ── HEADER ── -->
-            <div class="modal-header" style="padding:20px 28px; border-bottom:0.5px solid rgba(60,60,67,0.1);">
+            <div class="modal-header" style="padding:18px 24px; border-bottom:0.5px solid rgba(60,60,67,0.08);">
                 <div>
-                    <h5 class="modal-title" style="font-size:17px; font-weight:800; letter-spacing:-0.4px;">
+                    <h5 class="modal-title" style="font-size:16px; font-weight:800; letter-spacing:-0.3px;">
                         <i class="fas fa-calendar-plus me-2" style="color:var(--sys-green);"></i>New Event Booking
                     </h5>
-                    <div id="stepperSubtitle" style="font-size:12px; color:rgba(60,60,67,0.45); margin-top:2px;">Step 1 of 4</div>
+                    <div id="stepperSubtitle" style="font-size:11px; color:rgba(60,60,67,0.4); margin-top:1px;">Step 1 of 4</div>
                 </div>
                 <button type="button" class="btn-close" onclick="closeBookingStepper()"></button>
             </div>
@@ -112,15 +112,17 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                       placeholder="Enter full address of the venue…"
                                       maxlength="500"
                                       oninput="onLocationChange(this.value)" rows="3"></textarea>
-                            <div id="transportFeePanel" style="display:none; margin-top:10px; padding:10px 12px; background:rgba(0,122,255,0.05); border-radius:10px; border:0.5px solid rgba(0,122,255,0.2);">
+                            <div id="transportFeePanel" style="display:none; margin-top:12px; padding:12px; background:var(--sys-green-tint2); border-radius:12px; border:0.5px solid rgba(48,209,88,0.2);">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    <span style="font-size:12px; font-weight:600; color:#007AFF;">🏠 Outside Dasma Transport Fee</span>
+                                    <span style="font-size:13px; font-weight:700; color:var(--sys-green-deeper);">🚚 Outside Dasma Transport Fee</span>
                                     <div class="input-group" style="width:120px;">
-                                        <span class="input-prefix" style="font-size:12px;">₱</span>
-                                        <input type="number" class="form-control" id="s1_transport" value="0" style="font-size:13px; font-weight:700;" oninput="onTransportInput()">
+                                        <span class="input-prefix" style="color:var(--sys-green-dark); font-size:12px;">₱</span>
+                                        <input type="number" class="form-control" id="s1_transport" min="0" placeholder="0.00" autocomplete="off"
+                                               style="font-size:13px; font-weight:700; text-align:right;" 
+                                               oninput="onTransportInput()">
                                     </div>
                                 </div>
-                                <div style="font-size:10px; color:rgba(60,60,67,0.45); margin-top:4px;">Address is outside Dasmariñas. Please enter transport fee manually.</div>
+                                <div style="font-size:10px; color:var(--label-3); margin-top:4px;">Address is outside Dasmariñas. Please enter fee manually.</div>
                             </div>
                         </div>
 
@@ -216,7 +218,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                     Number of Guests (Pax) <span class="required">*</span>
                                 </label>
                                 <div class="input-group">
-                                    <span class="input-prefix" style="font-weight:700;">👥</span>
+                                   
                                     <input type="number" class="form-control" id="s3_pax"
                                            min="<?= MIN_PAX ?>" max="<?= MAX_PAX ?>" step="5" placeholder="e.g. <?= MIN_PAX + 25 ?>"
                                            style="font-size:20px; font-weight:700; letter-spacing:-0.3px;"
@@ -301,7 +303,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                     <div style="font-size:12px; font-weight:600; color:rgba(0,0,0,0.75);">Transport Fee</div>
                                     <div style="font-size:11px; color:rgba(60,60,67,0.45);">Manual entry</div>
                                 </div>
-                                <span id="pr_transportCost" style="font-size:13px; font-weight:700; color:#007AFF;"></span>
+                                <span id="pr_transportCost" style="font-size:13px; font-weight:700; color:var(--sys-green-deeper);"></span>
                             </div>
                             <div style="height:0.5px; background:rgba(60,60,67,0.1); margin:12px 0;"></div>
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
@@ -321,26 +323,43 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                     </div>
 
                     <!-- Row 2: Dish Selection (full width) -->
-                    <div id="dishSelectionPanel" style="display:none; padding-top:20px; border-top:0.5px solid rgba(60,60,67,0.08);">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:10px 14px; background:rgba(48,209,88,0.05); border-radius:12px;">
-                            <div>
-                                <div style="font-size:13px; font-weight:700;">Main Dishes</div>
-                                <div style="font-size:11px; color:rgba(60,60,67,0.45);">Choose up to <span id="maxMainLabel">5</span> items</div>
-                            </div>
-                            <div id="mainDishCounter" style="font-size:12px; font-weight:700; color:#1A7A32;">0 / 5</div>
+                    <div id="dishSelectionPanel" style="display:none; padding-top:24px; border-top:1px solid rgba(60,60,67,0.06); margin-top:10px;">
+                        <!-- Meal Type Filter (iOS Segmented Control Style) -->
+                        <div id="mealTypeFilter" style="margin-bottom:24px; display:flex; align-items:center; background:rgba(60,60,67,0.04); padding:4px; border-radius:14px; border:0.5px solid rgba(60,60,67,0.06); max-width:400px; margin-left:auto; margin-right:auto;">
+                            <button type="button" class="meal-filter-btn active" id="mf_all" onclick="setManualMealType('all')" style="flex:1; border:none; background:white; border-radius:10px; padding:8px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.08); transition:all 0.25s; color:var(--label);">🌎 All</button>
+                            <button type="button" class="meal-filter-btn" id="mf_breakfast" onclick="setManualMealType('breakfast')" style="flex:1; border:none; background:none; border-radius:10px; padding:8px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.25s; color:rgba(60,60,67,0.5);">🍳 B-fast</button>
+                            <button type="button" class="meal-filter-btn" id="mf_lunch" onclick="setManualMealType('lunch')" style="flex:1; border:none; background:none; border-radius:10px; padding:8px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.25s; color:rgba(60,60,67,0.5);">🍱 Lunch</button>
+                            <button type="button" class="meal-filter-btn" id="mf_dinner" onclick="setManualMealType('dinner')" style="flex:1; border:none; background:none; border-radius:10px; padding:8px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.25s; color:rgba(60,60,67,0.5);">🍷 Dinner</button>
                         </div>
-                        <div id="mainDishGrid"></div>
 
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:10px 14px; background:rgba(255,149,0,0.05); border-radius:12px; margin-top:10px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:12px 16px; background:linear-gradient(to right, rgba(48,209,88,0.08), transparent); border-radius:12px; border-left:4px solid var(--sys-green);">
                             <div>
-                                <div style="font-size:13px; font-weight:700;">Desserts</div>
-                                <div style="font-size:11px; color:rgba(60,60,67,0.45);">Choose up to <span id="maxDessertLabel">1</span> item</div>
+                                <div style="font-size:14px; font-weight:800; color:var(--sys-green-deeper);">Main Dishes</div>
+                                <div style="font-size:11px; color:rgba(60,60,67,0.45); font-weight:500;">Choose up to <span id="maxMainLabel">5</span> items</div>
                             </div>
-                            <div id="dessertCounter" style="font-size:12px; font-weight:700; color:#9A5400;">0 / 1</div>
+                            <div id="mainDishCounter" style="font-size:14px; font-weight:800; color:#1A7A32; background:#fff; padding:4px 10px; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.04);">0 / 5</div>
                         </div>
-                        <div id="dessertDishGrid"></div>
+                        <div id="mainDishGrid" style="margin-bottom:24px;"></div>
+
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:12px 16px; background:linear-gradient(to right, rgba(255,149,0,0.08), transparent); border-radius:12px; border-left:4px solid #FF9500;">
+                            <div>
+                                <div style="font-size:14px; font-weight:800; color:#9A5400;">Desserts</div>
+                                <div style="font-size:11px; color:rgba(60,60,67,0.45); font-weight:500;">Choose up to <span id="maxDessertLabel">1</span> item</div>
+                            </div>
+                            <div id="dessertCounter" style="font-size:14px; font-weight:800; color:#9A5400; background:#fff; padding:4px 10px; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.04);">0 / 1</div>
+                        </div>
+                        <div id="dessertDishGrid" style="margin-bottom:24px;"></div>
+
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:12px 16px; background:linear-gradient(to right, var(--sys-green-tint), transparent); border-radius:12px; border-left:4px solid var(--sys-green);">
+                            <div>
+                                <div style="font-size:14px; font-weight:800; color:var(--sys-green-deeper);">Rice Selection</div>
+                                <div style="font-size:11px; color:rgba(60,60,67,0.45); font-weight:500;">Select rice option</div>
+                            </div>
+                        </div>
+                        <div id="riceDishGrid" style="margin-bottom:24px;"></div>
 
                         <div id="additionalDishGrid"></div>
+                    </div>
 
                         <!-- ── CUSTOM ADD-ONS SECTION ── -->
                         <div style="margin-top:20px; padding-top:20px; border-top:0.5px solid rgba(60,60,67,0.08);">
@@ -355,14 +374,12 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             </div>
 
                             <!-- Custom Items Container -->
+                            <!-- Custom Items Container -->
                             <div id="customItemsContainer" style="display:grid; gap:8px;"></div>
-                            
                             <div id="noCustomItemsHint" style="padding:20px; text-align:center; background:rgba(60,60,67,0.02); border:1px dashed rgba(60,60,67,0.1); border-radius:12px; font-size:12px; color:rgba(60,60,67,0.4);">
                                 No custom items added yet.
                             </div>
                         </div>
-                    </div>
-
                 </div>
 
                 <!-- ══ STEP 5: Summary, Downpayment & T&C ══ -->
@@ -449,24 +466,23 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                     </span>
                                 </label>
                             </div>
-                        </div>
-                    </div>
-                </div>
-
+                        </div> <!-- /right-col -->
+                    </div> <!-- /grid -->
+                </div> <!-- /panel5 -->
             </div><!-- /modal-body -->
 
             <!-- ── FOOTER NAVIGATION ── -->
-            <div class="modal-footer" style="padding:16px 28px; border-top:0.5px solid rgba(60,60,67,0.08); gap:10px;">
-                <button class="btn btn-secondary" id="stepPrevBtn" onclick="stepGo(-1)" style="display:none;">
-                    <i class="fas fa-arrow-left"></i> Back
+            <div class="modal-footer" style="padding:16px 24px; border-top:0.5px solid rgba(60,60,67,0.08); gap:12px;">
+                <button class="btn btn-secondary" id="stepPrevBtn" onclick="stepGo(-1)" style="display:none; padding:10px 20px; border-radius:12px; font-weight:600;">
+                    <i class="fas fa-chevron-left me-2"></i> Back
                 </button>
                 <div style="flex:1;"></div>
-                <button class="btn btn-outline-secondary" onclick="closeBookingStepper()">Cancel</button>
-                <button class="btn btn-primary" id="stepNextBtn" onclick="stepGo(1)">
-                    Next <i class="fas fa-arrow-right"></i>
+                <button type="button" class="btn btn-outline-secondary" onclick="closeBookingStepper()" style="padding:10px 20px; border-radius:12px; font-weight:600;">Cancel</button>
+                <button class="btn btn-primary" id="stepNextBtn" onclick="stepGo(1)" style="padding:10px 28px; border-radius:12px; font-weight:700;">
+                    Next <i class="fas fa-chevron-right ms-2"></i>
                 </button>
-                <button class="btn btn-success" id="stepSubmitBtn" style="display:none;" onclick="submitBooking()">
-                    <i class="fas fa-check-circle"></i> Confirm Booking
+                <button class="btn btn-success" id="stepSubmitBtn" style="display:none; padding:10px 28px; border-radius:12px; font-weight:700;" onclick="submitBooking()">
+                    Confirm Booking <i class="fas fa-check-circle ms-2"></i>
                 </button>
             </div>
 
@@ -477,73 +493,122 @@ $stepperRole = $bookingStepperRole ?? 'admin';
 <!-- ══ STEPPER STYLES ══ -->
 <style>
 .stepper-step .stepper-circle {
-    background: rgba(120,120,128,0.1);
-    color: rgba(60,60,67,0.4);
-    border: 1.5px solid rgba(60,60,67,0.15);
+    width: 38px !important;
+    height: 38px !important;
+    background: rgba(120,120,128,0.12);
+    color: rgba(60,60,67,0.45);
+    border: 1.5px solid rgba(60,60,67,0.1);
+    font-size: 15px !important;
 }
-.stepper-step > div:last-child { color: rgba(60,60,67,0.35); }
+.stepper-step > div:last-child { 
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: rgba(60,60,67,0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
 .stepper-step.active .stepper-circle {
-    background: var(--sys-green);
-    color: #fff;
-    border-color: var(--sys-green);
-    box-shadow: 0 4px 12px rgba(48,209,88,0.28);
+    background: var(--sys-green) !important;
+    color: #fff !important;
+    border-color: var(--sys-green) !important;
+    box-shadow: 0 6px 16px rgba(48,209,88,0.35) !important;
 }
 .stepper-step.active > div:last-child { color: var(--sys-green-dark); }
 .stepper-step.done .stepper-circle {
-    background: rgba(48,209,88,0.12);
-    color: var(--sys-green-dark);
-    border-color: rgba(48,209,88,0.3);
+    background: rgba(48,209,88,0.1) !important;
+    color: var(--sys-green-dark) !important;
+    border-color: rgba(48,209,88,0.25) !important;
 }
-.stepper-step.done > div:last-child { color: rgba(60,60,67,0.5); }
-.stepper-line.done { background: rgba(48,209,88,0.4) !important; }
+.stepper-step.done > div:last-child { color: rgba(60,60,67,0.6); }
+.stepper-line {
+    height: 2px !important;
+    background: rgba(60,60,67,0.08) !important;
+}
+.stepper-line.done { background: var(--sys-green) !important; opacity: 0.4; }
 
 .stepper-panel { display: none; }
-.stepper-panel.active { display: block; }
+.stepper-panel.active { display: block; animation: panelFade 0.3s ease-out; }
+@keyframes panelFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 /* Availability badges */
-.avail-ok  { display:flex; align-items:center; gap:10px; padding:12px 16px; background:rgba(48,209,88,0.08); border:0.5px solid rgba(48,209,88,0.25); border-radius:12px; font-size:13px; font-weight:600; color:#1A7A32; }
-.avail-no  { display:flex; align-items:center; gap:10px; padding:12px 16px; background:rgba(255,59,48,0.07); border:0.5px solid rgba(255,59,48,0.2); border-radius:12px; font-size:13px; font-weight:600; color:#C0392B; }
-.avail-chk { display:flex; align-items:center; gap:10px; padding:12px 16px; background:rgba(255,149,0,0.07); border:0.5px solid rgba(255,149,0,0.2); border-radius:12px; font-size:13px; color:#9A5400; }
+.avail-ok  { display:flex; align-items:center; gap:12px; padding:16px 20px; background:rgba(48,209,88,0.08); border:1px solid rgba(48,209,88,0.2); border-radius:16px; font-size:14px; font-weight:700; color:#1A7A32; }
+.avail-no  { display:flex; align-items:center; gap:12px; padding:16px 20px; background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.2); border-radius:16px; font-size:14px; font-weight:700; color:#C0392B; }
+.avail-chk { display:flex; align-items:center; gap:12px; padding:16px 20px; background:rgba(255,149,0,0.08); border:1px solid rgba(255,149,0,0.2); border-radius:16px; font-size:14px; color:#9A5400; font-weight:600; }
 
 /* Dish selection grid */
 .dish-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 7px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
 }
 .dish-card {
     position: relative;
-    border: 1px solid rgba(60,60,67,0.13);
-    border-radius: 10px;
-    padding: 8px 10px;
+    border: 1px solid rgba(60,60,67,0.08);
+    border-radius: 12px;
+    padding: 10px 14px;
     cursor: pointer;
-    transition: all 0.15s;
-    background: rgba(255,255,255,0.7);
+    transition: all 0.2s var(--ease-spring);
+    background: #fff;
     display: flex;
     align-items: center;
-    gap: 7px;
-    font-size: 12px;
-    font-weight: 500;
-    color: rgba(60,60,67,0.75);
+    gap: 12px;
     user-select: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
 }
 .dish-card:hover {
-    border-color: rgba(48,209,88,0.35);
-    background: rgba(48,209,88,0.04);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    border-color: rgba(48,209,88,0.3);
+}
+.dish-card .dish-icon-container {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(60,60,67,0.03);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+.dish-card .dish-info {
+    flex: 1;
+    min-width: 0;
+}
+.dish-card .dish-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--label);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dish-card .dish-meta {
+    font-size: 9px;
+    color: rgba(60,60,67,0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-top: 1px;
 }
 /* All Category Selected State (Unified Green Theme) */
 .dish-card.selected {
     border-color: var(--sys-green);
-    background: rgba(48,209,88,0.08);
-    color: #1A7A32;
-    font-weight: 600;
+    background: #F2FBF4;
+    box-shadow: 0 2px 8px rgba(48,209,88,0.1);
+}
+.dish-card.selected .dish-name {
+    color: var(--sys-green-deeper);
+    font-weight: 700;
+}
+.dish-card.selected .dish-icon-container {
+    background: rgba(48,209,88,0.1);
 }
 .dish-card.selected::after {
     content: '\2713';
     position: absolute;
-    top: 4px; right: 7px;
-    font-size: 10px;
-    font-weight: 800;
+    top: 8px; right: 10px;
+    font-size: 11px;
+    font-weight: 900;
     color: var(--sys-green);
 }
 /* Surcharge Indicator */
@@ -553,17 +618,20 @@ $stepperRole = $bookingStepperRole ?? 'admin';
 .dish-card.surcharged::before {
     content: 'EXTRA';
     position: absolute;
-    top: -6px; right: -4px;
+    bottom: -8px; right: 8px;
     background: #FF9500;
     color: white;
-    font-size: 8px;
-    padding: 1px 4px;
-    border-radius: 4px;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 6px;
     font-weight: 800;
+    box-shadow: 0 2px 6px rgba(255,149,0,0.3);
+    z-index: 5;
 }
 .dish-card.disabled {
     opacity: 0.4;
     cursor: not-allowed;
+    filter: grayscale(1);
 }
 
 @media (max-width:768px) {
@@ -682,10 +750,10 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         resetStepper();
         try {
             const [pkgData, dishData, cdData, avData] = await Promise.all([
-                Api.get(BASE + '/src/api/packages.php'),
-                Api.get(BASE + '/src/api/packages.php', { dishes: 1 }),
-                Api.get(BASE + '/src/api/clients.php'),
-                Api.get(BASE + '/src/api/availability.php', { booked_dates: 1 }),
+                Api.get(BASE + 'src/api/packages.php'),
+                Api.get(BASE + 'src/api/packages.php', { dishes: 1 }),
+                Api.get(BASE + 'src/api/clients.php'),
+                Api.get(BASE + 'src/api/availability.php', { booked_dates: 1 }),
             ]);
             allPackages          = pkgData.packages   || [];
             state.additionalRates.main    = pkgData.rates.extra_main_rate || defaultRateMain;
@@ -899,7 +967,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
 
                 // Save new client
                 try {
-                    const r = await Api.post(BASE + '/src/api/clients.php', {
+                    const r = await Api.post(BASE + 'src/api/clients.php', {
                         name, phone,
                         email:   document.getElementById('nc_email').value.trim(),
                         address: document.getElementById('nc_address').value.trim(),
@@ -908,7 +976,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                     state.clientId = r.id;
                     Toast.success('Client added!');
                     // Refresh client list
-                    const cd = await Api.get(BASE + '/src/api/clients.php');
+                    const cd = await Api.get(BASE + 'src/api/clients.php');
                     allClients = cd.clients || [];
                     buildClientSelect();
                 } catch(e) { Toast.error(e.message); return false; }
@@ -996,7 +1064,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         clearTimeout(availTimer);
         availTimer = setTimeout(async () => {
             try {
-                const d = await Api.get(BASE + '/src/api/availability.php', { date });
+                const d = await Api.get(BASE + 'src/api/availability.php', { date });
                 if (d.available) {
                     state.available = true;
                     updateAvailUI('ok');
@@ -1073,7 +1141,13 @@ $stepperRole = $bookingStepperRole ?? 'admin';
     }
 
     window.onTransportInput = function () {
-        state.transportFee = parseFloat(document.getElementById('s1_transport').value) || 0;
+        const el = document.getElementById('s1_transport');
+        let val = parseFloat(el.value) || 0;
+        if (val < 0) {
+            val = 0;
+            el.value = 0;
+        }
+        state.transportFee = val;
         calcPricing();
     }
 
@@ -1358,10 +1432,10 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         // Group categorizing — Main categories first
         const mainCats = ['Beef', 'Pork', 'Chicken', 'Seafood', 'Vegetables', 'Pasta', 'Main'];
         const dessertCats = ['Dessert', 'Desserts', 'Sweets'];
+        const riceCats = ['Rice'];
         
         let htmlMains = '';
         let htmlDesserts = '';
-        let htmlOthers = '';
 
         const renderGroup = (cat, items, isMain, isDessert) => {
             if(!items || items.length === 0) return '';
@@ -1369,7 +1443,8 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             // Filter by Meal Type
             const filtered = items.filter(d => {
                 const mt = d.meal_type || 'all';
-                return mt === 'all' || mt === state.mealType || state.mealType === 'all';
+                const mtList = mt.split(',');
+                return mtList.includes('all') || mtList.includes(state.mealType) || state.mealType === 'all';
             });
             if(filtered.length === 0) return '';
 
@@ -1395,7 +1470,13 @@ $stepperRole = $bookingStepperRole ?? 'admin';
 
                 return `
                     <div class="dish-card ${isSelected ? 'selected' : ''} ${isExtra ? 'surcharged' : ''}" id="dish_${d.id}" onclick="toggleDish(${d.id}, ${isMain}, ${isDessert})">
-                        <span style="font-size:13px;">${isMain?'🍲':isDessert?'🍮':'🥗'}</span> ${d.name}
+                        <div class="dish-icon-container">
+                            <span class="dish-emoji">${isMain?'🍲':isDessert?'🍮':'🍚'}</span>
+                        </div>
+                        <div class="dish-info">
+                            <div class="dish-name">${esc(d.name)}</div>
+                            <div class="dish-meta">${(d.meal_type || 'all').replace(/,/g, ' · ')}</div>
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -1408,6 +1489,9 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             `;
         };
 
+        let htmlRice = '';
+        let htmlOthers = '';
+
         Object.keys(allDishesGroups).forEach(cat => {
             const items = allDishesGroups[cat];
             const lowerCat = cat.toLowerCase();
@@ -1415,20 +1499,46 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 htmlMains += renderGroup(cat, items, true, false);
             } else if (dessertCats.some(c => c.toLowerCase() === lowerCat)) {
                 htmlDesserts += renderGroup(cat, items, false, true);
+            } else if (riceCats.some(c => c.toLowerCase() === lowerCat)) {
+                htmlRice += renderGroup(cat, items, false, false);
             } else {
                 htmlOthers += renderGroup(cat, items, false, false);
             }
         });
 
         const mainGrid = document.getElementById('mainDishGrid');
-        if (mainGrid) mainGrid.innerHTML = htmlMains || '<div style="font-size:12px; color:rgba(60,60,67,0.4); padding:10px;">No main dishes found in menu.</div>';
+        if (mainGrid) mainGrid.innerHTML = htmlMains || '<div style="font-size:12px; color:rgba(60,60,67,0.4); padding:10px;">No main dishes found for this meal type.</div>';
         
         const dessertGrid = document.getElementById('dessertDishGrid');
-        if (dessertGrid) dessertGrid.innerHTML = htmlDesserts || '<div style="font-size:12px; color:rgba(60,60,67,0.4); padding:10px;">No desserts found in menu.</div>';
+        if (dessertGrid) dessertGrid.innerHTML = htmlDesserts || '<div style="font-size:12px; color:rgba(60,60,67,0.4); padding:10px;">No desserts found for this meal type.</div>';
         
+        const riceGrid = document.getElementById('riceDishGrid');
+        if (riceGrid) riceGrid.innerHTML = htmlRice || '<div style="font-size:12px; color:rgba(60,60,67,0.4); padding:10px;">No rice options found for this meal type.</div>';
+
         const otherGrid = document.getElementById('additionalDishGrid');
         if (otherGrid) otherGrid.innerHTML = htmlOthers;
     }
+
+    window.setManualMealType = function(type) {
+        state.mealType = type;
+        
+        // Update UI buttons
+        document.querySelectorAll('.meal-filter-btn').forEach(btn => {
+            btn.style.background = 'none';
+            btn.style.color = 'rgba(60,60,67,0.6)';
+            btn.style.fontWeight = '600';
+            btn.style.boxShadow = 'none';
+        });
+        const activeBtn = document.getElementById('mf_' + type);
+        if (activeBtn) {
+            activeBtn.style.background = 'white';
+            activeBtn.style.color = 'var(--label)';
+            activeBtn.style.fontWeight = '700';
+            activeBtn.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+        }
+        
+        buildDishSelection();
+    };
 
     window.toggleDish = function (id, isMain, isDessert) {
         const el = document.getElementById('dish_' + id);
@@ -1567,41 +1677,77 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         const additionalNames = state.selectedAdditional.map(findDish).filter(Boolean);
 
         document.getElementById('summaryCard').innerHTML = `
-            <div style="display:grid; gap:7px; font-size:12.5px;">
-                <div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Event Date</span><strong>${Format.dateShort(state.date)}</strong></div>
-                ${state.time ? `<div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Time</span><strong>${Format.time(state.time)}</strong></div>` : ''}
-                ${state.location ? `<div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Venue</span><strong style="text-align:right; max-width:160px;">${state.location}</strong></div>` : ''}
-                <div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Client</span><strong>${clientName}</strong></div>
-                <div style="height:0.5px; background:rgba(60,60,67,0.1); margin:2px 0;"></div>
-                <div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Package</span><strong>${pkgLabel}</strong></div>
-                <div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Guests</span><strong>${state.pax} pax</strong></div>
-                <div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Base Price</span><strong>${Format.peso(state.basePrice)}</strong></div>
-                ${state.extraPax > 0 ? `<div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Extra ${state.extraPax} pax</span><strong style="color:#FF9500;">+${Format.peso(state.extraCost)}</strong></div>` : ''}
-                ${(state.transportFee > 0) ? `<div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Transport Fee</span><strong>+${Format.peso(state.transportFee)}</strong></div>` : ''}
-                ${(state.customFees + state.customItems.reduce((a,b)=>a+(parseFloat(b.price)||0),0)) > 0 ? `
-                    <div style="display:flex; justify-content:space-between;">
-                        <span style="color:rgba(60,60,67,0.5);">Menu & Add-on Surcharges</span>
-                        <strong style="color:#FF3B30;">+${Format.peso(state.customFees + state.customItems.reduce((a,b)=>a+(parseFloat(b.price)||0),0))}</strong>
-                    </div>` : ''}
-                <div style="height:0.5px; background:rgba(60,60,67,0.1); margin:2px 0;"></div>
-                <div style="display:flex; justify-content:space-between;"><span style="font-weight:700;">Total</span><strong style="font-size:16px; color:var(--sys-green);">${Format.peso(state.totalCost)}</strong></div>
-                <div style="height:0.5px; background:rgba(60,60,67,0.1); margin:4px 0;"></div>
-                ${mainNames.length > 0 ? `
-                <div>
-                    <div style="color:rgba(60,60,67,0.5); margin-bottom:4px;">Main Dishes (${mainNames.length})</div>
-                    <div style="display:flex; flex-wrap:wrap; gap:4px;">
-                        ${mainNames.map(n => `<span style="background:rgba(48,209,88,0.1); color:#1A7A32; border-radius:6px; padding:2px 8px; font-size:11px; font-weight:600;">${n}</span>`).join('')}
+            <div style="display:grid; gap:16px;">
+                <!-- Section: Event Details -->
+                <div style="background:rgba(60,60,67,0.03); border-radius:18px; padding:16px; border:0.5px solid rgba(60,60,67,0.08);">
+                    <div style="font-size:10px; font-weight:800; color:var(--label-3); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:10px;">📅 Event Details</div>
+                    <div style="display:grid; gap:8px;">
+                        <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--label-2);">Date & Time</span><strong>${Format.dateShort(state.date)} · ${state.time ? Format.time(state.time) : ''}</strong></div>
+                        <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--label-2);">Meal Type</span><strong style="text-transform:capitalize; color:var(--sys-green-dark);">${state.mealType || 'all'}</strong></div>
+                        ${state.location ? `<div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--label-2);">Venue</span><strong style="text-align:right; max-width:180px;">${state.location}</strong></div>` : ''}
+                        <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--label-2);">Client</span><strong>${clientName}</strong></div>
                     </div>
-                </div>` : ''}
-                ${dessertNames.length > 0 ? `
-                <div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Desserts (${dessertNames.length})</span><strong style="text-align:right; max-width:200px;">${dessertNames.join(', ')}</strong></div>` : ''}
-                ${additionalNames.length > 0 ? `
-                <div style="display:flex; justify-content:space-between;"><span style="color:rgba(60,60,67,0.5);">Rice & Add-ons (${additionalNames.length})</span><strong style="text-align:right; max-width:200px;">${additionalNames.join(', ')}</strong></div>` : ''}
+                </div>
+
+                <!-- Section: Package & Pricing -->
+                <div style="background:rgba(48,209,88,0.03); border-radius:18px; padding:16px; border:0.5px solid rgba(48,209,88,0.15);">
+                    <div style="font-size:10px; font-weight:800; color:#1A7A32; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:10px;">💰 Investment Summary</div>
+                    <div style="display:grid; gap:8px; margin-bottom:12px;">
+                        <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--label-2);">Package Tier</span><strong>${pkgLabel}</strong></div>
+                        <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--label-2);">Guest Count</span><strong>${state.pax} pax</strong></div>
+                        <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--label-2);">Base Price</span><strong>${Format.peso(state.basePrice)}</strong></div>
+                        ${state.extraPax > 0 ? `<div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--label-2);">Extra ${state.extraPax} pax</span><strong style="color:var(--sys-orange);">+${Format.peso(state.extraCost)}</strong></div>` : ''}
+                        ${(state.transportFee > 0) ? `<div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--label-2);">Transport Fee</span><strong>+${Format.peso(state.transportFee)}</strong></div>` : ''}
+                        ${(state.customFees + state.customItems.reduce((a,b)=>a+(parseFloat(b.price)||0),0)) > 0 ? `
+                            <div style="display:flex; justify-content:space-between; font-size:13px;">
+                                <span style="color:var(--label-2);">Menu & Add-on Surcharges</span>
+                                <strong style="color:var(--sys-red);">+${Format.peso(state.customFees + state.customItems.reduce((a,b)=>a+(parseFloat(b.price)||0),0))}</strong>
+                            </div>` : ''}
+                    </div>
+                    <div style="height:1px; background:rgba(48,209,88,0.1); margin-bottom:10px;"></div>
+                    <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                        <span style="font-weight:800; font-size:14px;">Total Cost</span>
+                        <strong style="font-size:22px; color:var(--sys-green-deeper); letter-spacing:-0.5px;">${Format.peso(state.totalCost)}</strong>
+                    </div>
+                </div>
+
+                <!-- Section: Menu Selection -->
+                <div style="background:white; border-radius:18px; padding:16px; border:0.5px solid rgba(60,60,67,0.08); box-shadow:0 4px 12px rgba(0,0,0,0.03);">
+                    <div style="font-size:10px; font-weight:800; color:var(--label-3); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:12px;">🍽️ Menu Selection</div>
+                    
+                    <div style="display:grid; gap:12px;">
+                        ${mainNames.length > 0 ? `
+                        <div>
+                            <div style="font-size:11px; font-weight:700; color:var(--label-2); margin-bottom:6px;">Main Courses (${mainNames.length})</div>
+                            <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                                ${mainNames.map(n => `<span style="background:rgba(48,209,88,0.1); color:#1A7A32; border-radius:8px; padding:4px 10px; font-size:11.5px; font-weight:600; border:0.5px solid rgba(48,209,88,0.15);">${n}</span>`).join('')}
+                            </div>
+                        </div>` : ''}
+                        
+                        ${dessertNames.length > 0 ? `
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; font-size:13px;">
+                            <span style="color:var(--label-2); min-width:80px;">Desserts</span>
+                            <strong style="text-align:right; font-weight:600;">${dessertNames.join(', ')}</strong>
+                        </div>` : ''}
+                        
+                        ${additionalNames.length > 0 ? `
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; font-size:13px;">
+                            <span style="color:var(--label-2); min-width:80px;">Rice & Others</span>
+                            <strong style="text-align:right; font-weight:600;">${additionalNames.join(', ')}</strong>
+                        </div>` : ''}
+
+                        ${state.customItems.length > 0 ? `
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; font-size:13px;">
+                            <span style="color:var(--label-2); min-width:80px;">Custom Add-ons</span>
+                            <strong style="text-align:right; font-weight:600; color:var(--sys-indigo);">${state.customItems.map(c => c.name).filter(Boolean).join(', ')}</strong>
+                        </div>` : ''}
+                    </div>
+                </div>
+
                 ${state.dietaryNotes ? `
-                <div style="height:0.5px; background:rgba(60,60,67,0.1); margin:4px 0;"></div>
-                <div style="background:rgba(255,149,0,0.07); border:0.5px solid rgba(255,149,0,0.3); border-radius:9px; padding:10px 12px;">
-                    <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; color:#9A5400; margin-bottom:4px;">⚠️ Dietary / Allergy Notes</div>
-                    <div style="font-size:12px; color:rgba(60,60,67,0.8); line-height:1.5;">${state.dietaryNotes}</div>
+                <div style="background:rgba(255,149,0,0.07); border:0.5px solid rgba(255,149,0,0.3); border-radius:18px; padding:14px 16px;">
+                    <div style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; color:#9A5400; margin-bottom:6px;">⚠️ Dietary / Allergy Notes</div>
+                    <div style="font-size:13px; color:rgba(60,60,67,0.8); line-height:1.6; font-weight:500;">${state.dietaryNotes}</div>
                 </div>` : ''}
             </div>
         `;
@@ -1729,7 +1875,7 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 downpayment_ref:    document.getElementById('s4_dpRef').value || null,
             };
 
-            const res = await Api.post(BASE + '/src/api/bookings.php', payload);
+            const res = await Api.post(BASE + 'src/api/bookings.php', payload);
             const isConfirmed = res.booking_status === 'confirmed';
 
             // Staff assignment removed — handled via Dispatching module after booking

@@ -78,7 +78,9 @@ if ($method === 'POST') {
     $startTime  = $data['actual_start_time'] ?? null;
     $endTime    = $data['actual_end_time'] ?? null;
     $complaints = $data['complaints'] ?? null;
-    $breakages  = $data['breakages'] ?? []; // array of {equipment_id, quantity, notes}
+    $clientRating = isset($data['client_rating']) ? (int)$data['client_rating'] : null;
+    $staffRating  = isset($data['staff_rating']) ? (int)$data['staff_rating'] : null;
+    $breakages  = $data['breakages'] ?? []; // array of {equipment_id, quantity, charge_to, notes}
 
     // Validate booking exists and staff is assigned (if staff role)
     if ($role === 'staff') {
@@ -119,55 +121,79 @@ if ($method === 'POST') {
             SET actual_start_time = :start, 
                 actual_end_time = :end,
                 event_report_notes = :notes,
+                client_rating = :client_rating,
+                staff_rating = :staff_rating,
                 report_submitted_by = :staff,
                 report_submitted_at = NOW(),
                 overtime_minutes = :ot_min,
                 overtime_rate = :ot_rate,
-                overtime_total = :ot_total
+                overtime_total = :ot_total,
+                total_cost = total_cost + :ot_total -- Automatically bill overtime
             WHERE id = :id
         ");
         $update->execute([
-            ':start'    => $startTime,
-            ':end'      => $endTime,
-            ':notes'    => $complaints,
-            ':staff'    => $userId,
-            ':id'       => $bid,
-            ':ot_min'   => $overtimeMinutes,
-            ':ot_rate'  => $overtimeRate,
-            ':ot_total' => $overtimeTotal,
+            ':start'         => $startTime,
+            ':end'           => $endTime,
+            ':notes'         => $complaints,
+            ':client_rating' => $clientRating,
+            ':staff_rating'  => $staffRating,
+            ':staff'         => $userId,
+            ':id'            => $bid,
+            ':ot_min'        => $overtimeMinutes,
+            ':ot_rate'       => $overtimeRate,
+            ':ot_total'      => $overtimeTotal,
         ]);
 
         // ── Log breakages ──
         $breakageTotal = 0;
         if (!empty($breakages)) {
             $insertBreak = $pdo->prepare("
-                INSERT INTO booking_breakages (booking_id, equipment_id, quantity, unit_price, total_cost, notes, logged_by)
-                VALUES (:bid, :eid, :qty, :price, :total, :notes, :uid)
+                INSERT INTO booking_breakages (booking_id, equipment_id, quantity, unit_price, total_cost, charge_to, notes, logged_by)
+                VALUES (:bid, :eid, :qty, :price, :total, :charge, :notes, :uid)
             ");
-
+            $updateStock = $pdo->prepare("UPDATE equipment SET current_stock = current_stock - :qty, total_stock = total_stock - :qty WHERE id = :eid");
+            
             foreach ($breakages as $br) {
                 if (empty($br['equipment_id']) || empty($br['quantity'])) continue;
                 $qty = max(1, (int)$br['quantity']);
+                $chargeTo = in_array($br['charge_to'] ?? '', ['client', 'staff', 'business']) ? $br['charge_to'] : 'client';
 
                 // Get equipment price
-                $eStmt = $pdo->prepare("SELECT name, replacement_cost FROM equipment WHERE id = :id AND is_active = 1");
+                $eStmt = $pdo->prepare("SELECT name, replacement_cost, current_stock FROM equipment WHERE id = :id AND is_active = 1");
                 $eStmt->execute([':id' => (int)$br['equipment_id']]);
                 $equipment = $eStmt->fetch();
                 if (!$equipment) continue;
 
+                // Stop if insufficient stock
+                if ($equipment['current_stock'] < $qty) {
+                    throw new Exception("Insufficient stock for " . $equipment['name'] . ". Only " . $equipment['current_stock'] . " available.");
+                }
+
                 $unitPrice = (float)$equipment['replacement_cost'];
                 $total = round($unitPrice * $qty, 2);
-                $breakageTotal += $total;
+                
+                if ($chargeTo === 'client') {
+                    $breakageTotal += $total;
+                }
 
                 $insertBreak->execute([
-                    ':bid'   => $bid,
-                    ':eid'   => (int)$br['equipment_id'],
-                    ':qty'   => $qty,
-                    ':price' => $unitPrice,
-                    ':total' => $total,
-                    ':notes' => $br['notes'] ?? null,
-                    ':uid'   => $userId,
+                    ':bid'    => $bid,
+                    ':eid'    => (int)$br['equipment_id'],
+                    ':qty'    => $qty,
+                    ':price'  => $unitPrice,
+                    ':total'  => $total,
+                    ':charge' => $chargeTo,
+                    ':notes'  => $br['notes'] ?? null,
+                    ':uid'    => $userId,
                 ]);
+
+                $updateStock->execute([':qty' => $qty, ':eid' => (int)$br['equipment_id']]);
+            }
+
+            // Update booking breakage_total if client was charged
+            if ($breakageTotal > 0) {
+                $pdo->prepare("UPDATE bookings SET breakage_total = breakage_total + :total, total_cost = total_cost + :total WHERE id = :bid")
+                    ->execute([':total' => $breakageTotal, ':bid' => $bid]);
             }
         }
 

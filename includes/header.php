@@ -22,6 +22,7 @@ $extraCss     = $extraCss     ?? [];
 
     <!-- Apple-style Design System -->
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/main.css">
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/pagination.css">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/print.css" media="print">
 
     <script>

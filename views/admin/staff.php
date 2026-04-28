@@ -63,7 +63,7 @@ include __DIR__ . '/../../includes/sidebar.php';
     <div class="card">
         <div class="card-header">
             <div><div class="card-title">All Staff Members</div></div>
-            <button class="btn btn-primary btn-sm" onclick="openAddModal()">
+            <button class="btn btn-primary btn-sm py-3" onclick="openAddModal()">
                 <i class="fas fa-plus"></i> Add Staff
             </button>
         </div>
@@ -252,10 +252,10 @@ function switchTab(name, el) {
 async function loadKPIs() {
     const today = new Date().toISOString().split('T')[0];
     const [usersData, leaveData, pendingLeave, availData] = await Promise.all([
-        Api.get(BASE + '/src/api/staff.php', { role: 'staff' }),
-        Api.get(BASE + '/src/api/leave.php',  { date: today }),
-        Api.get(BASE + '/src/api/leave.php',  { pending_only: 1 }),
-        Api.get(BASE + '/src/api/staff.php',  { available_on: today }),
+        Api.get(BASE + 'src/api/staff.php', { role: 'staff' }),
+        Api.get(BASE + 'src/api/leave.php',  { date: today }),
+        Api.get(BASE + 'src/api/leave.php',  { pending_only: 1 }),
+        Api.get(BASE + 'src/api/staff.php',  { available_on: today }),
     ]);
     allStaff = usersData.users || [];
     const active = allStaff.filter(s => s.is_active == 1).length;
@@ -274,8 +274,8 @@ async function loadRoster() {
     try {
         const today = new Date().toISOString().split('T')[0];
         const [usersData, schedData] = await Promise.all([
-            Api.get(BASE + '/src/api/staff.php', { role: 'staff' }),
-            Api.get(BASE + '/src/api/staff.php',  { available_on: today }),
+            Api.get(BASE + 'src/api/staff.php', { role: 'staff' }),
+            Api.get(BASE + 'src/api/staff.php',  { available_on: today }),
         ]);
         allStaff = usersData.users || [];
         const schedStaff = schedData.staff || [];
@@ -323,7 +323,7 @@ async function loadRoster() {
 async function loadLeaves() {
     const status = document.getElementById('leaveFilter').value;
     try {
-        const d = await Api.get(BASE + '/src/api/leave.php', status ? { status } : {});
+        const d = await Api.get(BASE + 'src/api/leave.php', status ? { status } : {});
         const leaves = d.leaves || [];
         const tbody  = document.getElementById('leavesBody');
         if (!leaves.length) {
@@ -360,7 +360,7 @@ async function reviewLeave(id, status) {
     const label = status === 'approved' ? 'Approve' : 'Reject';
     if (!await confirmDialog(`${label} this leave request? The staff member will be notified.`)) return;
     try {
-        await Api.put(BASE + '/src/api/leave.php', { id, status });
+        await Api.put(BASE + 'src/api/leave.php', { id, status });
         Toast.success(`Leave request ${status}.`);
         loadLeaves();
         loadKPIs();
@@ -373,7 +373,7 @@ async function loadTodayRoster() {
     const d = document.getElementById('todayRoster');
     d.innerHTML = '<div class="spinner"></div>';
     try {
-        const data = await Api.get(BASE + '/src/api/staff.php', { available_on: today });
+        const data = await Api.get(BASE + 'src/api/staff.php', { available_on: today });
         const staff = data.staff || [];
         const booked   = staff.filter(s => s.availability === 'booked');
         const onLeave  = staff.filter(s => s.availability === 'on_leave');
@@ -468,10 +468,10 @@ async function saveStaff() {
     Form.setLoading(btn, true);
     try {
         if (id) {
-            await Api.put(BASE + '/src/api/staff.php', data);
+            await Api.put(BASE + 'src/api/staff.php', data);
             Toast.success('Staff member updated.');
         } else {
-            await Api.post(BASE + '/src/api/staff.php', data);
+            await Api.post(BASE + 'src/api/staff.php', data);
             Toast.success('Staff member added.');
         }
         staffModal.hide();
@@ -485,7 +485,7 @@ async function toggleActive(id, current) {
     const action = current == 1 ? 'Deactivate' : 'Reactivate';
     if (!await confirmDialog(`${action} this staff member?`)) return;
     try {
-        await Api.put(BASE + '/src/api/staff.php', { id, is_active: current == 1 ? 0 : 1 });
+        await Api.put(BASE + 'src/api/staff.php', { id, is_active: current == 1 ? 0 : 1 });
         Toast.success(`Staff member ${action.toLowerCase()}d.`);
         loadRoster();
         loadKPIs();

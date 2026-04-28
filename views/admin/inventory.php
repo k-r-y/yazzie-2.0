@@ -17,7 +17,7 @@ include __DIR__ . '/../../includes/sidebar.php';
             <div class="card-title">Equipment Catalog</div>
             <div class="card-subtitle">Items that can be charged for breakage or loss</div>
         </div>
-        <button class="btn btn-primary" onclick="openAddModal()">
+        <button class="btn btn-primary py-3" onclick="openAddModal()">
             <i class="fas fa-plus"></i> Add Item
         </button>
     </div>
@@ -26,14 +26,16 @@ include __DIR__ . '/../../includes/sidebar.php';
             <thead>
                 <tr>
                     <th>Item Name</th>
+                    <th>Category</th>
                     <th>Unit</th>
                     <th>Replacement Cost</th>
+                    <th>Stock (Cur/Tot)</th>
                     <th>Status</th>
                     <th class="td-actions">Actions</th>
                 </tr>
             </thead>
             <tbody id="inventoryBody">
-                <tr><td colspan="5"><div class="spinner"></div></td></tr>
+                <tr><td colspan="7"><div class="spinner"></div></td></tr>
             </tbody>
         </table>
     </div>
@@ -54,6 +56,25 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <div class="form-group mb-3">
                         <label class="form-label">Item Name <span class="required">*</span></label>
                         <input type="text" class="form-control" name="name" id="equip_name" required placeholder="e.g. Dinner Plate (Ceramic)" maxlength="100">
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Category <span class="required">*</span></label>
+                            <select class="form-select" name="category" id="equip_category" required>
+                                <option value="General">General</option>
+                                <option value="Glassware">Glassware</option>
+                                <option value="Dinnerware">Dinnerware</option>
+                                <option value="Flatware">Flatware</option>
+                                <option value="Linens">Linens</option>
+                                <option value="Serving Equipment">Serving Equipment</option>
+                                <option value="Decor">Decor</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Total Stock <span class="required">*</span></label>
+                            <input type="number" min="0" class="form-control" name="total_stock" id="equip_total_stock" required placeholder="0">
+                        </div>
                     </div>
 
                     <div class="row g-3 mb-3">
@@ -88,7 +109,7 @@ let allEquipment = [];
 
 async function loadInventory() {
     try {
-        const d = await Api.get(BASE + '/src/api/inventory.php', { all: 1 });
+        const d = await Api.get(BASE + 'src/api/inventory.php', { all: 1 });
         allEquipment = d.equipment || [];
         renderTable(allEquipment);
     } catch(e) {
@@ -99,15 +120,17 @@ async function loadInventory() {
 function renderTable(items) {
     const tbody = document.getElementById('inventoryBody');
     if (items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5"><div class="table-empty"><i class="fas fa-boxes-stacked"></i><p>No equipment found.</p></div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7"><div class="table-empty"><i class="fas fa-boxes-stacked"></i><p>No equipment found.</p></div></td></tr>';
         return;
     }
 
     tbody.innerHTML = items.map(i => `
         <tr>
             <td class="td-name">${i.name}</td>
+            <td class="text-muted">${i.category || 'General'}</td>
             <td class="td-mono">${i.unit}</td>
             <td class="fw-600">${Format.peso(i.replacement_cost)}</td>
+            <td><span class="badge badge-info">${i.current_stock} / ${i.total_stock}</span></td>
             <td>
                 <span class="badge badge-${i.is_active == 1 ? 'success' : 'secondary'}">
                     ${i.is_active == 1 ? 'Active' : 'Hidden'}
@@ -129,6 +152,8 @@ function openAddModal() {
     document.getElementById('modalTitle').textContent = 'Add Equipment';
     document.getElementById('equipmentForm').reset();
     document.getElementById('equip_id').value = '';
+    document.getElementById('equip_category').value = 'General';
+    document.getElementById('equip_total_stock').value = 0;
     document.getElementById('equip_is_active').checked = true;
     Modal.open('equipmentModal');
 }
@@ -140,6 +165,8 @@ function openEditModal(id) {
     document.getElementById('modalTitle').textContent = 'Edit Equipment';
     document.getElementById('equip_id').value = item.id;
     document.getElementById('equip_name').value = item.name;
+    document.getElementById('equip_category').value = item.category || 'General';
+    document.getElementById('equip_total_stock').value = item.total_stock;
     document.getElementById('equip_unit').value = item.unit;
     document.getElementById('equip_cost').value = item.replacement_cost;
     document.getElementById('equip_is_active').checked = (item.is_active == 1);
@@ -159,10 +186,10 @@ async function saveEquipment() {
 
     try {
         if (data.id) {
-            await Api.put(BASE + '/src/api/inventory.php', data);
+            await Api.put(BASE + 'src/api/inventory.php', data);
             Toast.success('Equipment updated.');
         } else {
-            await Api.post(BASE + '/src/api/inventory.php', data);
+            await Api.post(BASE + 'src/api/inventory.php', data);
             Toast.success('Equipment added to catalog.');
         }
         Modal.close('equipmentModal');
@@ -174,7 +201,7 @@ async function saveEquipment() {
 
 async function toggleStatus(id) {
     try {
-        await Api.delete(BASE + '/src/api/inventory.php', { id });
+        await Api.delete(BASE + 'src/api/inventory.php', { id });
         Toast.success('Status updated.');
         loadInventory();
     } catch(e) { Toast.error(e.message); }

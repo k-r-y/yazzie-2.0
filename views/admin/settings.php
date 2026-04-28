@@ -40,7 +40,7 @@ include __DIR__ . '/../../includes/sidebar.php';
 <script>
 async function loadSettings() {
     try {
-        const d = await Api.get(BASE + '/src/api/settings.php');
+        const d = await Api.get(BASE + 'src/api/settings.php');
         const container = document.getElementById('settingsContainer');
         const groups = {};
 
@@ -88,7 +88,7 @@ async function loadSettings() {
 async function updateSetting(key) {
     const val = document.getElementById('set_' + key).value;
     try {
-        await Api.put(BASE + '/src/api/settings.php', { key, value: val });
+        await Api.put(BASE + 'src/api/settings.php', { key, value: val });
         Toast.success('Setting updated.');
     } catch (e) { Toast.error(e.message); }
 }

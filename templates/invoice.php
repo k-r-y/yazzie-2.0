@@ -18,7 +18,12 @@ $stmt = $pdo->prepare("
            c.phone AS client_phone,
            c.email AS client_email,
            COALESCE(pk.set_name, 'Catering Package') AS menu_name,
-           pk.price AS pkg_price
+           pk.price AS pkg_price,
+           b.overtime_minutes,
+           b.overtime_total,
+           b.breakage_total,
+           b.event_report_notes,
+           b.report_submitted_at
     FROM bookings b
     JOIN clients   c  ON c.id  = b.client_id
     LEFT JOIN packages pk ON pk.id = b.package_id
@@ -32,6 +37,11 @@ if (!$b) die('Booking not found.');
 $displayPricePerPax = $b['base_pax'] > 0
     ? round($b['base_price'] / $b['base_pax'], 2)
     : 0;
+
+$overtimeTotal  = (float)($b['overtime_total'] ?? 0);
+$breakageTotal = (float)($b['breakage_total'] ?? 0);
+$extraCost      = (float)($b['extra_cost'] ?? 0);
+$baseLineAmount = round(max(0, $b['total_cost'] - $extraCost - $overtimeTotal - $breakageTotal), 2);
 
 if (!$isAuth) {
     $token = $_GET['token'] ?? null;
@@ -106,20 +116,45 @@ $eventDate = date('F j, Y', strtotime($b['event_date']));
                     <small style="color:#888;">Catering services for event on <?= $eventDate ?></small></td>
                 <td class="text-right"><?= $b['pax_count'] ?> pax</td>
                 <td class="text-right">₱<?= number_format($displayPricePerPax, 2) ?>/pax</td>
-                <td class="text-right" style="font-weight:700;">₱<?= number_format($b['total_cost'], 2) ?></td>
+                <td class="text-right" style="font-weight:700;">₱<?= number_format($baseLineAmount, 2) ?></td>
             </tr>
-            <?php if ((float)$b['extra_cost'] > 0): ?>
+            <?php if ($extraCost > 0): ?>
             <tr>
                 <td><small style="color:#888;">Extra guests (<?= $b['extra_pax'] ?> pax × ₱<?= number_format($displayPricePerPax, 2) ?>)</small></td>
                 <td class="text-right"><?= $b['extra_pax'] ?> pax</td>
                 <td class="text-right">₱<?= number_format($displayPricePerPax, 2) ?></td>
-                <td class="text-right">₱<?= number_format($b['extra_cost'], 2) ?></td>
+                <td class="text-right">₱<?= number_format($extraCost, 2) ?></td>
+            </tr>
+            <?php endif; ?>
+            <?php if ($overtimeTotal > 0): ?>
+            <tr>
+                <td><small style="color:#888;">Overtime fee</small></td>
+                <td class="text-right">&mdash;</td>
+                <td class="text-right">&mdash;</td>
+                <td class="text-right">₱<?= number_format($overtimeTotal, 2) ?></td>
+            </tr>
+            <?php endif; ?>
+            <?php if ($breakageTotal > 0): ?>
+            <tr>
+                <td><small style="color:#888;">Breakage charges billed to client</small></td>
+                <td class="text-right">&mdash;</td>
+                <td class="text-right">&mdash;</td>
+                <td class="text-right">₱<?= number_format($breakageTotal, 2) ?></td>
             </tr>
             <?php endif; ?>
         </tbody>
     </table>
 
-    <!-- Totals -->
+    <?php if (!empty($b['report_submitted_at'])): ?>
+    <div class="print-section-title" style="margin-top:20pt;">Event Report</div>
+    <div style="padding:12px 0; font-size:13px; color:#444;">
+        <div><strong>Submitted:</strong> <?= date('F j, Y', strtotime($b['report_submitted_at'])) ?></div>
+        <?php if (!empty($b['event_report_notes'])): ?>
+        <div style="margin-top:6px;"><strong>Notes:</strong><br><?= nl2br(htmlspecialchars($b['event_report_notes'])) ?></div>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
     <div class="print-total-block">
         <div class="print-total-row"><span>Subtotal</span><span>₱<?= number_format($b['total_cost'], 2) ?></span></div>
         <div class="print-total-row"><span>Amount Paid</span><span style="color:#059669;">(₱<?= number_format($b['amount_paid'], 2) ?>)</span></div>

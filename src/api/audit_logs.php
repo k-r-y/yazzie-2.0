@@ -10,8 +10,14 @@ require_once __DIR__ . '/../../includes/auth.php';
 // Strictly Super Admin
 $currentUser = requireApiRole('super_admin');
 
-$limit  = (int)($_GET['limit']  ?? 50);
-$offset = (int)($_GET['offset'] ?? 0);
+$page  = max(1, (int)($_GET['page'] ?? 1));
+$limit = (int)($_GET['limit'] ?? 10);
+if ($limit < 1) $limit = 10;
+$offset = ($page - 1) * $limit;
+
+$totalStmt = $pdo->query('SELECT COUNT(*) FROM audit_log');
+$totalRecords = (int)$totalStmt->fetchColumn();
+$totalPages = (int)ceil($totalRecords / $limit);
 
 $stmt = $pdo->prepare("
     SELECT a.*, u.name as user_name
@@ -24,4 +30,11 @@ $stmt->bindValue(':limit',  $limit,  PDO::PARAM_INT);
 $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 
-jsonResponse(true, '', ['logs' => $stmt->fetchAll()]);
+jsonResponse(true, '', [
+    'logs' => $stmt->fetchAll(),
+    'meta' => [
+        'currentPage'  => $page,
+        'totalPages'   => $totalPages,
+        'totalRecords' => $totalRecords,
+    ]
+]);

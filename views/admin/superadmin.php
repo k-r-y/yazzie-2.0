@@ -66,6 +66,15 @@ include __DIR__ . '/../../includes/sidebar.php';
             <div class="card-body" style="flex:1; overflow-y:auto; padding:0;" id="auditContainer">
                 <div class="spinner my-4"></div>
             </div>
+            <div class="table-pagination" style="margin:0; padding:0.75rem 1.25rem; border-top:1px solid rgba(0,0,0,0.06);">
+                <button type="button" class="pagination-button" id="auditPrevBtn" onclick="changeAuditPage(currentAuditPage - 1)" disabled>
+                    <i class="fas fa-chevron-left"></i> Previous
+                </button>
+                <div class="pagination-info" id="auditPageInfo">Page 1 of 1</div>
+                <button type="button" class="pagination-button" id="auditNextBtn" onclick="changeAuditPage(currentAuditPage + 1)" disabled>
+                    Next <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -93,14 +102,69 @@ include __DIR__ . '/../../includes/sidebar.php';
 async function runBackup(e) {
     e.preventDefault();
     if (!await confirmDialog('Generate and download a full database backup?')) return;
-    window.location.href = BASE + '/src/api/backup.php';
+    window.location.href = BASE + 'src/api/backup.php';
 }
 
 async function loadSettings() {
     try {
-        const d = await Api.get(BASE + '/src/api/settings.php');
+        const d = await Api.get(BASE + 'src/api/settings.php');
         const container = document.getElementById('settingsContainer');
         const groups = {};
+
+        // Define setting metadata for better labels and help text
+        const settingMetadata = {
+            'audit_log_retention_days': {
+                label: 'Audit Log Retention Days',
+                help: 'Number of days to retain audit logs (30-3650). Logs older than this will be automatically deleted. Minimum 30 days recommended for compliance.',
+                min: 30, max: 3650, type: 'int'
+            },
+            'debug_mode': {
+                label: 'Debug Mode',
+                help: 'WARNING: Enable (1) only for troubleshooting. Disables all logins and logs out all users. Must be 0 or 1 only.',
+                type: 'select',
+                options: [{value: '0', label: '0 - Disabled (Normal Operation)'}, {value: '1', label: '1 - Enabled (All Logins Disabled)'}]
+            },
+            'max_login_attempts': {
+                label: 'Max Login Attempts',
+                help: 'Maximum failed login attempts before account lockout (1-100). Default is 5.',
+                min: 1, max: 100, type: 'int'
+            },
+            'max_admins': {
+                label: 'Max Admin Accounts',
+                help: 'Maximum number of Administrator accounts allowed (1-100). Cannot be lowered below current active admins.',
+                min: 1, max: 100, type: 'int'
+            },
+            'session_timeout_minutes': {
+                label: 'Session Timeout Minutes',
+                help: 'Session timeout duration in minutes (5-1440 / 24 hours). Users will be logged out after this time.',
+                min: 5, max: 1440, type: 'int'
+            },
+            'smtp_host': {
+                label: 'SMTP Host',
+                help: 'SMTP server hostname or IP address (e.g., smtp.gmail.com, mail.example.com).',
+                type: 'text'
+            },
+            'smtp_user': {
+                label: 'SMTP User (Email)',
+                help: 'Email address for SMTP authentication. Required for system email notifications.',
+                type: 'email'
+            },
+            'smtp_pass': {
+                label: 'SMTP Password',
+                help: 'Password or App Password for SMTP authentication. Keep this secure.',
+                type: 'password'
+            },
+            'smtp_port': {
+                label: 'SMTP Port',
+                help: 'SMTP server port (1-65535). Common: 587 (TLS), 465 (SSL), 25 (unencrypted).',
+                min: 1, max: 65535, type: 'int'
+            },
+            'sms_api_key': {
+                label: 'SMS API Key (Semaphore)',
+                help: 'API key for SMS gateway integration (optional). Required only if SMS notifications are enabled.',
+                type: 'password'
+            }
+        };
 
         d.settings.forEach(s => {
             if (s.category !== 'system') return;
@@ -110,36 +174,41 @@ async function loadSettings() {
 
         let html = '';
         for (const cat in groups) {
-            html += `<h6 class="text-uppercase text-xs fw-800 text-muted mt-4 mb-2" style="letter-spacing:0.5px;">${cat}</h6>`;
+            html += `<h6 class="text-uppercase text-xs fw-800 text-muted mt-4 mb-2" style="letter-spacing:0.5px;">System Configuration</h6>`;
             groups[cat].forEach(s => {
+                const meta = settingMetadata[s.key] || {};
                 let inputHtml = '';
-                if (s.type === 'boolean') {
+                
+                if (meta.type === 'select') {
                     inputHtml = `
                         <select class="form-control form-control-sm" style="max-width:200px;" id="set_${s.key}">
-                            <option value="1" ${s.value == '1' ? 'selected' : ''}>ON</option>
-                            <option value="0" ${s.value == '0' ? 'selected' : ''}>OFF</option>
+                            ${(meta.options || []).map(opt => 
+                                `<option value="${opt.value}" ${s.value == opt.value ? 'selected' : ''}>${opt.label}</option>`
+                            ).join('')}
                         </select>
                     `;
-                } else if (s.key === 'smtp_pass' || s.key === 'sms_api_key') {
+                } else if (meta.type === 'password' || s.key === 'smtp_pass' || s.key === 'sms_api_key') {
                     inputHtml = `<input class="form-control form-control-sm" style="max-width:200px;" type="password" id="set_${s.key}" value="${s.value}">`;
+                } else if (meta.type === 'email') {
+                    inputHtml = `<input class="form-control form-control-sm" style="max-width:200px;" type="email" id="set_${s.key}" value="${s.value}" required>`;
+                } else if (meta.type === 'int' || s.type === 'int') {
+                    const extras = `min="${meta.min || 1}" max="${meta.max || 9999}"`;
+                    inputHtml = `<input class="form-control form-control-sm" style="max-width:200px;" type="number" id="set_${s.key}" value="${s.value}" ${extras} required>`;
                 } else {
-                    let extras = '';
-                    if (s.key === 'max_login_attempts') extras = 'min="1" max="100"';
-                    else if (s.key === 'session_timeout_minutes') extras = 'min="5" max="1440"';
-                    else if (s.key === 'max_file_upload_mb') extras = 'min="1" max="50"';
-                    else if (s.key === 'audit_log_retention_days') extras = 'min="1" max="3650"';
-                    const inputType = s.type === 'int' ? 'number' : 'text';
-                    inputHtml = `<input class="form-control form-control-sm" style="max-width:200px;" type="${inputType}" id="set_${s.key}" value="${s.value}" ${extras}>`;
+                    inputHtml = `<input class="form-control form-control-sm" style="max-width:200px;" type="text" id="set_${s.key}" value="${s.value}" maxlength="2000">`;
                 }
+                
+                const label = meta.label || s.key.replace(/_/g, ' ').toUpperCase();
+                const help = meta.help || s.description || '';
                 
                 html += `
                     <div class="setting-item">
-                        <div class="setting-label">${s.key.replace(/_/g, ' ').toUpperCase()}</div>
-                        <div class="setting-desc">${s.description}</div>
+                        <div class="setting-label">${label}</div>
+                        <div class="setting-desc">${help}</div>
                         <div class="d-flex gap-2">
                             ${inputHtml}
                             <button class="btn btn-primary btn-sm px-3" onclick="updateSetting('${s.key}')">
-                                <i class="fas fa-save"></i>
+                                <i class="fas fa-save"></i> Save
                             </button>
                         </div>
                     </div>
@@ -153,16 +222,28 @@ async function loadSettings() {
 async function updateSetting(key) {
     const val = document.getElementById('set_' + key).value;
     try {
-        await Api.put(BASE + '/src/api/settings.php', { key, value: val });
+        await Api.put(BASE + 'src/api/settings.php', { key, value: val });
         Toast.success('Setting updated.');
         loadAudit(); // Refresh logs
     } catch (e) { Toast.error(e.message); }
 }
 
-async function loadAudit() {
+let currentAuditPage = 1;
+let auditTotalPages = 1;
+
+async function loadAudit(page = null) {
+    if (page !== null) {
+        currentAuditPage = Math.max(1, page);
+    }
+
     try {
-        const d = await Api.get(BASE + '/src/api/audit_logs.php', { limit: 15 });
+        const d = await Api.get(BASE + 'src/api/audit_logs.php', {
+            page: currentAuditPage,
+            limit: 15,
+        });
         const container = document.getElementById('auditContainer');
+        auditTotalPages = d.meta?.totalPages || 1;
+        renderAuditPagination();
         if (!d.logs?.length) {
             container.innerHTML = '<div class="p-4 text-center text-muted text-sm">No activity recorded.</div>';
             return;
@@ -181,6 +262,17 @@ async function loadAudit() {
             </div>
         `).join('');
     } catch (e) { console.error(e); }
+}
+
+function changeAuditPage(newPage) {
+    if (newPage < 1 || newPage > auditTotalPages) return;
+    loadAudit(newPage);
+}
+
+function renderAuditPagination() {
+    document.getElementById('auditPageInfo').textContent = `Page ${currentAuditPage} of ${auditTotalPages}`;
+    document.getElementById('auditPrevBtn').disabled = currentAuditPage <= 1;
+    document.getElementById('auditNextBtn').disabled = currentAuditPage >= auditTotalPages;
 }
 
 initTableSearch = null; // Disable table search helper for this custom page

@@ -432,6 +432,127 @@ function debounce(fn, delay = 300) {
 }
 
 /* ================================================================
+   TABLE PAGINATION
+   ================================================================ */
+const TablePaginator = {
+    defaultRowsPerPage: 10,
+    states: new WeakMap(),
+
+    init(selector = '.data-table', rowsPerPage = 10) {
+        document.querySelectorAll(selector).forEach(table => {
+            if (table.dataset.paginated === '1') return;
+            const tbody = table.tBodies[0];
+            if (!tbody) return;
+
+            const container = document.createElement('div');
+            container.className = 'table-pagination-controls';
+            table.insertAdjacentElement('afterend', container);
+
+            const state = {
+                table,
+                tbody,
+                container,
+                rowsPerPage: rowsPerPage || this.defaultRowsPerPage,
+                currentPage: 1,
+                suppressRefresh: false,
+                observer: null,
+            };
+
+            table.dataset.paginated = '1';
+            table.dataset.paginationPage = '1';
+            this.states.set(table, state);
+
+            const observer = new MutationObserver(() => {
+                if (state.suppressRefresh) return;
+                this.refresh(table);
+            });
+            observer.observe(tbody, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+            state.observer = observer;
+
+            this.refresh(table);
+        });
+    },
+
+    refresh(table) {
+        const state = this.states.get(table);
+        if (!state) return;
+
+        const rows = Array.from(state.tbody.rows).filter(row => !row.dataset.empty);
+        state.allRows = rows;
+        const visibleRows = rows.filter(row => row.style.display !== 'none');
+        const pageCount = Math.max(1, Math.ceil(visibleRows.length / state.rowsPerPage));
+
+        if (state.currentPage > pageCount) state.currentPage = pageCount;
+        if (state.currentPage < 1) state.currentPage = 1;
+
+        this._showPage(state, visibleRows);
+        this._renderControls(state, pageCount);
+    },
+
+    _showPage(state, visibleRows) {
+        const start = (state.currentPage - 1) * state.rowsPerPage;
+        const end = start + state.rowsPerPage;
+
+        state.suppressRefresh = true;
+        state.allRows.forEach(row => {
+            if (row.style.display === 'none') return;
+            row.style.display = 'none';
+        });
+
+        visibleRows.slice(start, end).forEach(row => {
+            row.style.display = '';
+        });
+
+        state.table.dataset.paginationPage = String(state.currentPage);
+        requestAnimationFrame(() => { state.suppressRefresh = false; });
+    },
+
+    _renderControls(state, pageCount) {
+        const container = state.container;
+        container.innerHTML = '';
+        if (pageCount <= 1) return;
+
+        const prev = this._createButton('Prev', state.currentPage === 1, () => {
+            state.currentPage = Math.max(1, state.currentPage - 1);
+            this.refresh(state.table);
+        });
+        container.appendChild(prev);
+
+        for (let i = 1; i <= pageCount; i++) {
+            const btn = this._createButton(String(i), false, () => {
+                state.currentPage = i;
+                this.refresh(state.table);
+            });
+            if (i === state.currentPage) btn.classList.add('active');
+            container.appendChild(btn);
+        }
+
+        const next = this._createButton('Next', state.currentPage === pageCount, () => {
+            state.currentPage = Math.min(pageCount, state.currentPage + 1);
+            this.refresh(state.table);
+        });
+        container.appendChild(next);
+    },
+
+    _createButton(label, disabled, onClick) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pagination-btn';
+        btn.textContent = label;
+        if (disabled) {
+            btn.disabled = true;
+        } else {
+            btn.addEventListener('click', onClick);
+        }
+        return btn;
+    },
+
+    _getState(table) {
+        return this.states.get(table) || null;
+    }
+};
+
+/* ================================================================
    AUTO-INIT on DOM Ready
    ================================================================ */
 document.addEventListener('DOMContentLoaded', () => {
@@ -447,4 +568,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const v = parseFloat(el.dataset.peso) || 0;
         el.textContent = Format.peso(v);
     });
+
+    TablePaginator.init();
 });

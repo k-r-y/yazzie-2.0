@@ -183,7 +183,23 @@ if ($type === 'kpis') {
             SELECT booking_id, SUM(amount) AS paid
             FROM payments GROUP BY booking_id
         ) p_sum ON p_sum.booking_id = b.id
-        WHERE b.booking_status NOT IN ('cancelled', 'completed')
+        WHERE b.booking_status != 'cancelled'
+          AND ((b.total_cost + COALESCE(br_sum.total, 0)) - COALESCE(p_sum.paid, 0)) > 0
+          $eventFilter
+    ")->fetchColumn();
+
+    $unpaidCount = $pdo->query("
+        SELECT COUNT(*)
+        FROM bookings b
+        LEFT JOIN (
+            SELECT booking_id, SUM(total_cost) AS total
+            FROM booking_breakages GROUP BY booking_id
+        ) br_sum ON br_sum.booking_id = b.id
+        LEFT JOIN (
+            SELECT booking_id, SUM(amount) AS paid
+            FROM payments GROUP BY booking_id
+        ) p_sum ON p_sum.booking_id = b.id
+        WHERE b.booking_status != 'cancelled'
           AND ((b.total_cost + COALESCE(br_sum.total, 0)) - COALESCE(p_sum.paid, 0)) > 0
           $eventFilter
     ")->fetchColumn();
@@ -208,6 +224,7 @@ if ($type === 'kpis') {
         $res['total_revenue'] = (float)$revenue;
         $res['revenue_mtd']   = (float)$revenue_mtd;
         $res['outstanding']   = (float)$outstanding;
+        $res['unpaid_count']  = (int)$unpaidCount;
     }
 
     jsonResponse(true, '', $res);

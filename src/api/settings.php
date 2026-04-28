@@ -67,7 +67,35 @@ if ($method === 'PUT') {
             if ((int)$value < 1 || (int)$value > 50) jsonResponse(false, 'Max file upload size must be between 1MB and 50MB.', [], 422);
             break;
         case 'audit_log_retention_days':
-            if ((int)$value < 1 || (int)$value > 3650) jsonResponse(false, 'Audit log retention must be between 1 and 3650 days.', [], 422);
+            if ((int)$value < 30 || (int)$value > 3650) jsonResponse(false, 'Audit log retention must be between 30 and 3650 days.', [], 422);
+            break;
+        case 'debug_mode':
+            if ((int)$value !== 0 && (int)$value !== 1) jsonResponse(false, 'Debug mode must be either 0 (disabled) or 1 (enabled).', [], 422);
+            break;
+        case 'max_admins':
+            if ((int)$value < 1 || (int)$value > 100) jsonResponse(false, 'Max admins must be between 1 and 100.', [], 422);
+            // Ensure we don't lower the limit below current active admins
+            $currentAdmins = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1")->fetchColumn();
+            if ((int)$value < (int)$currentAdmins) jsonResponse(false, "Cannot set max admins to $value. Currently $currentAdmins active admins exist.", [], 422);
+            break;
+        case 'smtp_user':
+            if (!filter_var($value, FILTER_VALIDATE_EMAIL)) jsonResponse(false, 'SMTP user must be a valid email address.', [], 422);
+            break;
+        case 'smtp_pass':
+            if (strlen(trim((string)$value)) < 5) jsonResponse(false, 'SMTP password must be at least 5 characters.', [], 422);
+            break;
+        case 'smtp_port':
+            $portNum = (int)$value;
+            if ($portNum < 1 || $portNum > 65535) jsonResponse(false, 'SMTP port must be between 1 and 65535.', [], 422);
+            break;
+        case 'smtp_host':
+            $hostStr = trim((string)$value);
+            if (strlen($hostStr) < 3) jsonResponse(false, 'SMTP host must be a valid hostname or IP address.', [], 422);
+            if (!preg_match('/^[a-zA-Z0-9\.\-]+$/', $hostStr)) jsonResponse(false, 'SMTP host contains invalid characters.', [], 422);
+            break;
+        case 'sms_api_key':
+            // Optional field, if provided must be at least 10 characters
+            if (!empty($value) && strlen(trim((string)$value)) < 10) jsonResponse(false, 'SMS API key must be at least 10 characters if provided.', [], 422);
             break;
     }
 

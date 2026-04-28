@@ -11,7 +11,8 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/audit.php';
 
-requireApiRole('admin');
+requireApiRole(['admin', 'frontdesk']);
+
 requireCsrf(); // CSRF protection for all state-changing methods
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -86,7 +87,7 @@ if ($method === 'POST') {
     $amount    = (float)$d['amount'];
 
     // Verify booking exists + get current booking_status for auto-promotion
-    $bStmt = $pdo->prepare("SELECT id, total_cost, booking_status, event_date FROM bookings WHERE id = :id");
+    $bStmt = $pdo->prepare("SELECT id, total_cost, booking_status, event_date, client_email FROM bookings WHERE id = :id");
     $bStmt->execute([':id' => $bookingId]);
     $booking = $bStmt->fetch();
     if (!$booking) jsonResponse(false, 'Booking not found.', [], 404);
@@ -176,8 +177,7 @@ if ($method === 'POST') {
         ]);
 
         // ── Auto-promote logic removed: pending status is deprecated ────────
-        $finalStatus = $currentBookingStatus;
-
+        $finalStatus = $booking['booking_status'];
 
         $pdo->commit();
     } catch (Exception $e) {

@@ -17,7 +17,7 @@ include __DIR__ . '/../../includes/sidebar.php';
             <div class="card-title">Packages Matrix</div>
             <div class="card-subtitle">Define base pricing per tier (e.g., Standard, Premium, Luxury)</div>
         </div>
-        <button class="btn btn-primary" onclick="openAddModal()">
+        <button class="btn btn-primary py-3" onclick="openAddModal()">
             <i class="fas fa-plus"></i> Add Package Tier
         </button>
     </div>
@@ -39,6 +39,15 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <tr><td colspan="6"><div class="spinner"></div></td></tr>
             </tbody>
         </table>
+    </div>
+    <div class="table-pagination" id="packagesPagination">
+        <button type="button" class="pagination-button" id="packagesPrevBtn" onclick="changePackagePage(currentPackagePage - 1)" disabled>
+            <i class="fas fa-chevron-left"></i> Previous
+        </button>
+        <div class="pagination-info" id="packagesPageInfo">Page 1 of 1</div>
+        <button type="button" class="pagination-button" id="packagesNextBtn" onclick="changePackagePage(currentPackagePage + 1)" disabled>
+            Next <i class="fas fa-chevron-right"></i>
+        </button>
     </div>
 </div>
 
@@ -111,11 +120,23 @@ include __DIR__ . '/../../includes/sidebar.php';
 
 <script>
 let allPackages = [];
+let currentPackagePage = 1;
+let packageTotalPages = 1;
 
-async function loadPackages() {
+async function loadPackages(page = null) {
+    if (page !== null) {
+        currentPackagePage = Math.max(1, page);
+    }
+
     try {
-        const d = await Api.get(BASE + '/src/api/packages.php', { include_inactive: 1 });
+        const d = await Api.get(BASE + 'src/api/packages.php', {
+            include_inactive: 1,
+            page: currentPackagePage,
+            limit: 10,
+        });
         allPackages = d.packages || [];
+        packageTotalPages = d.meta?.totalPages || 1;
+        renderPackagePagination();
         renderTable(allPackages);
     } catch(e) {
         document.getElementById('packagesBody').innerHTML = '<tr><td colspan="6" class="text-center text-muted p-4">Failed to load packages.</td></tr>';
@@ -201,10 +222,10 @@ async function savePackage() {
 
     try {
         if (data.id) {
-            await Api.put(BASE + '/src/api/packages.php', data);
+            await Api.put(BASE + 'src/api/packages.php', data);
             Toast.success('Package updated.');
         } else {
-            await Api.post(BASE + '/src/api/packages.php', data);
+            await Api.post(BASE + 'src/api/packages.php', data);
             Toast.success('Package added successfully.');
         }
         Modal.close('packageModal');
@@ -227,10 +248,21 @@ document.getElementById('pkg_pax')?.addEventListener('input', updatePerPax);
 async function toggleStatus(id) {
     if(!confirm('Are you sure you want to toggle the status of this package?')) return;
     try {
-        await Api.delete(BASE + '/src/api/packages.php', { id, type: 'package' });
+        await Api.delete(BASE + 'src/api/packages.php', { id, type: 'package' });
         Toast.success('Status updated.');
-        loadPackages();
+        loadPackages(currentPackagePage);
     } catch(e) { Toast.error(e.message); }
+}
+
+function changePackagePage(newPage) {
+    if (newPage < 1 || newPage > packageTotalPages) return;
+    loadPackages(newPage);
+}
+
+function renderPackagePagination() {
+    document.getElementById('packagesPageInfo').textContent = `Page ${currentPackagePage} of ${packageTotalPages}`;
+    document.getElementById('packagesPrevBtn').disabled = currentPackagePage <= 1;
+    document.getElementById('packagesNextBtn').disabled = currentPackagePage >= packageTotalPages;
 }
 
 loadPackages();

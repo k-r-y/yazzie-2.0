@@ -19,14 +19,52 @@ $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'GET') {
 
     if (isset($_GET['dishes'])) {
-        $where = empty($_GET['include_inactive']) ? "WHERE is_active = 1" : "";
-        // Return dishes grouped by category
-        $stmt = $pdo->query("
+        $where = empty($_GET['include_inactive']) ? "WHERE is_active = 1" : "WHERE 1=1";
+        $params = [];
+
+        if (!empty($_GET['search'])) {
+            $where .= " AND (name LIKE :search OR category LIKE :search)";
+            $params[':search'] = '%' . trim($_GET['search']) . '%';
+        }
+
+        if (!empty($_GET['category']) && $_GET['category'] !== 'all') {
+            $where .= " AND category = :category";
+            $params[':category'] = trim($_GET['category']);
+        }
+
+        if (!empty($_GET['meal_type']) && $_GET['meal_type'] !== 'all') {
+            $where .= " AND (LOWER(meal_type) LIKE :meal_type OR LOWER(meal_type) = 'all')";
+            $params[':meal_type'] = '%' . strtolower(trim($_GET['meal_type'])) . '%';
+        }
+
+        $page  = max(1, (int)($_GET['page'] ?? 1));
+        $limit = (int)($_GET['limit'] ?? 10);
+        if ($limit < 1) $limit = 10;
+        $offset = ($page - 1) * $limit;
+
+        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM dishes $where");
+        $countStmt->execute($params);
+        $totalRecords = (int)$countStmt->fetchColumn();
+        $totalPages = (int)ceil($totalRecords / $limit);
+
+        $categoryBaseWhere = empty($_GET['include_inactive']) ? "WHERE is_active = 1" : "WHERE 1=1";
+        $categoriesStmt = $pdo->prepare("SELECT DISTINCT category FROM dishes $categoryBaseWhere ORDER BY category ASC");
+        $categoriesStmt->execute();
+        $categories = $categoriesStmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $stmt = $pdo->prepare("
             SELECT id, name, category, meal_type, is_active, custom_fee
             FROM dishes
             $where
             ORDER BY category, name
+            LIMIT :limit OFFSET :offset
         ");
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->bindValue(':limit',  $limit,  PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
         $all = $stmt->fetchAll();
 
         $grouped = [];
@@ -48,21 +86,42 @@ if ($method === 'GET') {
         }
 
         jsonResponse(true, '', [
+            'dishes'         => $all,
             'dishes_grouped' => $grouped,
+            'categories'     => $categories,
             'mainDishes'     => $mainsAggregated,
             'desserts'       => $grouped['Dessert'] ?? $grouped['dessert'] ?? [],
+            'meta' => [
+                'currentPage'  => $page,
+                'totalPages'   => $totalPages,
+                'totalRecords' => $totalRecords,
+            ],
         ]);
     }
 
     $where = empty($_GET['include_inactive']) ? "WHERE is_active = 1" : "";
-    // Default: return all packages
-    $stmt = $pdo->query("
+    
+    $page  = max(1, (int)($_GET['page'] ?? 1));
+    $limit = (int)($_GET['limit'] ?? 10);
+    if ($limit < 1) $limit = 10;
+    $offset = ($page - 1) * $limit;
+
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM packages $where");
+    $countStmt->execute();
+    $totalRecords = (int)$countStmt->fetchColumn();
+    $totalPages = (int)ceil($totalRecords / $limit);
+
+    $stmt = $pdo->prepare("
         SELECT id, set_name, pax_count, price,
                max_main_dishes, max_desserts, includes_rice, inclusions, is_active
         FROM packages
         $where
         ORDER BY pax_count ASC
+        LIMIT :limit OFFSET :offset
     ");
+    $stmt->bindValue(':limit',  $limit,  PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
     $pkgs = $stmt->fetchAll();
 
     // Get rates from settings
@@ -74,7 +133,12 @@ if ($method === 'GET') {
 
     jsonResponse(true, '', [
         'packages' => $pkgs,
-        'rates'    => $rates
+        'rates'    => $rates,
+        'meta' => [
+            'currentPage'  => $page,
+            'totalPages'   => $totalPages,
+            'totalRecords' => $totalRecords,
+        ]
     ]);
 }
 
@@ -111,7 +175,7 @@ if ($method === 'POST') {
     if (empty($d['category'])) jsonResponse(false, 'Category is required.', [], 422);
     if (strlen($d['category']) > 50) jsonResponse(false, 'Category name too long.', [], 422);
 
-    $stmt = $pdo->prepare("INSERT INTO dishes (name, category, meal_type, custom_fee) VALUES (:name, :cat, :meal, :fee)");
+    $stmt = $pdo->prepare("INSERT INTO dishes (name, category, meal_type, custom_fee, base_pax) VALUES (:name, :cat, :meal, :fee, 50)");
     $stmt->execute([
         ':name' => trim($d['name']), 
         ':cat' => trim($d['category']), 

@@ -162,7 +162,7 @@ async function refreshAll() {
 
 async function loadKPIs(params = {}) {
     try {
-        const d = await Api.get(BASE + '/src/api/analytics.php', { type: 'kpis', ...params });
+        const d = await Api.get(BASE + 'src/api/analytics.php', { type: 'kpis', ...params });
         document.getElementById('kpi-revenue-mtd').textContent  = Format.peso(d.total_revenue);
         // Update label to reflect period
         document.querySelector('#kpi-revenue-mtd + .stat-label').textContent = 'Revenue (' + d.period_label + ')';
@@ -176,7 +176,7 @@ async function loadKPIs(params = {}) {
 
 async function loadRevenueChart(params = {}) {
     try {
-        const d = await Api.get(BASE + '/src/api/analytics.php', { type: 'revenue_chart', ...params });
+        const d = await Api.get(BASE + 'src/api/analytics.php', { type: 'revenue_chart', ...params });
         const ctx = document.getElementById('revenueChart').getContext('2d');
         
         if (currentRevenueChart) currentRevenueChart.destroy();
@@ -222,7 +222,7 @@ async function loadRevenueChart(params = {}) {
 
 async function loadMenuChart(params = {}) {
     try {
-        const d = await Api.get(BASE + '/src/api/analytics.php', { type: 'menu_popularity', ...params });
+        const d = await Api.get(BASE + 'src/api/analytics.php', { type: 'menu_popularity', ...params });
         const ctx = document.getElementById('menuChart').getContext('2d');
         
         if (currentMenuChart) currentMenuChart.destroy();
@@ -247,7 +247,7 @@ async function loadMenuChart(params = {}) {
 
 async function loadUpcoming(params = {}) {
     try {
-        const d = await Api.get(BASE + '/src/api/bookings.php', {
+        const d = await Api.get(BASE + 'src/api/bookings.php', {
             status: 'confirmed', ...params,
             order: 'ASC',
             from: params.timeframe ? null : new Date().toISOString().split('T')[0]

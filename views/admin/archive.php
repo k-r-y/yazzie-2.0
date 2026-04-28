@@ -43,7 +43,7 @@ include __DIR__ . '/../../includes/sidebar.php';
 
 async function loadArchive() {
     const search = document.getElementById('archiveSearch').value;
-    const d = await Api.get(BASE + '/src/api/archive.php', { search });
+    const d = await Api.get(BASE + 'src/api/archive.php', { search });
     const rows = d.archived || [];
     document.getElementById('archiveCount').textContent = rows.length + ' archived event(s)';
     const tbody = document.getElementById('archiveBody');

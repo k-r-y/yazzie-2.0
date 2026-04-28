@@ -76,8 +76,8 @@ let equipmentList = [];
 async function init() {
     try {
         const [bData, eData] = await Promise.all([
-            Api.get(BASE + '/src/api/event_reports.php'),
-            Api.get(BASE + '/src/api/inventory.php'),
+            Api.get(BASE + 'src/api/event_reports.php'),
+            Api.get(BASE + 'src/api/inventory.php'),
         ]);
         reportableBookings = bData.bookings || [];
         equipmentList = eData.equipment || eData.items || [];
@@ -169,7 +169,7 @@ function loadReportForm() {
                 🔧 Equipment Breakage / Loss
             </div>
             <div id="breakageRows" style="margin-bottom:10px;"></div>
-            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addBreakageRow()" style="margin-bottom:20px;">
+            <button type="button" class="btn btn-outline-secondary btn-sm py-3" onclick="addBreakageRow()" style="margin-bottom:20px;">
                 <i class="fas fa-plus"></i> Add Breakage Entry
             </button>
 
@@ -206,6 +206,13 @@ function addBreakageRow() {
         </div>
         <div style="flex:0 0 70px;">
             <input type="number" class="form-control br-qty" placeholder="Qty" min="1" value="1" style="font-size:12px;">
+        </div>
+        <div style="flex:1;">
+            <select class="form-control br-charge-to" style="font-size:12px;">
+                <option value="client">Charge: Client</option>
+                <option value="staff">Charge: Staff</option>
+                <option value="business">Charge: Business</option>
+            </select>
         </div>
         <div style="flex:1;">
             <input type="text" class="form-control br-notes" placeholder="Notes…" style="font-size:12px;">
@@ -285,7 +292,8 @@ async function submitReport(bookingId) {
         const qty     = parseInt(row.querySelector('.br-qty').value) || 0;
         const notes   = row.querySelector('.br-notes').value.trim();
         if (equipId && qty > 0) {
-            breakages.push({ equipment_id: parseInt(equipId), quantity: qty, notes: notes || null });
+            const chargeTo = row.querySelector('.br-charge-to')?.value || 'client';
+            breakages.push({ equipment_id: parseInt(equipId), quantity: qty, charge_to: chargeTo, notes: notes || null });
         }
     });
 
@@ -293,7 +301,7 @@ async function submitReport(bookingId) {
     Form.setLoading(btn, true);
 
     try {
-        const res = await Api.post(BASE + '/src/api/event_reports.php', {
+        const res = await Api.post(BASE + 'src/api/event_reports.php', {
             booking_id: bookingId,
             actual_start_time: startTime,
             actual_end_time: endTime,
@@ -312,7 +320,7 @@ async function submitReport(bookingId) {
         Toast.success(msg, 6000);
 
         // Refresh data
-        const bData = await Api.get(BASE + '/src/api/event_reports.php');
+        const bData = await Api.get(BASE + 'src/api/event_reports.php');
         reportableBookings = bData.bookings || [];
         loadReportForm(); // Reload to show "already submitted" badge
     } catch(e) {

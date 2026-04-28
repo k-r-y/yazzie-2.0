@@ -30,10 +30,10 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <option value="DESC">Latest First</option>
                 <option value="ASC">Upcoming First</option>
             </select>
-            <button class="btn btn-primary" onclick="openBookingStepper()">
+            <button class="btn btn-primary py-3" onclick="openBookingStepper()">
                 <i class="fas fa-plus"></i> New Booking
             </button>
-            <button class="btn btn-outline-primary" onclick="Modal.open('addClientModal')">
+            <button class="btn btn-outline-primary py-3" onclick="Modal.open('addClientModal')">
                 <i class="fas fa-user-plus"></i> New Client
             </button>
         </div>
@@ -56,6 +56,15 @@ include __DIR__ . '/../../includes/sidebar.php';
             </thead>
             <tbody id="bookingBody"><tr><td colspan="8"><div class="spinner"></div></td></tr></tbody>
         </table>
+    </div>
+    <div class="table-pagination" id="bookingPaginationFD">
+        <button type="button" class="pagination-button" id="bookingPrevBtnFD" onclick="changeBookingPageFD(currentBookingPageFD - 1)" disabled>
+            <i class="fas fa-chevron-left"></i> Previous
+        </button>
+        <div class="pagination-info" id="bookingPageInfoFD">Page 1 of 1</div>
+        <button type="button" class="pagination-button" id="bookingNextBtnFD" onclick="changeBookingPageFD(currentBookingPageFD + 1)" disabled>
+            Next <i class="fas fa-chevron-right"></i>
+        </button>
     </div>
 </div>
 
@@ -143,6 +152,8 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
 <script>
 let menusFD = [], allBookings = [];
 let allDishes = { mains: [], desserts: [] };
+let currentBookingPageFD = 1;
+let bookingTotalPagesFD = 1;
 
 async function initFD() {
     await loadDishes();
@@ -151,23 +162,33 @@ async function initFD() {
 
 async function loadDishes() {
     try {
-        const d = await Api.get(BASE + '/src/api/packages.php', { dishes: 1 });
+        const d = await Api.get(BASE + 'src/api/packages.php', { dishes: 1 });
         allDishes.mains = d.mainDishes || [];
         allDishes.desserts = d.desserts || [];
     } catch(e) {}
 }
 
-async function loadBookingsFD() {
+async function loadBookingsFD(page = null) {
+    if (page !== null) {
+        currentBookingPageFD = Math.max(1, page);
+    }
+
     const status = document.getElementById('filterStatus').value;
     const search = document.getElementById('searchInput').value;
     const order  = document.getElementById('filterOrder').value;
-    const params = {};
+    const params = {
+        page: currentBookingPageFD,
+        limit: 10,
+    };
     if (status) params.status = status;
     if (search) params.search = search;
     if (order)  params.order = order;
-    const d = await Api.get(BASE + '/src/api/bookings.php', params);
+    const d = await Api.get(BASE + 'src/api/bookings.php', params);
     allBookings = d.bookings || [];
-    document.getElementById('countLabel').textContent = allBookings.length + ' booking(s)';
+    bookingTotalPagesFD = d.meta?.totalPages || 1;
+    const totalRecords = d.meta?.totalRecords ?? allBookings.length;
+    document.getElementById('countLabel').textContent = `${totalRecords} booking${totalRecords === 1 ? '' : 's'} found`;
+    renderBookingPaginationFD();
     const tbody = document.getElementById('bookingBody');
     if (!allBookings.length) {
         tbody.innerHTML = `<tr><td colspan="8"><div class="table-empty"><i class="fas fa-calendar-xmark"></i><p>No bookings found.</p></div></td></tr>`;
@@ -188,10 +209,10 @@ async function loadBookingsFD() {
                 <button class="btn btn-outline-primary btn-sm" onclick="openEdit(${b.id})">
                     <i class="fas fa-edit"></i>
                 </button>
-                <a href="${BASE}/views/frontdesk/costing.php?booking_id=${b.id}" class="btn btn-outline-secondary btn-sm" title="Grocery">
+                <a href="${BASE}views/frontdesk/costing.php?booking_id=${b.id}" class="btn btn-outline-secondary btn-sm" title="Grocery">
                     <i class="fas fa-cart-shopping"></i>
                 </a>
-                <a href="${BASE}/views/frontdesk/dispatching.php?booking_id=${b.id}" class="btn btn-outline-secondary btn-sm" title="Dispatch">
+                <a href="${BASE}views/frontdesk/dispatching.php?booking_id=${b.id}" class="btn btn-outline-secondary btn-sm" title="Dispatch">
                     <i class="fas fa-bullhorn"></i>
                 </a>
             </td>
@@ -203,7 +224,7 @@ function openAddBooking() { openBookingStepper(); }
 
 async function openEdit(id) {
     try {
-        const d = await Api.get(BASE + '/src/api/bookings.php', { id });
+        const d = await Api.get(BASE + 'src/api/bookings.php', { id });
         const b = d.booking;
         document.getElementById('edit_id').value = id;
         document.getElementById('editIdLabel').textContent = id;
@@ -229,7 +250,7 @@ async function openEdit(id) {
 async function saveStatusFD() {
     try {
         const data = Form.serialize(document.getElementById('editStatusForm'));
-        await Api.put(BASE + '/src/api/bookings.php', data);
+        await Api.put(BASE + 'src/api/bookings.php', data);
         Toast.success('Status updated.');
         Modal.close('editStatusModal');
         await loadBookingsFD();
@@ -242,7 +263,7 @@ async function saveClient() {
     if (!form.checkValidity()) { form.reportValidity(); return; }
     Form.setLoading(btn, true);
     try {
-        await Api.post(BASE + '/src/api/clients.php', Form.serialize(form));
+        await Api.post(BASE + 'src/api/clients.php', Form.serialize(form));
         Toast.success('Client added! Reload to see them in the dropdown.');
         Modal.close('addClientModal');
         form.reset();
@@ -251,8 +272,19 @@ async function saveClient() {
     Form.setLoading(btn, false);
 }
 
-['filterStatus', 'filterOrder'].forEach(id => document.getElementById(id).addEventListener('change', loadBookingsFD));
-document.getElementById('searchInput').addEventListener('input', debounce(loadBookingsFD, 400));
+['filterStatus', 'filterOrder'].forEach(id => document.getElementById(id).addEventListener('change', () => loadBookingsFD(1)));
+document.getElementById('searchInput').addEventListener('input', debounce(() => loadBookingsFD(1), 400));
+
+function changeBookingPageFD(newPage) {
+    if (newPage < 1 || newPage > bookingTotalPagesFD) return;
+    loadBookingsFD(newPage);
+}
+
+function renderBookingPaginationFD() {
+    document.getElementById('bookingPageInfoFD').textContent = `Page ${currentBookingPageFD} of ${bookingTotalPagesFD}`;
+    document.getElementById('bookingPrevBtnFD').disabled = currentBookingPageFD <= 1;
+    document.getElementById('bookingNextBtnFD').disabled = currentBookingPageFD >= bookingTotalPagesFD;
+}
 
 initFD();
 </script>

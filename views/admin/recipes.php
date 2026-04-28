@@ -50,7 +50,7 @@ include __DIR__ . '/../../includes/sidebar.php';
 
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
                     <h3 style="font-size:16px; font-weight:600;">Raw Ingredients</h3>
-                    <button class="btn btn-primary" onclick="openAddIngredientModal()" style="font-size:13px; padding:6px 14px;"><i class="fas fa-plus"></i> Add Item</button>
+                    <button class="btn btn-primary py-3" onclick="openAddIngredientModal()" style="font-size:13px; padding:6px 14px;"><i class="fas fa-plus"></i> Add Item</button>
                 </div>
 
                 <div class="table-responsive">

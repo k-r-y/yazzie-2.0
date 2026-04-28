@@ -76,7 +76,7 @@ let currentBookings = [];
 
 async function init() {
     const [today] = [new Date().toISOString().split('T')[0]];
-    const d = await Api.get(BASE + '/src/api/bookings.php', {
+    const d = await Api.get(BASE + 'src/api/bookings.php', {
         status: 'confirmed', from: today
     });
     currentBookings = d.bookings || [];
@@ -113,7 +113,7 @@ async function loadGroceryList() {
     document.getElementById('detail-menu').textContent   = booking.menu_name || booking.package_name || '—';
     document.getElementById('detail-pax').textContent    = booking.pax_count + ' guests';
     document.getElementById('bookingDetails').style.display = 'block';
-    document.getElementById('printBtn').href = BASE + '/templates/grocery_list.php?booking_id=' + bookingId;
+    document.getElementById('printBtn').href = BASE + 'templates/grocery_list.php?booking_id=' + bookingId;
 
     document.getElementById('grocerySubtitle').textContent =
         `${booking.pax_count} pax × recipe quantities`;
@@ -124,7 +124,7 @@ async function loadGroceryList() {
         const pax = parseInt(booking.pax_count);
 
         // Step 1: Get the dishes selected for this booking
-        const dishData = await Api.get(BASE + '/src/api/bookings.php', {
+        const dishData = await Api.get(BASE + 'src/api/bookings.php', {
             id: bookingId, dishes: 1
         });
         const allDishes   = dishData.dishes || [];
@@ -156,7 +156,7 @@ async function loadGroceryList() {
                     <i class="fas fa-exclamation-triangle" style="font-size:36px;color:#FF9500;display:block;margin-bottom:12px;"></i>
                     <p>All dishes for this booking are custom items with no recipe data.<br>
                     Add ingredients in <strong>Recipes &amp; Computation</strong> or list them manually.</p>
-                    <a href="${BASE}/views/admin/recipes.php" class="btn btn-primary btn-sm mt-3">Go to Recipe Manager</a>
+                    <a href="${BASE}views/admin/recipes.php" class="btn btn-primary btn-sm mt-3">Go to Recipe Manager</a>
                 </div>`;
             return;
         }
@@ -167,7 +167,7 @@ async function loadGroceryList() {
                     <i class="fas fa-list-ul" style="font-size:36px;color:var(--text-muted);display:block;margin-bottom:12px;"></i>
                     <p>No dishes selected for this booking, or no recipes defined.<br>
                     Assign dishes and add ingredients in the Recipe Manager.</p>
-                    <a href="${BASE}/views/admin/recipes.php" class="btn btn-primary btn-sm mt-3">Go to Recipe Manager</a>
+                    <a href="${BASE}views/admin/recipes.php" class="btn btn-primary btn-sm mt-3">Go to Recipe Manager</a>
                 </div>`;
             return;
         }
@@ -202,7 +202,7 @@ async function loadGroceryList() {
                     <i class="fas fa-exclamation-triangle" style="font-size:36px;color:var(--sys-orange,#FF9500);display:block;margin-bottom:12px;"></i>
                     <p>Dishes are selected but none have recipe ingredients defined yet.<br>
                     Go to <strong>Recipes &amp; Computation</strong> to add ingredients to each dish.</p>
-                    <a href="${BASE}/views/admin/recipes.php" class="btn btn-primary btn-sm mt-3">Go to Recipe Manager</a>
+                    <a href="${BASE}views/admin/recipes.php" class="btn btn-primary btn-sm mt-3">Go to Recipe Manager</a>
                 </div>`;
             return;
         }

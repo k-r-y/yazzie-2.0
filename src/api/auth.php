@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     jsonResponse(false, 'Method Not Allowed.', [], 405);
 }
 
+
 // ── Rate Limiting: block brute-force attacks ──
 checkLoginRateLimit($pdo);
 
@@ -50,6 +51,11 @@ if (!$user || !password_verify($password, $user['password'])) {
 if (!$user['is_active']) {
     recordFailedLogin($pdo, $email);
     jsonResponse(false, 'Your account has been deactivated. Please contact the Administrator.', [], 403);
+}
+
+// ── Check if debug mode is enabled (block non-superadmin logins) ──
+if (defined('DEBUG_MODE') && (int)DEBUG_MODE === 1 && $user['role'] !== 'super_admin') {
+    jsonResponse(false, 'System is currently in debug mode. Login is temporarily unavailable. Please try again later.', [], 503);
 }
 
 // ── Successful login: clear rate limit counters ──

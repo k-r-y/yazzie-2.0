@@ -66,7 +66,7 @@ include __DIR__ . '/../../includes/sidebar.php';
         <div class="card">
             <div class="card-body" style="padding:16px 20px;">
                 <div class="d-flex gap-3 flex-wrap">
-                    <a href="<?= BASE_URL ?>/views/frontdesk/bookings.php" class="btn btn-primary">
+                    <a href="<?= BASE_URL ?>/views/frontdesk/bookings.php" class="btn btn-primary py-3">
                         <i class="fas fa-plus"></i> New Booking
                     </a>
                     <a href="<?= BASE_URL ?>/views/frontdesk/costing.php" class="btn btn-outline-primary">
@@ -137,8 +137,8 @@ function refreshDashboard() {
 async function loadStats(params = {}) {
     try {
         const [kpis, pendingJobs] = await Promise.all([
-            Api.get(BASE + '/src/api/analytics.php', { type: 'kpis', ...params }),
-            Api.get(BASE + '/src/api/dispatching.php'),
+            Api.get(BASE + 'src/api/analytics.php', { type: 'kpis', ...params }),
+            Api.get(BASE + 'src/api/dispatching.php'),
         ]);
 
         const tf = params.timeframe || 'week';
@@ -157,7 +157,7 @@ async function loadStats(params = {}) {
 
 async function loadUpcoming(params = {}) {
     try {
-        const d      = await Api.get(BASE + '/src/api/bookings.php', {
+        const d      = await Api.get(BASE + 'src/api/bookings.php', {
             status: 'confirmed', order: 'ASC', ...params
         });
         const tbody  = document.getElementById('upcomingBody');
@@ -184,10 +184,10 @@ async function loadUpcoming(params = {}) {
                 <td>${b.pax_count}</td>
                 <td class="text-sm text-muted">${esc((b.event_location || '—').substring(0, 35))}${b.event_location?.length > 35 ? '…' : ''}</td>
                 <td>
-                    <a href="${BASE}/views/frontdesk/costing.php?booking_id=${b.id}" class="btn btn-outline-primary btn-sm" title="Grocery List">
+                    <a href="${BASE}views/frontdesk/costing.php?booking_id=${b.id}" class="btn btn-outline-primary btn-sm" title="Grocery List">
                         <i class="fas fa-cart-shopping"></i>
                     </a>
-                    <a href="${BASE}/views/frontdesk/dispatching.php?booking_id=${b.id}" class="btn btn-outline-secondary btn-sm" title="Dispatch">
+                    <a href="${BASE}views/frontdesk/dispatching.php?booking_id=${b.id}" class="btn btn-outline-secondary btn-sm" title="Dispatch">
                         <i class="fas fa-bullhorn"></i>
                     </a>
                 </td>
@@ -200,7 +200,7 @@ async function loadUpcoming(params = {}) {
 
 async function loadUnpaidBalances() {
     try {
-        const d    = await Api.get(BASE + '/src/api/bookings.php', { status: 'confirmed' });
+        const d    = await Api.get(BASE + 'src/api/bookings.php', { status: 'confirmed' });
         const div  = document.getElementById('unpaidList');
         const list = (d.bookings || []).filter(b =>
             parseFloat(b.total_cost) - parseFloat(b.amount_paid) > 0.01

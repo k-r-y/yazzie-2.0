@@ -34,6 +34,78 @@ function startSession(): void
 }
 
 /**
+ * Check if the session has exceeded the timeout duration.
+ * If it has, destroy the session and redirect to login.
+ * Also checks if debug mode is enabled and logs out user.
+ */
+function checkSessionTimeout(): void
+{
+    global $pdo;
+    
+    // Only check if user is logged in (direct check, no function calls to avoid recursion)
+    if (!isset($_SESSION['user_id']) || empty($_SESSION['user_id'])) {
+        return; // Not logged in, nothing to timeout
+    }
+    
+    // ── Check if debug mode is enabled; if so, force logout non-superadmins ──
+    if (defined('DEBUG_MODE') && (int)DEBUG_MODE === 1) {
+        $role = $_SESSION['role'] ?? '';
+        if ($role !== 'super_admin') {
+            session_destroy();
+            $_SESSION = [];
+            $isApi = str_contains($_SERVER['REQUEST_URI'], '/src/api/');
+            if ($isApi) {
+                jsonResponse(false, 'System is in debug mode. All users have been logged out. Please try again later.', [], 503);
+            } else {
+                header('Location: ' . BASE_URL . '/index.php?error=debug');
+                exit;
+            }
+        }
+    }
+    
+    // Get timeout from settings (default 30 minutes)
+    $timeoutMinutes = 30;
+    try {
+        if (isset($pdo)) {
+            $stmt = $pdo->prepare("SELECT value FROM settings WHERE `key` = 'session_timeout_minutes' LIMIT 1");
+            $stmt->execute();
+            $result = $stmt->fetch();
+            if ($result) {
+                $timeoutMinutes = max(5, (int)$result['value']); // Minimum 5 minutes
+            }
+        }
+    } catch (Throwable $e) {
+        // If settings table doesn't exist, use default
+    }
+    
+    // Session inactivity timeout (in seconds)
+    $sessionTimeout = $timeoutMinutes * 60;
+    
+    // Check if session was last accessed
+    if (!isset($_SESSION['last_activity'])) {
+        $_SESSION['last_activity'] = time();
+    } else {
+        $elapsed = time() - $_SESSION['last_activity'];
+        if ($elapsed > $sessionTimeout) {
+            // Session has expired, destroy it
+            session_destroy();
+            $_SESSION = [];
+            // Redirect to login with timeout message
+            $isApi = str_contains($_SERVER['REQUEST_URI'], '/src/api/');
+            if ($isApi) {
+                jsonResponse(false, 'Your session has expired. Please log in again.', [], 401);
+            } else {
+                header('Location: ' . BASE_URL . '/index.php?error=timeout');
+                exit;
+            }
+        }
+    }
+    
+    // Update last activity timestamp
+    $_SESSION['last_activity'] = time();
+}
+
+/**
  * Check if a user is currently authenticated.
  */
 function isLoggedIn(): bool
@@ -52,6 +124,7 @@ function requireRole(string|array $roles): void
 {
     startSession();
     checkMaintenanceMode();
+    checkSessionTimeout();
 
     if (!isLoggedIn()) {
         header('Location: ' . BASE_URL . '/index.php?error=auth');
@@ -159,6 +232,7 @@ function requireApiRole(string|array $roles): array
 {
     startSession();
     checkMaintenanceMode();
+    checkSessionTimeout();
 
     if (!isLoggedIn()) {
         jsonResponse(false, 'Unauthorized. Please log in.', [], 401);

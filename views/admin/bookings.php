@@ -13,7 +13,9 @@ include __DIR__ . '/../../includes/sidebar.php';
 
 <div class="card mb-4">
     <div class="card-body" style="padding:16px 20px;">
+        
         <div class="search-bar">
+           
             <div class="search-input-wrap">
                 <i class="fas fa-search"></i>
                 <input type="text" class="search-input" id="searchInput" placeholder="Search by client, location">
@@ -34,9 +36,11 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <option value="partial">Partial</option>
                 <option value="paid">Paid</option>
             </select>
-            <button class="btn btn-primary" onclick="openBookingStepper()">
+
+             <button class="btn btn-primary py-3" onclick="openBookingStepper()">
                 <i class="fas fa-plus"></i> New Booking
             </button>
+            
         </div>
     </div>
 </div>
@@ -64,6 +68,15 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <tr><td colspan="9"><div class="spinner"></div></td></tr>
             </tbody>
         </table>
+    </div>
+    <div class="table-pagination" id="bookingsPagination">
+        <button type="button" class="pagination-button" id="bookingPrevBtn" onclick="changeBookingPage(currentBookingPage - 1)" disabled>
+            <i class="fas fa-chevron-left"></i> Previous
+        </button>
+        <div class="pagination-info" id="bookingPageInfo">Page 1 of 1</div>
+        <button type="button" class="pagination-button" id="bookingNextBtn" onclick="changeBookingPage(currentBookingPage + 1)" disabled>
+            Next <i class="fas fa-chevron-right"></i>
+        </button>
     </div>
 </div>
 
@@ -151,6 +164,8 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
 let clients = [];
 let currentBookings = [];
 let allDishes = { mains: [], desserts: [] };
+let currentBookingPage = 1;
+let bookingTotalPages = 1;
 
 async function init() {
     await loadDishes();
@@ -159,27 +174,38 @@ async function init() {
 
 async function loadDishes() {
     try {
-        const d = await Api.get(BASE + '/src/api/packages.php', { dishes: 1 });
+        const d = await Api.get(BASE + 'src/api/packages.php', { dishes: 1 });
         allDishes.mains = d.mainDishes || [];
         allDishes.desserts = d.desserts || [];
     } catch(e) {}
 }
 
-async function loadBookings() {
+async function loadBookings(page = null) {
+    if (page !== null) {
+        currentBookingPage = Math.max(1, page);
+    }
+
     const status  = document.getElementById('filterStatus').value;
     const payment = document.getElementById('filterPayment').value;
     const search  = document.getElementById('searchInput').value;
     const order   = document.getElementById('filterOrder').value;
 
     try {
-        const params = {};
+        const params = {
+            page: currentBookingPage,
+            limit: 10,
+        };
         if (status)  params.status = status;
         if (payment) params.payment_status = payment;
         if (search)  params.search = search;
         if (order)   params.order = order;
 
-        const d = await Api.get(BASE + '/src/api/bookings.php', params);
+        const d = await Api.get(BASE + 'src/api/bookings.php', params);
         currentBookings = d.bookings || [];
+        bookingTotalPages = d.meta?.totalPages || 1;
+        const totalRecords = d.meta?.totalRecords ?? currentBookings.length;
+        document.getElementById('bookingCount').textContent = `${totalRecords} booking${totalRecords === 1 ? '' : 's'} found`;
+        renderBookingPagination();
         renderTable(currentBookings);
     } catch (e) {
         document.getElementById('bookingsBody').innerHTML =
@@ -188,7 +214,6 @@ async function loadBookings() {
 }
 
 function renderTable(bookings) {
-    document.getElementById('bookingCount').textContent = bookings.length + ' booking(s)';
     const tbody = document.getElementById('bookingsBody');
     if (bookings.length === 0) {
         tbody.innerHTML = `<tr data-empty><td colspan="9"><div class="table-empty">
@@ -218,10 +243,10 @@ function renderTable(bookings) {
                 <button class="btn btn-outline-primary btn-sm" onclick="openEdit(${b.id})" title="Edit Booking">
                     <i class="fas fa-edit"></i>
                 </button>
-                <a href="${BASE}/views/admin/financial.php?booking_id=${b.id}" class="btn btn-outline-secondary btn-sm" title="Payments">
+                <a href="${BASE}views/admin/financial.php?booking_id=${b.id}" class="btn btn-outline-secondary btn-sm" title="Payments">
                     <i class="fas fa-peso-sign"></i>
                 </a>
-                <a href="${BASE}/templates/contract.php?booking_id=${b.id}" target="_blank" class="btn btn-outline-secondary btn-sm" title="Contract">
+                <a href="${BASE}templates/contract.php?booking_id=${b.id}" target="_blank" class="btn btn-outline-secondary btn-sm" title="Contract">
                     <i class="fas fa-file-contract"></i>
                 </a>
             </td>
@@ -231,9 +256,12 @@ function renderTable(bookings) {
 
 
 async function openEdit(id) {
+    console.log('[DEBUG] openEdit called for ID:', id);
+    Modal.open('editBookingModal');
     try {
-        const d = await Api.get(BASE + '/src/api/bookings.php', { id });
+        const d = await Api.get(BASE + 'src/api/bookings.php', { id });
         const b = d.booking;
+        if (!b) throw new Error('Booking data not found.');
         document.getElementById('edit_id').value = b.id;
         document.getElementById('edit_updated_at').value = b.updated_at || '';
         document.getElementById('editBookingId').textContent = '#' + b.id;
@@ -288,7 +316,7 @@ async function openEdit(id) {
 async function updateBooking() {
     try {
         const data = Form.serialize(document.getElementById('editBookingForm'));
-        await Api.put(BASE + '/src/api/bookings.php', data);
+        await Api.put(BASE + 'src/api/bookings.php', data);
         Toast.success('Booking updated.');
         Modal.close('editBookingModal');
         await loadBookings();
@@ -303,7 +331,7 @@ async function sendReminder() {
     try {
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-        await Api.post(BASE + '/src/api/bookings.php', { action: 'send_reminder', id: id });
+        await Api.post(BASE + 'src/api/bookings.php', { action: 'send_reminder', id: id });
         Toast.success('Reminder sent successfully.');
     } catch (e) { Toast.error(e.message); }
     finally {
@@ -316,7 +344,7 @@ async function archiveBooking() {
     const id = document.getElementById('edit_id').value;
     if (!await confirmDialog('Archive this completed booking? It will be moved to the Archive and removed from the active calendar.')) return;
     try {
-        await Api.post(BASE + '/src/api/archive.php', { booking_id: id });
+        await Api.post(BASE + 'src/api/archive.php', { booking_id: id });
         Toast.success('Booking archived successfully.');
         Modal.close('editBookingModal');
         await loadBookings();
@@ -372,7 +400,7 @@ async function requestCancellation() {
 
     const reason = result.cancel_reason || '';
     try {
-        await Api.post(BASE + '/src/api/cancellations.php', { 
+        await Api.post(BASE + 'src/api/cancellations.php', { 
             booking_id: id, 
             reason: reason 
         });
@@ -385,9 +413,20 @@ async function requestCancellation() {
 
 // Wire up filters
 ['filterStatus','filterPayment','filterOrder'].forEach(id => {
-    document.getElementById(id).addEventListener('change', loadBookings);
+    document.getElementById(id).addEventListener('change', () => loadBookings(1));
 });
-document.getElementById('searchInput').addEventListener('input', debounce(loadBookings, 400));
+document.getElementById('searchInput').addEventListener('input', debounce(() => loadBookings(1), 400));
+
+function changeBookingPage(newPage) {
+    if (newPage < 1 || newPage > bookingTotalPages) return;
+    loadBookings(newPage);
+}
+
+function renderBookingPagination() {
+    document.getElementById('bookingPageInfo').textContent = `Page ${currentBookingPage} of ${bookingTotalPages}`;
+    document.getElementById('bookingPrevBtn').disabled = currentBookingPage <= 1;
+    document.getElementById('bookingNextBtn').disabled = currentBookingPage >= bookingTotalPages;
+}
 
 // ── BREAKAGE LOGGING ─────────────────────────────────────────────
 let inventory = [];
@@ -399,12 +438,12 @@ async function openBreakageModal() {
 
     // Fetch catalog first if empty
     if (inventory.length === 0) {
-        const d = await Api.get(BASE + '/src/api/inventory.php');
+        const d = await Api.get(BASE + 'src/api/inventory.php');
         inventory = d.equipment || [];
     }
 
     // Load existing breakages
-    const res = await Api.get(BASE + '/src/api/breakages.php', { booking_id: id });
+    const res = await Api.get(BASE + 'src/api/breakages.php', { booking_id: id });
     const logs = res.items || [];
 
     let html = `
@@ -414,7 +453,7 @@ async function openBreakageModal() {
             <div id="breakageList" class="mb-3" style="max-height:200px; overflow-y:auto; background:#f8f9fa; border-radius:10px; padding:10px;">
                 ${logs.length === 0 ? '<div class="text-center py-3 text-muted">No losses logged.</div>' : logs.map(l => `
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:13px; border-bottom:1px solid #eee; padding-bottom:5px;">
-                        <span>${esc(l.equipment_name)} (x${l.quantity})</span>
+                        <span>${esc(l.equipment_name)} (x${l.quantity}) <small class="text-muted">[${esc(l.charge_to)}]</small></span>
                         <div style="display:flex; align-items:center; gap:10px;">
                             <span class="fw-700">${Format.peso(l.total_cost)}</span>
                             <button class="btn-icon text-danger" onclick="deleteBreakage(${l.id})"><i class="fas fa-times"></i></button>
@@ -436,6 +475,14 @@ async function openBreakageModal() {
                         <label class="form-label text-xs">Qty</label>
                         <input type="number" class="form-control form-control-sm" id="bb_qty" value="1" min="1">
                     </div>
+                    <div class="col-12">
+                        <label class="form-label text-xs">Charge To</label>
+                        <select class="form-control form-control-sm" id="bb_charge_to">
+                            <option value="client">Client</option>
+                            <option value="staff">Staff</option>
+                            <option value="business">Business</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="mt-2">
                     <label class="form-label text-xs">Internal Note (optional)</label>
@@ -454,17 +501,19 @@ async function openBreakageModal() {
 
     if (!result) return;
 
-    const itemId = result.bb_item;
-    const qty    = result.bb_qty;
-    const note   = result.bb_note;
+    const itemId   = result.bb_item;
+    const qty      = result.bb_qty;
+    const chargeTo = result.bb_charge_to || 'client';
+    const note     = result.bb_note;
 
     if (!itemId) return Toast.error('Please select an item.');
 
     try {
-        await Api.post(BASE + '/src/api/breakages.php', {
+        await Api.post(BASE + 'src/api/breakages.php', {
             booking_id: id,
             equipment_id: itemId,
             quantity: qty,
+            charge_to: chargeTo,
             notes: note
         });
         Toast.success('Loss logged.');
@@ -476,13 +525,13 @@ async function deleteBreakage(id) {
 
     if (!await confirmDialog('Remove this breakage entry?')) return;
     try {
-        await Api.delete(BASE + '/src/api/breakages.php', { id });
+        await Api.delete(BASE + 'src/api/breakages.php', { id });
         Toast.success('Entry removed.');
         openBreakageModal(); // Re-open
     } catch(e) { Toast.error(e.message); }
 }
 
-init();
+init().then(() => console.log('[DEBUG] Bookings Page Initialized'));
 </script>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

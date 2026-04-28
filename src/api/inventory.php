@@ -36,14 +36,17 @@ if ($method === 'POST') {
     if (!isset($d['replacement_cost'])) jsonResponse(false, 'Replacement cost is required.', [], 422);
 
     $stmt = $pdo->prepare("
-        INSERT INTO equipment (name, unit, replacement_cost, is_active)
-        VALUES (:name, :unit, :cost, :active)
+        INSERT INTO equipment (name, category, unit, replacement_cost, total_stock, current_stock, is_active)
+        VALUES (:name, :category, :unit, :cost, :total_stock, :current_stock, :active)
     ");
     $stmt->execute([
-        ':name'   => trim(substr($d['name'], 0, 100)),
-        ':unit'   => trim(substr($d['unit'] ?? 'pcs', 0, 20)),
-        ':cost'   => max(0, (float)$d['replacement_cost']),
-        ':active' => isset($d['is_active']) ? (int)$d['is_active'] : 1
+        ':name'          => trim(substr($d['name'], 0, 100)),
+        ':category'      => trim(substr($d['category'] ?? 'General', 0, 50)),
+        ':unit'          => trim(substr($d['unit'] ?? 'pcs', 0, 20)),
+        ':cost'          => max(0, (float)$d['replacement_cost']),
+        ':total_stock'   => max(0, (int)($d['total_stock'] ?? 0)),
+        ':current_stock' => max(0, (int)($d['total_stock'] ?? 0)), // Initializes current to total
+        ':active'        => isset($d['is_active']) ? (int)$d['is_active'] : 1
     ]);
 
     jsonResponse(true, 'Equipment added.', ['id' => $pdo->lastInsertId()], 201);
@@ -63,17 +66,22 @@ if ($method === 'PUT') {
     $stmt = $pdo->prepare("
         UPDATE equipment SET
             name = :name,
+            category = :category,
             unit = :unit,
             replacement_cost = :cost,
+            total_stock = :total_stock,
+            current_stock = current_stock + (:total_stock - total_stock), -- Adjust current_stock based on diff
             is_active = :active
         WHERE id = :id
     ");
     $stmt->execute([
-        ':id'     => (int)$d['id'],
-        ':name'   => trim($d['name']),
-        ':unit'   => $d['unit'] ?? 'pcs',
-        ':cost'   => (float)$d['replacement_cost'],
-        ':active' => (int)$d['is_active']
+        ':id'          => (int)$d['id'],
+        ':name'        => trim($d['name']),
+        ':category'    => trim(substr($d['category'] ?? 'General', 0, 50)),
+        ':unit'        => $d['unit'] ?? 'pcs',
+        ':cost'        => (float)$d['replacement_cost'],
+        ':total_stock' => max(0, (int)($d['total_stock'] ?? 0)),
+        ':active'      => (int)$d['is_active']
     ]);
 
     jsonResponse(true, 'Equipment updated.');

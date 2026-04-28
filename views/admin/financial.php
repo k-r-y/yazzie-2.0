@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
-requireRole('admin');
+requireRole(['admin', 'frontdesk']);
 
 $pageTitle    = 'Financial Tracking';
 $pageSubtitle = 'Payment ledger — Admin access only';
@@ -281,7 +281,7 @@ async function initFinancial() {
 
 // Rebuild the booking dropdown with fresh live balances from the API
 async function refreshBookingSelector() {
-    const d  = await Api.get(BASE + '/src/api/bookings.php', {});
+    const d  = await Api.get(BASE + 'src/api/bookings.php', {});
     const bs = (d.bookings || []).filter(b => b.booking_status !== 'cancelled');
     const sel = document.getElementById('bookingSelect');
     const cur = sel.value; // preserve current selection
@@ -315,7 +315,7 @@ async function refreshStats() {
 // ── KPIs ───────────────────────────────────────────────────────────────
 async function loadKPIs(params = {}) {
     try {
-        const d = await Api.get(BASE + '/src/api/analytics.php', { type: 'kpis', ...params });
+        const d = await Api.get(BASE + 'src/api/analytics.php', { type: 'kpis', ...params });
         document.getElementById('stat-total-rev').textContent   = Format.peso(d.total_revenue);
         document.querySelector('#stat-total-rev + .stat-label').textContent = 'Revenue (' + d.period_label + ')';
         
@@ -335,7 +335,7 @@ async function onBookingChange() {
 
     // Fetch live balance from API (bypasses stale bookings.amount_paid)
     try {
-        const d     = await Api.get(BASE + '/src/api/payments.php', { booking_id: bid });
+        const d     = await Api.get(BASE + 'src/api/payments.php', { booking_id: bid });
         const b     = d.booking;
 
         // Re-compute from the SUM of actual payments returned
@@ -416,7 +416,7 @@ async function loadLedger() {
         if (status)  params.status = status;
         if (payment) params.payment_status = payment;
         
-        const d = await Api.get(BASE + '/src/api/bookings.php', params);
+        const d = await Api.get(BASE + 'src/api/bookings.php', params);
         const bookings = d.bookings || [];
         const tbody = document.getElementById('ledgerBody');
 
@@ -455,10 +455,10 @@ async function loadLedger() {
                 <td>${Format.paymentBadge(b.payment_status)}<br>${Format.bookingBadge(b.booking_status)}</td>
                 <td class="td-actions">
                     ${balance > 0 && !isCancelled ? `
-                    <button class="btn btn-primary btn-sm" onclick="quickPay(${b.id})" title="Add Payment">
+                    <button class="btn btn-primary btn-sm py-3" onclick="quickPay(${b.id})" title="Add Payment">
                         <i class="fas fa-plus"></i>
                     </button>` : ''}
-                    <button class="btn btn-outline-secondary btn-sm" onclick="viewHistory(${b.id})" title="View Payments">
+                    <button class="btn btn-outline-secondary btn-sm py-3" onclick="viewHistory(${b.id})" title="View Payments">
                         <i class="fas fa-list"></i>
                     </button>
                 </td>
@@ -472,7 +472,7 @@ async function loadLedger() {
 
 // ── PAYMENT HISTORY ────────────────────────────────────────────────────
 async function viewHistory(bookingId) {
-    const d = await Api.get(BASE + '/src/api/bookings.php', { id: bookingId });
+    const d = await Api.get(BASE + 'src/api/bookings.php', { id: bookingId });
     loadPaymentHistory(bookingId, d.booking);
 }
 
@@ -497,7 +497,7 @@ async function loadPaymentHistory(bookingId, bookingInfo) {
     }
 
     try {
-        const d = await Api.get(BASE + '/src/api/payments.php', { booking_id: bookingId });
+        const d = await Api.get(BASE + 'src/api/payments.php', { booking_id: bookingId });
         const payments = d.payments || [];
         const methodLabel = { cash:'💵 Cash', gcash:'📱 GCash', maya:'📱 Maya', bank_transfer:'🏦 Bank' };
 
@@ -542,7 +542,7 @@ async function quickPay(bookingId) {
 async function deletePayment(id, bookingId) {
     if (!await confirmDialog('Remove this payment? The balance will be automatically recalculated.')) return;
     try {
-        await Api.delete(BASE + '/src/api/payments.php', { id });
+        await Api.delete(BASE + 'src/api/payments.php', { id });
         Toast.success('Payment removed. Balance updated.');
         await loadLedger();
         await loadKPIs();
@@ -567,7 +567,7 @@ document.getElementById('paymentForm').addEventListener('submit', async function
     const btn = document.getElementById('recordPayBtn');
     Form.setLoading(btn, true);
     try {
-        const res  = await Api.post(BASE + '/src/api/payments.php', Form.serialize(this));
+        const res  = await Api.post(BASE + 'src/api/payments.php', Form.serialize(this));
 
         // Show success with updated balance from API response
         const newBalance = res.balance ?? 0;
@@ -622,7 +622,7 @@ function showTab(tab) {
 
 async function loadRefunds() {
     try {
-        const d = await Api.get(BASE + '/src/api/cancellations.php');
+        const d = await Api.get(BASE + 'src/api/cancellations.php');
         const refunds = d.cancellations || [];
         const tbody   = document.getElementById('refundsBody');
 
@@ -635,6 +635,7 @@ async function loadRefunds() {
             let statusBadge = '';
             if (r.refund_status === 'pending') statusBadge = '<span class="badge badge-warning">⏳ Pending</span>';
             else if (r.refund_status === 'processed') statusBadge = '<span class="badge badge-success">✅ Processed</span>';
+            else if (r.refund_status === 'reversed') statusBadge = '<span class="badge badge-info">🔄 Reversed</span>';
             else statusBadge = '<span class="badge badge-secondary">⚪ Waived</span>';
 
             return `
@@ -645,17 +646,18 @@ async function loadRefunds() {
                     <td style="font-weight:700; color:#1A7A32;">${Format.peso(r.refundable_amount)}</td>
                     <td><small class="text-muted">${esc(r.reason || '—')}</small></td>
                     <td>${statusBadge}</td>
+                    <td class="td-actions">
                         ${r.refund_status === 'pending' ? `
-                            <button class="btn btn-success btn-sm" onclick="processRefund(${r.id}, ${r.refundable_amount})" title="Process Refund">
+                            <button class="btn btn-success btn-sm py-3" onclick="processRefund(${r.id}, ${r.refundable_amount})" title="Process Refund">
                                 <i class="fas fa-check"></i>
                             </button>
                         ` : `
-                            <button class="btn btn-outline-secondary btn-sm" disabled>
+                            <button class="btn btn-outline-secondary btn-sm py-3" disabled>
                                 <i class="fas fa-lock"></i>
                             </button>
                         `}
                         ${r.refund_status !== 'reversed' ? `
-                            <button class="btn btn-warning btn-sm ms-1" onclick="uncancelBooking(${r.id})" title="Un-Cancel Booking">
+                            <button class="btn btn-warning btn-sm py-3 ms-1" onclick="uncancelBooking(${r.id})" title="Un-Cancel Booking">
                                 <i class="fas fa-undo"></i>
                             </button>
                         ` : ''}
@@ -671,7 +673,7 @@ async function loadRefunds() {
 async function uncancelBooking(id) {
     if (!await confirmDialog('Are you sure you want to un-cancel this booking? It will be restored to confirmed status.')) return;
     try {
-        await Api.put(BASE + '/src/api/cancellations.php', { id: id, action: 'uncancel' });
+        await Api.put(BASE + 'src/api/cancellations.php', { id: id, action: 'uncancel' });
         Toast.success('Booking restored.');
         loadRefunds();
         loadKPIs();
@@ -713,7 +715,7 @@ async function processRefund(id, amount) {
         const method = result.rf_method;
         const ref    = result.rf_ref;
         
-        await Api.put(BASE + '/src/api/cancellations.php', {
+        await Api.put(BASE + 'src/api/cancellations.php', {
             id: id,
             refund_status: 'processed',
             refund_method: method,

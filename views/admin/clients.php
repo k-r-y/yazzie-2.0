@@ -52,7 +52,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <i class="fas fa-search"></i>
                 <input type="text" id="clientSearch" placeholder="Search name, phone, or email..." oninput="filterClients()">
             </div>
-            <button class="btn btn-primary btn-sm" onclick="openAddModal()">
+            <button class="btn btn-primary btn-sm py-3" onclick="openAddModal()">
                 <i class="fas fa-plus"></i> Add Client
             </button>
         </div>
@@ -135,8 +135,8 @@ async function init() {
 async function loadData() {
     try {
         const [res, statsRes] = await Promise.all([
-            Api.get(BASE + '/src/api/clients.php'),
-            Api.get(BASE + '/src/api/analytics.php', { type: 'kpis' }) 
+            Api.get(BASE + 'src/api/clients.php'),
+            Api.get(BASE + 'src/api/analytics.php', { type: 'kpis' }) 
         ]);
 
         clients = res.clients || [];
@@ -276,10 +276,10 @@ async function saveClient() {
 
     try {
         if (id) {
-            await Api.put(BASE + '/src/api/clients.php', data);
+            await Api.put(BASE + 'src/api/clients.php', data);
             Toast.success('Client updated successfully');
         } else {
-            await Api.post(BASE + '/src/api/clients.php', data);
+            await Api.post(BASE + 'src/api/clients.php', data);
             Toast.success('New client added');
         }
         clientModal.hide();
@@ -295,7 +295,7 @@ async function deleteClient(id, name) {
     if (!await confirmDialog(`Are you sure you want to delete ${name}? This cannot be undone.`)) return;
 
     try {
-        await Api.delete(BASE + '/src/api/clients.php', { id });
+        await Api.delete(BASE + 'src/api/clients.php', { id });
         Toast.success('Client removed');
         loadData();
     } catch (e) {

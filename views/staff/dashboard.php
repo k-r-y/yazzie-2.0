@@ -206,7 +206,7 @@ function renderJob(j, showActions = true) {
 
 async function loadJobs() {
     try {
-        const d = await Api.get(BASE + '/src/api/dispatching.php', { my_jobs: 1 });
+        const d = await Api.get(BASE + 'src/api/dispatching.php', { my_jobs: 1 });
         allJobs = d.job_orders || [];
 
         const pending  = allJobs.filter(j => j.status === 'pending');
@@ -232,7 +232,7 @@ async function loadJobs() {
 async function respond(jobId, status) {
     if (!await confirmDialog(`${status === 'accepted' ? 'Accept' : 'Decline'} this job offer?`)) return;
     try {
-        await Api.put(BASE + '/src/api/dispatching.php', { id: jobId, status });
+        await Api.put(BASE + 'src/api/dispatching.php', { id: jobId, status });
         Toast.success(status === 'accepted' ? '✓ Job accepted! See you at the event.' : 'Job declined.');
         await loadJobs();
     } catch (e) { Toast.error(e.message); }
@@ -241,7 +241,7 @@ async function respond(jobId, status) {
 // ── LEAVE REQUESTS ─────────────────────────────────────────────────
 async function loadMyLeaves() {
     try {
-        const d = await Api.get(BASE + '/src/api/leave.php', { my_leaves: 1 });
+        const d = await Api.get(BASE + 'src/api/leave.php', { my_leaves: 1 });
         const leaves  = d.leaves || [];
         const tbody   = document.getElementById('leaveBody');
 
@@ -279,7 +279,7 @@ document.getElementById('leaveForm').addEventListener('submit', async function(e
     };
     Form.setLoading(btn, true, 'Submitting…');
     try {
-        await Api.post(BASE + '/src/api/leave.php', data);
+        await Api.post(BASE + 'src/api/leave.php', data);
         Toast.success('Leave request submitted! Awaiting admin approval.');
         this.reset();
         loadMyLeaves();
@@ -290,7 +290,7 @@ document.getElementById('leaveForm').addEventListener('submit', async function(e
 async function cancelLeave(id) {
     if (!await confirmDialog('Cancel this leave request?')) return;
     try {
-        await Api.delete(BASE + '/src/api/leave.php', { id });
+        await Api.delete(BASE + 'src/api/leave.php', { id });
         Toast.success('Leave request cancelled.');
         loadMyLeaves();
     } catch(e) { Toast.error(e.message); }

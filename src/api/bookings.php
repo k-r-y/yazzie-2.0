@@ -45,8 +45,13 @@ function validateEventTime(?string $time): ?string {
         jsonResponse(false, 'Invalid event time format. Use HH:MM.', [], 422);
     }
     $h = (int) explode(':', $time)[0];
-    if ($h < 7 || $h >= 23) {
-        jsonResponse(false, 'Event start time cannot be earlier than 07:00 AM or later than 11:00 PM.', [], 422);
+
+    // Use settings constants
+    $startH = (int)explode(':', OPERATING_HOURS_START)[0];
+    $endH   = (int)explode(':', OPERATING_HOURS_END)[0];
+
+    if ($h < $startH || $h >= $endH) {
+        jsonResponse(false, "Event start time must be between " . OPERATING_HOURS_START . " and " . OPERATING_HOURS_END . ".", [], 422);
     }
     return $time;
 }
@@ -100,7 +105,7 @@ function computePaxPricing($pdo, int $paxCount, $packageId = null): array {
 
     $ratePerPax = $basePax > 0 ? ($basePrice / $basePax) : 0.0;
     $extraPax   = max(0, $paxCount - $basePax);
-    $extraCost  = round($extraPax * EXTRA_PAX_RATE, 2);
+    $extraCost  = round($extraPax * $ratePerPax, 2);
     $totalCost  = round($basePrice + $extraCost, 2);
 
     return [
@@ -295,6 +300,16 @@ if ($method === 'GET') {
 
     $whereClause = implode(' AND ', $where);
 
+    $page  = max(1, (int)($_GET['page'] ?? 1));
+    $limit = (int)($_GET['limit'] ?? 10);
+    if ($limit < 1) $limit = 10;
+    $offset = ($page - 1) * $limit;
+
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM bookings b JOIN clients c ON c.id = b.client_id WHERE $whereClause");
+    $countStmt->execute($params);
+    $totalRecords = (int)$countStmt->fetchColumn();
+    $totalPages = (int)ceil($totalRecords / $limit);
+
     $order = 'DESC';
     if (isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC') {
         $order = 'ASC';
@@ -309,15 +324,28 @@ if ($method === 'GET') {
         JOIN clients c ON c.id = b.client_id
         WHERE $whereClause
         ORDER BY b.event_date $order, b.id $order
+        LIMIT :limit OFFSET :offset
     ");
-    $stmt->execute($params);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->bindValue(':limit',  $limit,  PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
     $rows = $stmt->fetchAll();
     foreach ($rows as &$r) {
         $r['package_name'] = !empty($r['base_pax']) ? ('Pax Tier ' . (int)$r['base_pax']) : 'Pax Tier';
         $r['menu_name']    = $r['package_name']; // Shared alias for frontend compatibility
     }
     unset($r);
-    jsonResponse(true, '', ['bookings' => $rows]);
+    jsonResponse(true, '', [
+        'bookings' => $rows,
+        'meta' => [
+            'currentPage'  => $page,
+            'totalPages'   => $totalPages,
+            'totalRecords' => $totalRecords,
+        ]
+    ]);
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -453,6 +481,27 @@ if ($method === 'POST') {
         }
 
         jsonResponse(true, 'Staff linked successfully.', ['created' => $created]);
+    }
+
+    // ── AUTOMATIC CLIENT CREATION FALLBACK ──
+    $clientId = (int)($data['client_id'] ?? 0);
+    if ($clientId === 0 && !empty($data['nc_name'])) {
+        $ncName  = trim($data['nc_name']);
+        $ncPhone = trim($data['nc_phone'] ?? '');
+        $ncEmail = trim($data['nc_email'] ?? '');
+        if (empty($ncPhone)) jsonResponse(false, 'New client phone is required.', [], 422);
+        
+        $dup = $pdo->prepare("SELECT id FROM clients WHERE email = :email LIMIT 1");
+        $dup->execute([':email' => $ncEmail]);
+        if ($existing = $dup->fetch()) {
+            $clientId = (int)$existing['id'];
+            $data['client_id'] = $clientId;
+        } else {
+            $cStmt = $pdo->prepare("INSERT INTO clients (name, phone, email, address) VALUES (:n, :p, :e, :a)");
+            $cStmt->execute([':n'=>$ncName, ':p'=>$ncPhone, ':e'=>$ncEmail, ':a'=>trim($data['nc_address'] ?? '')]);
+            $clientId = (int)$pdo->lastInsertId();
+            $data['client_id'] = $clientId;
+        }
     }
 
     requireFields($data, ['client_id', 'event_date', 'pax_count']);
