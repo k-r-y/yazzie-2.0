@@ -53,7 +53,16 @@ function sendMailImmediate(string $toEmail, string $toName, string $subject, str
         $mail->SMTPAuth   = true;
         $mail->Username   = MAIL_USERNAME;
         $mail->Password   = MAIL_PASSWORD;
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        
+        $sec = strtolower(MAIL_SECURE);
+        if ($sec === 'ssl' || (int)MAIL_PORT === 465) {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        } elseif ($sec === 'tls' || (int)MAIL_PORT === 587) {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        } else {
+            $mail->SMTPAuth = false;
+        }
+        
         $mail->Port       = MAIL_PORT;
 
         $mail->setFrom(MAIL_USERNAME, APP_NAME);

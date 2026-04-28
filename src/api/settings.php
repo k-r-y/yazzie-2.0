@@ -82,6 +82,7 @@ if ($method === 'PUT') {
             if (!filter_var($value, FILTER_VALIDATE_EMAIL)) jsonResponse(false, 'SMTP user must be a valid email address.', [], 422);
             break;
         case 'smtp_pass':
+            $value = str_replace(' ', '', (string)$value);
             if (strlen(trim((string)$value)) < 5) jsonResponse(false, 'SMTP password must be at least 5 characters.', [], 422);
             break;
         case 'smtp_port':
@@ -92,6 +93,19 @@ if ($method === 'PUT') {
             $hostStr = trim((string)$value);
             if (strlen($hostStr) < 3) jsonResponse(false, 'SMTP host must be a valid hostname or IP address.', [], 422);
             if (!preg_match('/^[a-zA-Z0-9\.\-]+$/', $hostStr)) jsonResponse(false, 'SMTP host contains invalid characters.', [], 422);
+            break;
+        case 'smtp_secure':
+            $sec = strtolower(trim((string)$value));
+            if (!in_array($sec, ['tls', 'ssl', 'none'])) jsonResponse(false, 'SMTP security must be tls, ssl, or none.', [], 422);
+            break;
+        case 'smtp_from':
+            if (!filter_var($value, FILTER_VALIDATE_EMAIL)) jsonResponse(false, 'SMTP From must be a valid email address.', [], 422);
+            break;
+        case 'smtp_from_name':
+            if (strlen(trim((string)$value)) < 2) jsonResponse(false, 'SMTP From Name is too short.', [], 422);
+            break;
+        case 'mail_enabled':
+            if ((int)$value !== 0 && (int)$value !== 1) jsonResponse(false, 'Mail Enabled must be either 0 or 1.', [], 422);
             break;
         case 'sms_api_key':
             // Optional field, if provided must be at least 10 characters

@@ -159,6 +159,32 @@ async function loadSettings() {
                 help: 'SMTP server port (1-65535). Common: 587 (TLS), 465 (SSL), 25 (unencrypted).',
                 min: 1, max: 65535, type: 'int'
             },
+            'smtp_secure': {
+                label: 'SMTP Security',
+                help: 'Encryption protocol for SMTP. Use TLS for port 587 and SSL for port 465.',
+                type: 'select',
+                options: [
+                    {value: 'tls', label: 'TLS (Recommended)'},
+                    {value: 'ssl', label: 'SSL'},
+                    {value: 'none', label: 'None (Insecure)'}
+                ]
+            },
+            'smtp_from': {
+                label: 'Mail From Address',
+                help: 'The email address that will appear in the "From" field of outgoing emails.',
+                type: 'email'
+            },
+            'smtp_from_name': {
+                label: 'Mail From Name',
+                help: 'The display name that will appear in the "From" field.',
+                type: 'text'
+            },
+            'mail_enabled': {
+                label: 'Email System Status',
+                help: 'Globally enable or disable all outgoing email notifications.',
+                type: 'select',
+                options: [{value: '1', label: '1 - Enabled'}, {value: '0', label: '0 - Disabled'}]
+            },
             'sms_api_key': {
                 label: 'SMS API Key (Semaphore)',
                 help: 'API key for SMS gateway integration (optional). Required only if SMS notifications are enabled.',

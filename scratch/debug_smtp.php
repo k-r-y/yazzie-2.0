@@ -5,17 +5,20 @@ require_once __DIR__ . '/../includes/mailer.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
 
-echo "Attempting to send test email to yazziecateringservices@gmail.com...\n";
+echo "--- SMTP DEBUG SESSION ---\n";
 echo "Host: " . MAIL_HOST . "\n";
 echo "Port: " . MAIL_PORT . "\n";
 echo "User: " . MAIL_USERNAME . "\n";
+echo "Pass: " . substr(MAIL_PASSWORD, 0, 2) . str_repeat('*', max(0, strlen(MAIL_PASSWORD)-4)) . substr(MAIL_PASSWORD, -2) . " (Length: " . strlen(MAIL_PASSWORD) . ")\n";
+echo "Secure: " . MAIL_SECURE . "\n";
 echo "Enabled: " . (MAIL_ENABLED ? 'Yes' : 'No') . "\n";
 
+$mail = new PHPMailer(true);
 try {
-    $mail = new PHPMailer(true);
+    $mail->SMTPDebug = SMTP::DEBUG_SERVER;
     $mail->isSMTP();
-    $mail->SMTPDebug = SMTP::DEBUG_SERVER; // Enable verbose debug output
     $mail->Host       = MAIL_HOST;
+    $mail->SMTPAuth   = true;
     $mail->Username   = MAIL_USERNAME;
     $mail->Password   = MAIL_PASSWORD;
     
@@ -29,18 +32,14 @@ try {
     }
     
     $mail->Port       = MAIL_PORT;
-
-    $mail->setFrom(MAIL_USERNAME, 'SMTP TEST');
-    $mail->addAddress(MAIL_USERNAME, 'Test Recipient');
-    $mail->isHTML(true);
-    $mail->Subject = 'SMTP Test Connection';
-    $mail->Body    = 'This is a test to verify SMTP settings.';
-
-    if ($mail->send()) {
-        echo "\nSUCCESS: Email sent!\n";
-    } else {
-        echo "\nFAILURE: Email not sent.\n";
-    }
+    $mail->setFrom(MAIL_USERNAME, 'DEBUG TEST');
+    $mail->addAddress(MAIL_USERNAME);
+    $mail->Subject = 'Debug Test';
+    $mail->Body    = 'Test body';
+    
+    echo "\nStarting send...\n";
+    $mail->send();
+    echo "\nSUCCESS!\n";
 } catch (Exception $e) {
-    echo "\nEXCEPTION: " . $e->getMessage() . "\n";
+    echo "\nMAILER EXCEPTION: " . $e->getMessage() . "\n";
 }

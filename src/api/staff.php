@@ -83,7 +83,8 @@ if ($method === 'GET') {
     }
 
     if (isset($_GET['active_only'])) {
-        $where[] = 'is_active = 1';
+        $where[] = 'is_active = :active';
+        $params[':active'] = (int)$_GET['active_only'];
     }
 
     if (!empty($_GET['search'])) {

@@ -225,14 +225,19 @@ $dbSmtpHost = appSetting('smtp_host');
 $dbSmtpPort = appSetting('smtp_port');
 $dbSmtpUser = appSetting('smtp_user');
 $dbSmtpPass = appSetting('smtp_pass');
+$dbSmtpSecure = appSetting('smtp_secure', 'tls');
+$dbSmtpFrom = appSetting('smtp_from');
+$dbSmtpFromName = appSetting('smtp_from_name');
+$dbMailEnabled = appSetting('mail_enabled');
 
 define('MAIL_HOST',     !empty($dbSmtpHost) ? $dbSmtpHost : (getenv('MAIL_HOST') ?: 'smtp.gmail.com'));
 define('MAIL_PORT',     !empty($dbSmtpPort) ? (int)$dbSmtpPort : (int)(getenv('MAIL_PORT') ?: 587));
 define('MAIL_USERNAME', !empty($dbSmtpUser) ? $dbSmtpUser : (getenv('MAIL_USERNAME') ?: 'yazziecateringservices@gmail.com'));
 define('MAIL_PASSWORD', !empty($dbSmtpPass) ? $dbSmtpPass : (getenv('MAIL_PASSWORD') ?: '')); 
-define('MAIL_FROM',     getenv('MAIL_FROM') ?: 'yazziecateringservices@gmail.com');
-define('MAIL_FROM_NAME', getenv('MAIL_FROM_NAME') ?: 'Yazzies Catering Services');
-define('MAIL_ENABLED',  filter_var(getenv('MAIL_ENABLED'), FILTER_VALIDATE_BOOLEAN));
+define('MAIL_SECURE',   !empty($dbSmtpSecure) ? $dbSmtpSecure : 'tls');
+define('MAIL_FROM',     !empty($dbSmtpFrom) ? $dbSmtpFrom : (getenv('MAIL_FROM') ?: 'yazziecateringservices@gmail.com'));
+define('MAIL_FROM_NAME', !empty($dbSmtpFromName) ? $dbSmtpFromName : (getenv('MAIL_FROM_NAME') ?: 'Yazzies Catering Services'));
+define('MAIL_ENABLED',  $dbMailEnabled !== null ? filter_var($dbMailEnabled, FILTER_VALIDATE_BOOLEAN) : filter_var(getenv('MAIL_ENABLED'), FILTER_VALIDATE_BOOLEAN));
 
 // ============================================================
 // SMS Configuration (Semaphore PH)
