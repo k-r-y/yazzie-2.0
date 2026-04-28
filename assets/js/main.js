@@ -418,6 +418,11 @@ const CustomConfirm = {
                     }
                 });
                 return data;
+            },
+            didOpen: () => {
+                // Focus the first input/select to fix modal focus trapping issues
+                const first = Swal.getHtmlContainer().querySelector('input, select, textarea');
+                if (first) first.focus();
             }
         }).then(result => {
             if (result.isConfirmed) {

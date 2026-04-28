@@ -69,19 +69,23 @@ if ($method === 'PUT') {
             category = :category,
             unit = :unit,
             replacement_cost = :cost,
+            current_stock = current_stock + (:total_stock_adj - total_stock),
             total_stock = :total_stock,
-            current_stock = current_stock + (:total_stock - total_stock), -- Adjust current_stock based on diff
             is_active = :active
         WHERE id = :id
     ");
+    
+    $totalStock = max(0, (int)($d['total_stock'] ?? 0));
+    
     $stmt->execute([
-        ':id'          => (int)$d['id'],
-        ':name'        => trim($d['name']),
-        ':category'    => trim(substr($d['category'] ?? 'General', 0, 50)),
-        ':unit'        => $d['unit'] ?? 'pcs',
-        ':cost'        => (float)$d['replacement_cost'],
-        ':total_stock' => max(0, (int)($d['total_stock'] ?? 0)),
-        ':active'      => (int)$d['is_active']
+        ':id'              => (int)$d['id'],
+        ':name'            => trim($d['name']),
+        ':category'        => trim(substr($d['category'] ?? 'General', 0, 50)),
+        ':unit'            => $d['unit'] ?? 'pcs',
+        ':cost'            => (float)$d['replacement_cost'],
+        ':total_stock'     => $totalStock,
+        ':total_stock_adj' => $totalStock,
+        ':active'          => (int)$d['is_active']
     ]);
 
     jsonResponse(true, 'Equipment updated.');

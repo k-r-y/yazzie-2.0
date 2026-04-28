@@ -42,7 +42,7 @@ include __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <!-- MODAL: ADD/EDIT EQUIPMENT -->
-<div class="modal fade" id="equipmentModal" tabindex="-1">
+<div class="modal fade" id="equipmentModal" tabindex="-1" data-bs-focus="false">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -73,7 +73,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                         </div>
                         <div class="col-6">
                             <label class="form-label" for="equip_total_stock">Total Stock <span class="required">*</span></label>
-                            <input type="text" class="form-control" name="total_stock" id="equip_total_stock" required placeholder="0" data-restrict="number" title="Total quantity owned by the business">
+                            <input type="number" class="form-control" name="total_stock" id="equip_total_stock" required placeholder="0" min="0" step="1" title="Total quantity owned by the business">
                         </div>
                     </div>
 
@@ -84,7 +84,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                         </div>
                         <div class="col-6">
                             <label class="form-label" for="equip_cost">Replacement Price (₱) <span class="required">*</span></label>
-                            <input type="text" class="form-control" name="replacement_cost" id="equip_cost" required placeholder="0.00" data-restrict="price" title="Cost to replace one unit if broken or lost">
+                            <input type="number" class="form-control" name="replacement_cost" id="equip_cost" required placeholder="0.00" min="0" step="0.01" title="Cost to replace one unit if broken or lost">
                         </div>
                     </div>
 
@@ -105,6 +105,10 @@ include __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <script>
+// Auto-focus first field when modal opens
+document.getElementById('equipmentModal').addEventListener('shown.bs.modal', function () {
+    document.getElementById('equip_name').focus();
+});
 let allEquipment = [];
 
 async function loadInventory() {

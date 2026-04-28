@@ -93,13 +93,13 @@ if ($method === 'POST') {
         $newId = $pdo->lastInsertId();
 
         // Deduct from stock
-        $pdo->prepare("UPDATE equipment SET current_stock = current_stock - :qty, total_stock = total_stock - :qty WHERE id = :eid")
-            ->execute([':qty' => $quantity, ':eid' => $equipmentId]);
+        $pdo->prepare("UPDATE equipment SET current_stock = current_stock - :qty, total_stock = total_stock - :qty_adj WHERE id = :eid")
+            ->execute([':qty' => $quantity, ':qty_adj' => $quantity, ':eid' => $equipmentId]);
 
         // If charged to client, update booking breakage total
         if ($chargeTo === 'client') {
-            $pdo->prepare("UPDATE bookings SET breakage_total = breakage_total + :total, total_cost = total_cost + :total WHERE id = :bid")
-                ->execute([':total' => $totalCost, ':bid' => $bookingId]);
+            $pdo->prepare("UPDATE bookings SET breakage_total = breakage_total + :total, total_cost = total_cost + :total_adj WHERE id = :bid")
+                ->execute([':total' => $totalCost, ':total_adj' => $totalCost, ':bid' => $bookingId]);
         }
 
         // Audit Log
@@ -141,13 +141,13 @@ if ($method === 'DELETE') {
         $pdo->prepare("DELETE FROM booking_breakages WHERE id = :id")->execute([':id' => $id]);
 
         // Restore stock
-        $pdo->prepare("UPDATE equipment SET current_stock = current_stock + :qty, total_stock = total_stock + :qty WHERE id = :eid")
-            ->execute([':qty' => $row['quantity'], ':eid' => $row['equipment_id']]);
+        $pdo->prepare("UPDATE equipment SET current_stock = current_stock + :qty, total_stock = total_stock + :qty_adj WHERE id = :eid")
+            ->execute([':qty' => $row['quantity'], ':qty_adj' => $row['quantity'], ':eid' => $row['equipment_id']]);
 
         // If it was charged to client, subtract from booking totals
         if ($row['charge_to'] === 'client') {
-            $pdo->prepare("UPDATE bookings SET breakage_total = breakage_total - :total, total_cost = total_cost - :total WHERE id = :bid")
-                ->execute([':total' => $row['total_cost'], ':bid' => $row['booking_id']]);
+            $pdo->prepare("UPDATE bookings SET breakage_total = breakage_total - :total, total_cost = total_cost - :total_adj WHERE id = :bid")
+                ->execute([':total' => $row['total_cost'], ':total_adj' => $row['total_cost'], ':bid' => $row['booking_id']]);
         }
 
         auditLog($pdo, 'breakage_deleted', 'booking', $row['booking_id'], 

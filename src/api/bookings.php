@@ -158,7 +158,21 @@ function autoCompleteExpiredBookings(PDO $pdo): int {
           )
     ");
     $stmt->execute();
-    return $stmt->rowCount();
+    $affected = $stmt->rowCount();
+
+    // 2. Auto-archive fully paid completed bookings (System Action)
+    // Only if not already archived.
+    $pdo->exec("
+        UPDATE bookings
+        SET is_archived = 1,
+            archived_at = NOW(),
+            archived_by = NULL
+        WHERE booking_status = 'completed'
+          AND payment_status = 'paid'
+          AND is_archived = 0
+    ");
+    
+    return $affected;
 }
 
 // Public: active booking count for login page
@@ -223,6 +237,40 @@ if ($method === 'GET') {
         // Package-less computed label
         $booking['package_name'] = !empty($booking['base_pax']) ? ('Pax Tier ' . (int)$booking['base_pax']) : 'Pax Tier';
         $booking['menu_name']    = $booking['package_name']; // Shared alias for frontend compatibility
+
+        // Attach Staff Assignments
+        $sStmt = $pdo->prepare("
+            SELECT jo.*, u.name AS staff_name, u.email AS staff_email
+            FROM job_orders jo
+            JOIN users u ON u.id = jo.staff_id
+            WHERE jo.booking_id = :bid
+            ORDER BY jo.sent_at ASC
+        ");
+        $sStmt->execute([':bid' => $booking['id']]);
+        $booking['staff'] = $sStmt->fetchAll();
+
+        // Attach Payments
+        $pStmt = $pdo->prepare("
+            SELECT p.*, u.name AS recorded_by_name
+            FROM payments p
+            JOIN users u ON u.id = p.recorded_by
+            WHERE p.booking_id = :bid
+            ORDER BY p.payment_date ASC, p.id ASC
+        ");
+        $pStmt->execute([':bid' => $booking['id']]);
+        $booking['payments'] = $pStmt->fetchAll();
+
+        // Attach Breakage Logs
+        $bStmt = $pdo->prepare("
+            SELECT bb.*, e.name AS equipment_name, u.name AS logged_by_name
+            FROM booking_breakages bb
+            JOIN equipment e ON e.id = bb.equipment_id
+            JOIN users u ON u.id = bb.logged_by
+            WHERE bb.booking_id = :bid
+            ORDER BY bb.logged_at ASC
+        ");
+        $bStmt->execute([':bid' => $booking['id']]);
+        $booking['breakages'] = $bStmt->fetchAll();
 
         // Backward-compatible dish list for grocery/costing module: ?dishes=1
         if (isset($_GET['dishes'])) {
