@@ -38,7 +38,7 @@ if ($method === 'GET') {
         }
 
         $page  = max(1, (int)($_GET['page'] ?? 1));
-        $limit = (int)($_GET['limit'] ?? 10);
+        $limit = (int)($_GET['limit'] ?? 1000); // Increased default for menu selection
         if ($limit < 1) $limit = 10;
         $offset = ($page - 1) * $limit;
 

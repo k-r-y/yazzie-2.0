@@ -331,11 +331,19 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                     <!-- Row 2: Dish Selection (full width) -->
                     <div id="dishSelectionPanel" style="display:none; padding-top:24px; border-top:1px solid rgba(60,60,67,0.06); margin-top:10px;">
                         <!-- Meal Type Filter (iOS Segmented Control Style) -->
-                        <div id="mealTypeFilter" style="margin-bottom:24px; display:flex; align-items:center; background:rgba(60,60,67,0.04); padding:4px; border-radius:14px; border:0.5px solid rgba(60,60,67,0.06); max-width:400px; margin-left:auto; margin-right:auto;">
-                            <button type="button" class="meal-filter-btn active" id="mf_all" onclick="setManualMealType('all')" style="flex:1; border:none; background:white; border-radius:10px; padding:8px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.08); transition:all 0.25s; color:var(--label);">🌎 All</button>
-                            <button type="button" class="meal-filter-btn" id="mf_breakfast" onclick="setManualMealType('breakfast')" style="flex:1; border:none; background:none; border-radius:10px; padding:8px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.25s; color:rgba(60,60,67,0.5);">🍳 B-fast</button>
-                            <button type="button" class="meal-filter-btn" id="mf_lunch" onclick="setManualMealType('lunch')" style="flex:1; border:none; background:none; border-radius:10px; padding:8px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.25s; color:rgba(60,60,67,0.5);">🍱 Lunch</button>
-                            <button type="button" class="meal-filter-btn" id="mf_dinner" onclick="setManualMealType('dinner')" style="flex:1; border:none; background:none; border-radius:10px; padding:8px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.25s; color:rgba(60,60,67,0.5);">🍷 Dinner</button>
+                        <div class="meal-filter-container">
+                            <button type="button" class="meal-filter-btn active" id="mf_all" onclick="setManualMealType('all')" title="Show all dishes">
+                                <span>🌎</span> All
+                            </button>
+                            <button type="button" class="meal-filter-btn" id="mf_breakfast" onclick="setManualMealType('breakfast')" title="Filter by Breakfast dishes">
+                                <span>🍳</span> Breakfast
+                            </button>
+                            <button type="button" class="meal-filter-btn" id="mf_lunch" onclick="setManualMealType('lunch')" title="Filter by Lunch dishes">
+                                <span>🍱</span> Lunch
+                            </button>
+                            <button type="button" class="meal-filter-btn" id="mf_dinner" onclick="setManualMealType('dinner')" title="Filter by Dinner dishes">
+                                <span>🍷</span> Dinner
+                            </button>
                         </div>
 
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:12px 16px; background:linear-gradient(to right, rgba(48,209,88,0.08), transparent); border-radius:12px; border-left:4px solid var(--sys-green);">
@@ -548,6 +556,43 @@ $stepperRole = $bookingStepperRole ?? 'admin';
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 10px;
 }
+/* Meal Type Filter Styles */
+.meal-filter-container {
+    margin: 0 auto 24px auto;
+    display: flex;
+    align-items: center;
+    background: rgba(60,60,67,0.05);
+    padding: 3px;
+    border-radius: 12px;
+    max-width: 420px;
+    border: 0.5px solid rgba(60,60,67,0.05);
+}
+.meal-filter-btn {
+    flex: 1;
+    border: none;
+    background: none;
+    border-radius: 9px;
+    padding: 7px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: rgba(60,60,67,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.meal-filter-btn:hover {
+    color: var(--label);
+}
+.meal-filter-btn.active {
+    background: #fff;
+    color: var(--label);
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+
 .dish-card {
     position: relative;
     border: 1px solid rgba(60,60,67,0.08);
@@ -1166,12 +1211,18 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             Toast.warning(`Operating hours are from ${Format.time(opStart)} to ${Format.time(opEnd)}. Please adjust your selection.`);
         }
 
-        // Determine Meal Type — use the `h` hour integer derived from val
-        const h = parseInt(val.split(':')[0], 10);
-        if (h >= mealB && h < mealL) state.mealType = 'breakfast';
-        else if (h >= mealL && h < mealD) state.mealType = 'lunch';
-        else if (h >= mealD) state.mealType = 'dinner';
-        else state.mealType = 'all';
+        // Optional: Suggest meal type based on time but DON'T override the manual filter
+        // If state.mealType is 'all', we might want to auto-select if it's the first time
+        if (state.mealType === 'all' || !val) {
+             const h = parseInt(val.split(':')[0], 10);
+             let suggestedType = 'all';
+             if (h >= mealB && h < mealL) suggestedType = 'breakfast';
+             else if (h >= mealL && h < mealD) suggestedType = 'lunch';
+             else if (h >= mealD) suggestedType = 'dinner';
+             
+             // We can auto-set if they haven't manually changed it yet
+             // For now, let's just stick to 'All' as requested: "display all but add filter"
+        }
 
         // Refresh dish selection UI based on meal type
         buildDishSelection();
@@ -1531,18 +1582,10 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         
         // Update UI buttons
         document.querySelectorAll('.meal-filter-btn').forEach(btn => {
-            btn.style.background = 'none';
-            btn.style.color = 'rgba(60,60,67,0.6)';
-            btn.style.fontWeight = '600';
-            btn.style.boxShadow = 'none';
+            btn.classList.remove('active');
         });
         const activeBtn = document.getElementById('mf_' + type);
-        if (activeBtn) {
-            activeBtn.style.background = 'white';
-            activeBtn.style.color = 'var(--label)';
-            activeBtn.style.fontWeight = '700';
-            activeBtn.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
-        }
+        if (activeBtn) activeBtn.classList.add('active');
         
         buildDishSelection();
     };

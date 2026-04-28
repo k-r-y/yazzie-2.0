@@ -87,7 +87,12 @@ if ($method === 'POST') {
     $amount    = (float)$d['amount'];
 
     // Verify booking exists + get current booking_status for auto-promotion
-    $bStmt = $pdo->prepare("SELECT id, total_cost, booking_status, event_date, client_email FROM bookings WHERE id = :id");
+    $bStmt = $pdo->prepare("
+        SELECT b.id, b.total_cost, b.booking_status, b.event_date, c.email AS client_email, c.name AS client_name
+        FROM bookings b
+        JOIN clients c ON c.id = b.client_id
+        WHERE b.id = :id
+    ");
     $bStmt->execute([':id' => $bookingId]);
     $booking = $bStmt->fetch();
     if (!$booking) jsonResponse(false, 'Booking not found.', [], 404);
