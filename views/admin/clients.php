@@ -50,7 +50,7 @@ include __DIR__ . '/../../includes/sidebar.php';
         <div style="display:flex;gap:10px;">
             <div class="search-box-v2" style="width:280px;">
                 <i class="fas fa-search"></i>
-                <input type="text" id="clientSearch" placeholder="Search name, phone, or email..." oninput="filterClients()" title="Type to filter the client list">
+                <input type="text" class="form-control border h-100" id="clientSearch" placeholder="Search name, phone, or email..." oninput="filterClients()" title="Type to filter the client list">
             </div>
             <button class="btn btn-primary btn-sm py-3" onclick="openAddModal()" title="Register a new client profile">
                 <i class="fas fa-plus"></i> Add Client
@@ -65,7 +65,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <th>Contact Information</th>
                     <th>Location / Address</th>
                     <th class="text-center">Total Bookings</th>
-                    <th class="td-actions">Actions</th>
+                    <th class="td-actions" colspan="2">Actions</th>
                 </tr>
             </thead>
             <tbody id="clientsBody">
@@ -197,9 +197,9 @@ function renderClients(list) {
                     ${c.total_bookings} Booking${c.total_bookings == 1 ? '' : 's'}
                 </span>
             </td>
-            <td class="td-actions">
+            <td class="td-actions" colspan="2">
                 <button class="btn btn-outline-primary btn-sm" onclick="openEditModal(${c.id})" title="Edit client details">
-                    <i class="fas fa-pencil"></i> Edit
+                    <i class="fas fa-pencil"></i>
                 </button>
                 <button class="btn btn-danger btn-sm" onclick="deleteClient(${c.id}, '${esc(c.name)}')" title="Remove client from system">
                     <i class="fas fa-trash"></i>

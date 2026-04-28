@@ -47,10 +47,7 @@ function validateEventTime(?string $time): ?string {
     $h = (int) explode(':', $time)[0];
 
     // Use settings constants
-    $startH = (int)explode(':', OPERATING_HOURS_START)[0];
-    $endH   = (int)explode(':', OPERATING_HOURS_END)[0];
-
-    if ($h < $startH || $h >= $endH) {
+    if ($time < OPERATING_HOURS_START || $time >= OPERATING_HOURS_END) {
         jsonResponse(false, "Event start time must be between " . OPERATING_HOURS_START . " and " . OPERATING_HOURS_END . ".", [], 422);
     }
     return $time;

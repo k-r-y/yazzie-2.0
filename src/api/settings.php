@@ -32,6 +32,35 @@ if ($method === 'PUT') {
 
     // Strict Input Validation based on Key
     switch ($key) {
+        case 'operating_hours_start':
+        case 'operating_hours_end':
+            if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $value)) {
+                jsonResponse(false, 'Operating hours must be in HH:mm format (24-hour).', [], 422);
+            }
+            if ($key === 'operating_hours_end') {
+                $start = appSetting('operating_hours_start', '07:00');
+                if (strtotime($value) <= strtotime($start)) {
+                    jsonResponse(false, 'End time must be after start time.', [], 422);
+                }
+            }
+            break;
+        case 'meal_breakfast_start':
+        case 'meal_lunch_start':
+        case 'meal_dinner_start':
+            $h = (int)$value;
+            if ($h < 0 || $h > 23) jsonResponse(false, 'Meal start hour must be between 0 and 23.', [], 422);
+            break;
+        case 'staff_ratio_premium':
+        case 'staff_ratio_standard':
+        case 'waiter_ratio_wedding':
+        case 'waiter_ratio_birthday':
+            if ((int)$value <= 0) jsonResponse(false, 'Staff ratios must be greater than 0.', [], 422);
+            break;
+        case 'extra_main_rate':
+        case 'extra_dessert_rate':
+        case 'extra_rice_rate':
+            if ((float)$value < 0) jsonResponse(false, 'Extra item rates cannot be negative.', [], 422);
+            break;
         case 'min_pax':
             if ((int)$value < 10) jsonResponse(false, 'Minimum pax cannot be less than 10.', [], 422);
             break;
