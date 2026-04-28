@@ -32,7 +32,7 @@ try {
     }
     
     $mail->Port       = MAIL_PORT;
-    $mail->setFrom(MAIL_USERNAME, 'DEBUG TEST');
+    $mail->setFrom(MAIL_FROM, MAIL_FROM_NAME);
     $mail->addAddress(MAIL_USERNAME);
     $mail->Subject = 'Debug Test';
     $mail->Body    = 'Test body';

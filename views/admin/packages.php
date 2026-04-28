@@ -17,7 +17,7 @@ include __DIR__ . '/../../includes/sidebar.php';
             <div class="card-title">Packages Matrix</div>
             <div class="card-subtitle">Define base pricing per tier (e.g., Standard, Premium, Luxury)</div>
         </div>
-        <button class="btn btn-primary py-3" onclick="openAddModal()">
+        <button class="btn btn-primary py-3" onclick="openAddModal()" title="Create a new package tier with custom pricing and limits">
             <i class="fas fa-plus"></i> Add Package Tier
         </button>
     </div>
@@ -66,29 +66,29 @@ include __DIR__ . '/../../includes/sidebar.php';
                     
                     <div class="row g-3 mb-3">
                         <div class="col-7">
-                            <label class="form-label">Package Name <span class="required">*</span></label>
-                            <input type="text" class="form-control" name="set_name" id="pkg_name" required placeholder="e.g. Premium" maxlength="100">
+                            <label class="form-label" for="pkg_name">Package Name <span class="required">*</span></label>
+                            <input type="text" class="form-control" name="set_name" id="pkg_name" required placeholder="e.g. Premium" maxlength="100" title="Name of the package tier">
                         </div>
                         <div class="col-5">
-                            <label class="form-label">Base Pax Count <span class="required">*</span></label>
-                            <input type="number" class="form-control" name="pax_count" id="pkg_pax" required placeholder="e.g. 50" min="1">
+                            <label class="form-label" for="pkg_pax">Base Pax Count <span class="required">*</span></label>
+                            <input type="text" class="form-control" name="pax_count" id="pkg_pax" required placeholder="e.g. 50" data-restrict="number" title="Minimum number of guests for this price">
                         </div>
                     </div>
 
                     <div class="form-group mb-3">
-                        <label class="form-label">Package Price (₱) <span class="required">*</span></label>
-                        <input type="number" step="0.01" min="0" class="form-control" name="price" id="pkg_price" required placeholder="0.00" oninput="updatePerPax()">
+                        <label class="form-label" for="pkg_price">Package Price (₱) <span class="required">*</span></label>
+                        <input type="text" class="form-control" name="price" id="pkg_price" required placeholder="0.00" oninput="updatePerPax()" data-restrict="price" title="Total base cost for the package">
                         <div id="pkg_rate_hint" style="font-size:11px; color:rgba(60,60,67,0.45); margin-top:4px;">Rate: ₱0.00 / pax</div>
                     </div>
 
                     <div class="row g-3 mb-3">
                         <div class="col-6">
-                            <label class="form-label">Max Main Dishes <span class="required">*</span></label>
-                            <input type="number" class="form-control" name="max_main_dishes" id="pkg_main" required value="5" min="0">
+                            <label class="form-label" for="pkg_main">Max Main Dishes <span class="required">*</span></label>
+                            <input type="text" class="form-control" name="max_main_dishes" id="pkg_main" required value="5" data-restrict="number" title="Maximum number of main courses allowed">
                         </div>
                         <div class="col-6">
-                            <label class="form-label">Max Desserts <span class="required">*</span></label>
-                            <input type="number" class="form-control" name="max_desserts" id="pkg_dessert" required value="1" min="0">
+                            <label class="form-label" for="pkg_dessert">Max Desserts <span class="required">*</span></label>
+                            <input type="text" class="form-control" name="max_desserts" id="pkg_dessert" required value="1" data-restrict="number" title="Maximum number of desserts allowed">
                         </div>
                     </div>
 
@@ -103,14 +103,14 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </div>
 
                     <div class="form-group mt-3">
-                        <label class="form-label">Package Inclusions (One per line)</label>
-                        <textarea class="form-control" name="inclusions" id="pkg_inclusions" rows="4" placeholder="e.g. Free delivery within Dasma&#10;Unlimited rice&#10;Uniformed servers..." maxlength="1000"></textarea>
+                        <label class="form-label" for="pkg_inclusions">Package Inclusions (One per line)</label>
+                        <textarea class="form-control" name="inclusions" id="pkg_inclusions" rows="4" placeholder="e.g. Free delivery within Dasma&#10;Unlimited rice&#10;Uniformed servers..." maxlength="1000" title="List the items included in this package"></textarea>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button class="btn btn-primary" onclick="savePackage()" id="saveBtn">
+                <button class="btn btn-primary" onclick="savePackage()" id="saveBtn" title="Save package configuration to the database">
                     <i class="fas fa-save"></i> Save Configuration
                 </button>
             </div>

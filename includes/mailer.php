@@ -65,7 +65,7 @@ function sendMailImmediate(string $toEmail, string $toName, string $subject, str
         
         $mail->Port       = MAIL_PORT;
 
-        $mail->setFrom(MAIL_USERNAME, APP_NAME);
+        $mail->setFrom(MAIL_FROM, MAIL_FROM_NAME);
         $mail->addAddress($toEmail, $toName);
         $mail->isHTML(true);
         $mail->Subject = $subject;

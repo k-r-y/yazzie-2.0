@@ -17,7 +17,7 @@ include __DIR__ . '/../../includes/sidebar.php';
             <div class="card-title">Food & Menu Catalog</div>
             <div class="card-subtitle">Items that clients can pick in the booking UI</div>
         </div>
-        <button class="btn btn-primary py-3" onclick="openAddModal()">
+        <button class="btn btn-primary py-3" onclick="openAddModal()" title="Add a new dish to the catalog">
             <i class="fas fa-plus"></i> Add Dish
         </button>
     </div>
@@ -28,16 +28,16 @@ include __DIR__ . '/../../includes/sidebar.php';
             <div class="col-md-4">
                 <div class="input-group">
                     <span class="input-prefix"><i class="fas fa-search"></i></span>
-                    <input type="text" class="form-control" id="searchFilter" placeholder="Search dish name..." oninput="filterDishes()">
+                    <input type="text" class="form-control" id="searchFilter" placeholder="Search dish name..." oninput="filterDishes()" title="Type to search dishes by name">
                 </div>
             </div>
             <div class="col-md-3">
-                <select class="form-control" id="catFilter" onchange="filterDishes()">
+                <select class="form-control" id="catFilter" onchange="filterDishes()" title="Filter dishes by category">
                     <option value="all">All Categories</option>
                 </select>
             </div>
             <div class="col-md-3">
-                <select class="form-control" id="mealFilter" onchange="filterDishes()">
+                <select class="form-control" id="mealFilter" onchange="filterDishes()" title="Filter dishes by meal type">
                     <option value="all">All Meal Types</option>
                     <option value="breakfast">🍳 Breakfast</option>
                     <option value="lunch">🍱 Lunch</option>
@@ -93,8 +93,8 @@ include __DIR__ . '/../../includes/sidebar.php';
                     
                     <div class="row g-3 mb-3">
                         <div class="col-8">
-                            <label class="form-label">Dish Name <span class="required">*</span></label>
-                            <input type="text" class="form-control" name="name" id="dish_name" required placeholder="e.g. Beef Caldereta">
+                            <label class="form-label" for="dish_name">Dish Name <span class="required">*</span></label>
+                            <input type="text" class="form-control" name="name" id="dish_name" required placeholder="e.g. Beef Caldereta" title="Enter the name of the dish">
                         </div>
                         <div class="col-12">
                             <label class="form-label">Meal Type <span class="required">*</span></label>
@@ -114,8 +114,8 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </div>
                     <div class="row g-3 mb-3">
                         <div class="col-7">
-                            <label class="form-label">Category Classification <span class="required">*</span></label>
-                            <select class="form-control" name="category" id="dish_category" required>
+                            <label class="form-label" for="dish_category">Category Classification <span class="required">*</span></label>
+                            <select class="form-control" name="category" id="dish_category" required title="Select the food category">
                                 <option value="Beef">Beef</option>
                                 <option value="Pork">Pork</option>
                                 <option value="Chicken">Chicken</option>
@@ -128,8 +128,8 @@ include __DIR__ . '/../../includes/sidebar.php';
                             </select>
                         </div>
                         <div class="col-5">
-                            <label class="form-label">Custom Surcharge (₱) <span class="required">*</span></label>
-                            <input type="number" step="0.01" class="form-control" name="custom_fee" id="dish_fee" required value="0.00">
+                            <label class="form-label" for="dish_fee">Custom Surcharge (₱) <span class="required">*</span></label>
+                            <input type="text" class="form-control" name="custom_fee" id="dish_fee" required value="0.00" data-restrict="price" title="Additional charge for this item (e.g. 500.00)">
                         </div>
                     </div>
                     
@@ -140,7 +140,7 @@ include __DIR__ . '/../../includes/sidebar.php';
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button class="btn btn-primary" onclick="saveDish()" id="saveBtn">
+                <button class="btn btn-primary" onclick="saveDish()" id="saveBtn" title="Save dish details to catalog">
                     <i class="fas fa-save"></i> Save Dish
                 </button>
             </div>

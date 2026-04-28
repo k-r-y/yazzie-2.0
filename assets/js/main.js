@@ -312,6 +312,22 @@ const Form = {
         err.textContent = message;
         fieldEl.closest('.form-group')?.appendChild(err);
     },
+
+    /** Apply input restrictions based on type (phone, number, price) */
+    restrictInput(el, type) {
+        if (!el) return;
+        el.addEventListener('input', function() {
+            let val = this.value;
+            if (type === 'phone') {
+                this.value = val.replace(/[^0-9]/g, '').substring(0, 11);
+            } else if (type === 'number') {
+                this.value = val.replace(/[^0-9]/g, '');
+            } else if (type === 'price') {
+                // Allow digits and one dot
+                this.value = val.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+            }
+        });
+    }
 };
 
 /* ================================================================
@@ -567,6 +583,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-peso]').forEach(el => {
         const v = parseFloat(el.dataset.peso) || 0;
         el.textContent = Format.peso(v);
+    });
+
+    // Auto-apply input restrictions
+    document.querySelectorAll('[data-restrict]').forEach(el => {
+        Form.restrictInput(el, el.dataset.restrict);
     });
 
     TablePaginator.init();

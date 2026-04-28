@@ -63,7 +63,7 @@ include __DIR__ . '/../../includes/sidebar.php';
     <div class="card">
         <div class="card-header">
             <div><div class="card-title">All Staff Members</div></div>
-            <button class="btn btn-primary btn-sm py-3" onclick="openAddModal()">
+            <button class="btn btn-primary btn-sm py-3" onclick="openAddModal()" title="Onboard a new staff member or administrator">
                 <i class="fas fa-plus"></i> Add Staff
             </button>
         </div>
@@ -144,21 +144,21 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <input type="hidden" name="id" id="sf-id">
                     <div class="form-grid-2">
                         <div class="form-group">
-                            <label class="form-label">Full Name <span class="required">*</span></label>
-                            <input type="text" class="form-control" name="name" id="sf-name" required placeholder="e.g. Maria Santos" pattern="^[a-zA-Z\s\-\.]+$" title="Only letters, spaces, hyphens, and periods allowed.">
+                            <label class="form-label" for="sf-name">Full Name <span class="required">*</span></label>
+                            <input type="text" class="form-control" name="name" id="sf-name" required placeholder="e.g. Maria Santos" pattern="^[a-zA-Z\s\-\.]+$" title="Legal name of the staff member">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Phone</label>
-                            <input type="text" class="form-control" name="phone" id="sf-phone" placeholder="09XX XXX XXXX" pattern="^(09|\+639)\d{9}$" maxlength="13" title="Enter a valid PH mobile number (e.g. 09XXXXXXXXX or +639XXXXXXXXX)">
+                            <label class="form-label" for="sf-phone">Phone</label>
+                            <input type="text" class="form-control" name="phone" id="sf-phone" placeholder="09XX XXX XXXX" data-restrict="phone" maxlength="11" title="11-digit mobile number for communication">
                         </div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Email <span class="required">*</span></label>
-                        <input type="email" class="form-control" name="email" id="sf-email" required placeholder="staff@email.com" maxlength="100">
+                        <label class="form-label" for="sf-email">Email <span class="required">*</span></label>
+                        <input type="email" class="form-control" name="email" id="sf-email" required placeholder="staff@email.com" maxlength="100" title="Email address for system login and notifications">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Role</label>
-                        <select class="form-control" name="role" id="sf-role" onchange="onRoleChange()">
+                        <label class="form-label" for="sf-role">Role</label>
+                        <select class="form-control" name="role" id="sf-role" onchange="onRoleChange()" title="Determines access level within the system">
                             <option value="staff">Staff</option>
                             <option value="frontdesk">Front Desk</option>
                             <option value="admin">Admin</option>
@@ -166,8 +166,8 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </div>
                     <!-- Job Class: visible only for staff role -->
                     <div class="form-group" id="jobClassGroup" style="display:none;">
-                        <label class="form-label">Job Classification <span class="required">*</span></label>
-                        <select class="form-control" name="job_class" id="sf-job-class">
+                        <label class="form-label" for="sf-job-class">Job Classification <span class="required">*</span></label>
+                        <select class="form-control" name="job_class" id="sf-job-class" title="Select the primary job function for event assignments">
                             <option value="waiter">🤵 Waiter</option>
                             <option value="head_cook">👨‍🍳 Head Cook</option>
                             <option value="cook">🍳 Cook</option>
@@ -177,13 +177,13 @@ include __DIR__ . '/../../includes/sidebar.php';
                         <div class="form-hint">Used to suggest the right staff in the dispatching tool.</div>
                     </div>
                     <div class="form-group" id="sf-pw-group">
-                        <label class="form-label">Password <span class="required" id="sf-pw-req">*</span></label>
-                        <input type="password" class="form-control" name="password" id="sf-pw" placeholder="Min. 8 characters">
+                        <label class="form-label" for="sf-pw">Password <span class="required" id="sf-pw-req">*</span></label>
+                        <input type="password" class="form-control" name="password" id="sf-pw" placeholder="Min. 8 characters" title="Account login password">
                         <div class="form-hint" id="sf-pw-hint" style="display:none;">Leave blank to keep existing password.</div>
                     </div>
                     <div class="form-group" id="sf-active-group" style="display:none;">
-                        <label class="form-label">Status</label>
-                        <select class="form-control" name="is_active" id="sf-active">
+                        <label class="form-label" for="sf-active">Status</label>
+                        <select class="form-control" name="is_active" id="sf-active" title="Enable or disable this account">
                             <option value="1">Active</option>
                             <option value="0">Inactive</option>
                         </select>
@@ -192,7 +192,7 @@ include __DIR__ . '/../../includes/sidebar.php';
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button class="btn btn-primary" id="saveStaffBtn" onclick="saveStaff()">
+                <button class="btn btn-primary" id="saveStaffBtn" onclick="saveStaff()" title="Save staff member details to the database">
                     <i class="fas fa-save"></i> Save
                 </button>
             </div>

@@ -17,7 +17,7 @@ include __DIR__ . '/../../includes/sidebar.php';
             <div class="card-title">Equipment Catalog</div>
             <div class="card-subtitle">Items that can be charged for breakage or loss</div>
         </div>
-        <button class="btn btn-primary py-3" onclick="openAddModal()">
+        <button class="btn btn-primary py-3" onclick="openAddModal()" title="Add new equipment to inventory catalog">
             <i class="fas fa-plus"></i> Add Item
         </button>
     </div>
@@ -54,14 +54,14 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <input type="hidden" name="id" id="equip_id">
                     
                     <div class="form-group mb-3">
-                        <label class="form-label">Item Name <span class="required">*</span></label>
-                        <input type="text" class="form-control" name="name" id="equip_name" required placeholder="e.g. Dinner Plate (Ceramic)" maxlength="100">
+                        <label class="form-label" for="equip_name">Item Name <span class="required">*</span></label>
+                        <input type="text" class="form-control" name="name" id="equip_name" required placeholder="e.g. Dinner Plate (Ceramic)" maxlength="100" title="Descriptive name of the equipment">
                     </div>
 
                     <div class="row g-3 mb-3">
                         <div class="col-6">
-                            <label class="form-label">Category <span class="required">*</span></label>
-                            <select class="form-select" name="category" id="equip_category" required>
+                            <label class="form-label" for="equip_category">Category <span class="required">*</span></label>
+                            <select class="form-select" name="category" id="equip_category" required title="Classification of the item">
                                 <option value="General">General</option>
                                 <option value="Glassware">Glassware</option>
                                 <option value="Dinnerware">Dinnerware</option>
@@ -72,19 +72,19 @@ include __DIR__ . '/../../includes/sidebar.php';
                             </select>
                         </div>
                         <div class="col-6">
-                            <label class="form-label">Total Stock <span class="required">*</span></label>
-                            <input type="number" min="0" class="form-control" name="total_stock" id="equip_total_stock" required placeholder="0">
+                            <label class="form-label" for="equip_total_stock">Total Stock <span class="required">*</span></label>
+                            <input type="text" class="form-control" name="total_stock" id="equip_total_stock" required placeholder="0" data-restrict="number" title="Total quantity owned by the business">
                         </div>
                     </div>
 
                     <div class="row g-3 mb-3">
                         <div class="col-6">
-                            <label class="form-label">Unit <span class="required">*</span></label>
-                            <input type="text" class="form-control" name="unit" id="equip_unit" required placeholder="pcs, set, etc." maxlength="20">
+                            <label class="form-label" for="equip_unit">Unit <span class="required">*</span></label>
+                            <input type="text" class="form-control" name="unit" id="equip_unit" required placeholder="pcs, set, etc." maxlength="20" title="Unit of measurement (e.g. pcs, pairs)">
                         </div>
                         <div class="col-6">
-                            <label class="form-label">Replacement Price (₱) <span class="required">*</span></label>
-                            <input type="number" step="0.01" min="0" class="form-control" name="replacement_cost" id="equip_cost" required placeholder="0.00">
+                            <label class="form-label" for="equip_cost">Replacement Price (₱) <span class="required">*</span></label>
+                            <input type="text" class="form-control" name="replacement_cost" id="equip_cost" required placeholder="0.00" data-restrict="price" title="Cost to replace one unit if broken or lost">
                         </div>
                     </div>
 
@@ -96,7 +96,7 @@ include __DIR__ . '/../../includes/sidebar.php';
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button class="btn btn-primary" onclick="saveEquipment()" id="saveBtn">
+                <button class="btn btn-primary" onclick="saveEquipment()" id="saveBtn" title="Save equipment details to inventory">
                     <i class="fas fa-save"></i> Save Equipment
                 </button>
             </div>

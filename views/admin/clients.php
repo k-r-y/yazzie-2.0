@@ -50,9 +50,9 @@ include __DIR__ . '/../../includes/sidebar.php';
         <div style="display:flex;gap:10px;">
             <div class="search-box-v2" style="width:280px;">
                 <i class="fas fa-search"></i>
-                <input type="text" id="clientSearch" placeholder="Search name, phone, or email..." oninput="filterClients()">
+                <input type="text" id="clientSearch" placeholder="Search name, phone, or email..." oninput="filterClients()" title="Type to filter the client list">
             </div>
-            <button class="btn btn-primary btn-sm py-3" onclick="openAddModal()">
+            <button class="btn btn-primary btn-sm py-3" onclick="openAddModal()" title="Register a new client profile">
                 <i class="fas fa-plus"></i> Add Client
             </button>
         </div>
@@ -87,35 +87,35 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <form id="clientForm">
                     <input type="hidden" name="id" id="f-id">
                     <div class="form-group">
-                        <label class="form-label">Full Name <span class="required">*</span></label>
-                        <input type="text" class="form-control" name="name" id="f-name" required placeholder="e.g. Juan Dela Cruz" maxlength="100">
+                        <label class="form-label" for="f-name">Full Name <span class="required">*</span></label>
+                        <input type="text" class="form-control" name="name" id="f-name" required placeholder="e.g. Juan Dela Cruz" maxlength="100" title="Enter the client's complete name">
                     </div>
                     <div class="form-grid-2">
                         <div class="form-group">
-                            <label class="form-label">Phone Number <span class="required">*</span></label>
-                            <input type="text" class="form-control" name="phone" id="f-phone" required placeholder="09XX XXX XXXX" maxlength="11">
+                            <label class="form-label" for="f-phone">Phone Number <span class="required">*</span></label>
+                            <input type="text" class="form-control" name="phone" id="f-phone" required placeholder="09XX XXX XXXX" maxlength="11" data-restrict="phone" title="11-digit mobile number starting with 09">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Email Address <span class="required">*</span></label>
-                            <input type="email" class="form-control" name="email" id="f-email" required placeholder="client@email.com" maxlength="100">
+                            <label class="form-label" for="f-email">Email Address <span class="required">*</span></label>
+                            <input type="email" class="form-control" name="email" id="f-email" required placeholder="client@email.com" maxlength="100" title="Valid email address for communications">
                         </div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Messenger Link</label>
+                        <label class="form-label" for="f-msgr">Messenger Link</label>
                         <div style="position:relative;">
                             <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--label-4);font-size:12px;">m.me/</span>
-                            <input type="text" class="form-control" name="messenger_link" id="f-msgr" style="padding-left:50px;" placeholder="username" maxlength="100">
+                            <input type="text" class="form-control" name="messenger_link" id="f-msgr" style="padding-left:50px;" placeholder="username" maxlength="100" title="Facebook Messenger username (optional)">
                         </div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Home / Event Address</label>
-                        <textarea class="form-control" name="address" id="f-address" rows="2" placeholder="Street, Barangay, City..." maxlength="255"></textarea>
+                        <label class="form-label" for="f-address">Home / Event Address</label>
+                        <textarea class="form-control" name="address" id="f-address" rows="2" placeholder="Street, Barangay, City..." maxlength="255" title="Primary address for this client"></textarea>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button class="btn btn-primary" id="saveBtn" onclick="saveClient()">
+                <button class="btn btn-primary" id="saveBtn" onclick="saveClient()" title="Commit changes to database">
                     <i class="fas fa-save"></i> Save Changes
                 </button>
             </div>
@@ -198,10 +198,10 @@ function renderClients(list) {
                 </span>
             </td>
             <td class="td-actions">
-                <button class="btn btn-outline-primary btn-sm" onclick="openEditModal(${c.id})">
+                <button class="btn btn-outline-primary btn-sm" onclick="openEditModal(${c.id})" title="Edit client details">
                     <i class="fas fa-pencil"></i> Edit
                 </button>
-                <button class="btn btn-danger btn-sm" onclick="deleteClient(${c.id}, '${esc(c.name)}')">
+                <button class="btn btn-danger btn-sm" onclick="deleteClient(${c.id}, '${esc(c.name)}')" title="Remove client from system">
                     <i class="fas fa-trash"></i>
                 </button>
             </td>

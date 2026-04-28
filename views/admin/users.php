@@ -17,12 +17,12 @@ include __DIR__ . '/../../includes/sidebar.php';
             <div class="col-md-4">
                 <div class="search-input-wrap">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="search-input" id="userSearch" placeholder="Search name/email…">
+                    <input type="text" class="search-input" id="userSearch" placeholder="Search name/email…" title="Search users by name or email address">
                 </div>
             </div>
             <div class="col-md-3">
-                <label class="form-label" style="font-size:12px;margin-bottom:4px;">Role</label>
-                <select class="form-control" id="roleFilter" onchange="applyFilters()">
+                <label class="form-label" style="font-size:12px;margin-bottom:4px;" for="roleFilter">Role</label>
+                <select class="form-control" id="roleFilter" onchange="applyFilters()" title="Filter the list by account role">
                     <option value="">All Roles</option>
                     <option value="admin">Administrator</option>
                     <option value="frontdesk">Front Desk</option>
@@ -30,15 +30,15 @@ include __DIR__ . '/../../includes/sidebar.php';
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label" style="font-size:12px;margin-bottom:4px;">Status</label>
-                <select class="form-control" id="statusFilter" onchange="applyFilters()">
+                <label class="form-label" style="font-size:12px;margin-bottom:4px;" for="statusFilter">Status</label>
+                <select class="form-control" id="statusFilter" onchange="applyFilters()" title="Filter the list by active or inactive status">
                     <option value="">All Status</option>
                     <option value="1">Active</option>
                     <option value="0">Deactivated</option>
                 </select>
             </div>
             <div class="col-md-2 text-end">
-                <button class="btn btn-primary" onclick="openAddUser()">
+                <button class="btn btn-primary py-3 w-100" onclick="openAddUser()" title="Create a new system user account">
                     <i class="fas fa-user-plus"></i> Add User
                 </button>
             </div>
@@ -78,12 +78,12 @@ include __DIR__ . '/../../includes/sidebar.php';
             <div class="modal-body">
                 <form id="userForm">
                     <input type="hidden" name="id" id="user_id">
-                    <div class="form-group"><label class="form-label">Full Name <span class="required">*</span></label>
-                        <input class="form-control" name="name" id="u_name" required pattern="^[a-zA-Z\s\-\.]+$" title="Only letters, spaces, hyphens, and periods allowed." maxlength="100"></div>
-                    <div class="form-group"><label class="form-label">Email Address <span class="required">*</span></label>
-                        <input class="form-control" name="email" id="u_email" type="email" required maxlength="100"></div>
-                    <div class="form-group"><label class="form-label">Role <span class="required">*</span></label>
-                        <select class="form-control" name="role" id="u_role" required onchange="onRoleChange()">
+                    <div class="form-group"><label class="form-label" for="u_name">Full Name <span class="required">*</span></label>
+                        <input class="form-control" name="name" id="u_name" required pattern="^[a-zA-Z\s\-\.]+$" title="Legal name of the user" maxlength="100"></div>
+                    <div class="form-group"><label class="form-label" for="u_email">Email Address <span class="required">*</span></label>
+                        <input class="form-control" name="email" id="u_email" type="email" required maxlength="100" title="Account login email"></div>
+                    <div class="form-group"><label class="form-label" for="u_role">Role <span class="required">*</span></label>
+                        <select class="form-control" name="role" id="u_role" required onchange="onRoleChange()" title="Determines system access and permissions">
                             <option value="">— Select Role —</option>
                             <option value="admin" id="opt_admin">Administrator</option>
                             <option value="frontdesk">Front Desk</option>
@@ -93,8 +93,8 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </div>
                     <!-- Job Class: visible only for staff role -->
                     <div class="form-group" id="jobClassGroup">
-                        <label class="form-label">Job Classification <span class="required">*</span></label>
-                        <select class="form-control" name="job_class" id="u_job_class">
+                        <label class="form-label" for="u_job_class">Job Classification <span class="required">*</span></label>
+                        <select class="form-control" name="job_class" id="u_job_class" title="Primary function for event assignments">
                             <option value="any">— Any / Not Specified —</option>
                             <option value="head_cook">👨‍🍳 Head Cook</option>
                             <option value="cook">🍳 Cook</option>
@@ -104,20 +104,20 @@ include __DIR__ . '/../../includes/sidebar.php';
                         </select>
                         <div class="form-hint">Used to enforce booking lineup structure (e.g. 1 Head Cook required).</div>
                     </div>
-                    <div class="form-group"><label class="form-label">Phone</label>
+                    <div class="form-group"><label class="form-label" for="u_phone">Phone</label>
                         <input class="form-control" name="phone" id="u_phone"
-                               placeholder="11 digits only"
-                               pattern="\d{11}"
+                               placeholder="09XXXXXXXXX"
+                               data-restrict="phone"
                                maxlength="11"
-                               title="Enter exactly 11 digits (e.g. 09123456789)"></div>
+                               title="11-digit mobile number for communication"></div>
                     <div class="form-group">
-                        <label class="form-label">Password <span class="required" id="pwReq">*</span></label>
-                        <input class="form-control" name="password" id="u_pw" type="password" placeholder="Min 8 characters">
+                        <label class="form-label" for="u_pw">Password <span class="required" id="pwReq">*</span></label>
+                        <input class="form-control" name="password" id="u_pw" type="password" placeholder="Min 8 characters" title="Account login password">
                         <div class="form-hint" id="pwHint" style="display:none;">Leave blank to keep current password.</div>
                     </div>
                     <div class="form-group" id="statusGroup" style="display:none;">
-                        <label class="form-label">Account Status</label>
-                        <select class="form-control" name="is_active" id="u_active">
+                        <label class="form-label" for="u_active">Account Status</label>
+                        <select class="form-control" name="is_active" id="u_active" title="Enable or deactivate this account">
                             <option value="1">Active</option>
                             <option value="0">Deactivated</option>
                         </select>
@@ -126,7 +126,7 @@ include __DIR__ . '/../../includes/sidebar.php';
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button class="btn btn-primary" id="userSaveBtn" onclick="saveUser()"><i class="fas fa-save"></i> Save User</button>
+                <button class="btn btn-primary" id="userSaveBtn" onclick="saveUser()" title="Save account details to the system database"><i class="fas fa-save"></i> Save User</button>
             </div>
         </div>
     </div>
@@ -194,10 +194,10 @@ async function loadUsers(page = null) {
             <td><span class="badge ${u.is_active ? 'badge-success' : 'badge-cancelled'}">${u.is_active ? 'Active' : 'Inactive'}</span></td>
             <td class="text-xs text-muted">${Format.dateShort(u.created_at)}</td>
             <td class="td-actions">
-                <button class="btn btn-outline-primary btn-sm" onclick="openEditUser(${u.id},'${u.name.replace(/'/g,"\\'")}','${u.email}','${u.role}','${u.phone||''}',${u.is_active},'${u.job_class||'any'}')">
+                <button class="btn btn-outline-primary btn-sm" title="Edit User Details" onclick="openEditUser(${u.id},'${u.name.replace(/'/g,"\\'")}','${u.email}','${u.role}','${u.phone||''}',${u.is_active},'${u.job_class||'any'}')">
                     <i class="fas fa-edit"></i>
                 </button>
-                ${u.is_active ? `<button class="btn btn-danger btn-sm" onclick="deactivateUser(${u.id})"><i class="fas fa-user-slash"></i></button>` : ''}
+                ${u.is_active ? `<button class="btn btn-danger btn-sm" title="Deactivate User" onclick="deactivateUser(${u.id})"><i class="fas fa-user-slash"></i></button>` : ''}
             </td>
         </tr>`).join('');
 }

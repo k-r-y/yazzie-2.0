@@ -91,14 +91,14 @@ include __DIR__ . '/../../includes/sidebar.php';
                         </button>
                     </div>
 
-                    <select class="form-control" id="filterStatus" style="min-width:130px; flex:1;">
+                    <select class="form-control" id="filterStatus" style="min-width:130px; flex:1;" title="Filter by booking status">
                         <option value="">All Statuses</option>
 
                         <option value="confirmed">Confirmed</option>
                         <option value="completed">Completed</option>
                         <option value="cancelled">Cancelled</option>
                     </select>
-                    <select class="form-control" id="filterPayment" style="min-width:120px; flex:1;">
+                    <select class="form-control" id="filterPayment" style="min-width:120px; flex:1;" title="Filter by payment status">
                         <option value="">All Payments</option>
                         <option value="unpaid">Unpaid</option>
                         <option value="partial">Partial</option>
@@ -184,8 +184,8 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <form id="paymentForm">
 
                     <div class="form-group">
-                        <label class="form-label">Booking <span class="required">*</span></label>
-                        <select class="form-control" name="booking_id" id="bookingSelect" required onchange="onBookingChange()">
+                        <label class="form-label" for="bookingSelect">Booking <span class="required">*</span></label>
+                        <select class="form-control" name="booking_id" id="bookingSelect" required onchange="onBookingChange()" title="Select the booking to record payment for">
                             <option value="">Select booking…</option>
                         </select>
                     </div>
@@ -221,12 +221,12 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Payment Amount (₱) <span class="required">*</span></label>
+                        <label class="form-label" for="amountInput">Payment Amount (₱) <span class="required">*</span></label>
                         <div class="input-group">
                             <span class="input-prefix">₱</span>
-                            <input type="number" class="form-control" name="amount" id="amountInput"
-                                   min="1" step="0.01" required
-                                   placeholder="0.00"
+                            <input type="text" class="form-control" name="amount" id="amountInput"
+                                   required placeholder="0.00" data-restrict="price"
+                                   title="Enter the amount to be recorded (numbers and decimal only)"
                                    oninput="validateAmount()">
                         </div>
                         <div id="amountError" style="font-size:11.5px; color:#C0392B; margin-top:4px; display:none;"></div>
@@ -250,7 +250,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                         </div>
                         <div class="form-group">
                             <label class="form-label">Reference No.</label>
-                            <input type="text" class="form-control" name="reference_no" placeholder="GCash ref, trace no…">
+                            <input type="text" class="form-control" name="reference_no" placeholder="GCash ref, trace no…" title="GCash Ref ID or Bank Transaction Trace ID">
                         </div>
                     </div>
 

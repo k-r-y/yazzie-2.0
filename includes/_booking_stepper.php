@@ -71,23 +71,25 @@ $stepperRole = $bookingStepperRole ?? 'admin';
 
                         <div class="form-grid-2" style="gap:14px;">
                             <div class="form-group">
-                                <label class="form-label">Event Date <span class="required">*</span></label>
+                                <label class="form-label" for="s1_date">Event Date <span class="required">*</span></label>
                                 <input type="date" class="form-control" id="s1_date"
                                        min="<?= date('Y-m-d', strtotime('+' . MIN_LEAD_TIME_DAYS . ' days')) ?>"
-                                       max="<?= date('Y-m-d', strtotime('+1 year')) ?>">
+                                       max="<?= date('Y-m-d', strtotime('+1 year')) ?>"
+                                       title="Select the scheduled date for the event">
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Event Time <span class="required">*</span></label>
+                                <label class="form-label" for="s1_time">Event Time <span class="required">*</span></label>
                                 <input type="time" class="form-control" id="s1_time" 
                                        onchange="onTimeChange(this.value)" 
                                        oninput="onTimeChange(this.value)"
-                                       onblur="onTimeChange(this.value)">
+                                       onblur="onTimeChange(this.value)"
+                                       title="Select the start time of the catering service">
                             </div>
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">Event Type <span class="required">*</span></label>
-                            <select class="form-control" id="s1_type" onchange="onEventTypeChange(this.value)">
+                            <label class="form-label" for="s1_type">Event Type <span class="required">*</span></label>
+                            <select class="form-control" id="s1_type" onchange="onEventTypeChange(this.value)" title="Choose the nature of the celebration">
                                 <option value="Wedding" selected>Wedding</option>
                                 <option value="Corporation">Corporation / Seminar</option>
                                 <option value="Adult Birthday">Adult Birthday</option>
@@ -99,27 +101,29 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                         </div>
 
                         <div class="form-group" id="customTypeGroup" style="display:none; margin-top:10px;">
-                            <label class="form-label">Specify Event Type <span class="required">*</span></label>
+                            <label class="form-label" for="s1_customType">Specify Event Type <span class="required">*</span></label>
                             <input type="text" class="form-control" id="s1_customType" 
                                    placeholder="e.g. Anniversary, Reunion"
                                    maxlength="100"
-                                   oninput="state.eventType = this.value">
+                                   oninput="state.eventType = this.value"
+                                   title="Enter the specific name of the occasion">
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">Event Venue / Address <span class="required">*</span></label>
+                            <label class="form-label" for="s1_location">Event Venue / Address <span class="required">*</span></label>
                             <textarea class="form-control" id="s1_location"
                                       placeholder="Enter full address of the venue…"
                                       maxlength="500"
-                                      oninput="onLocationChange(this.value)" rows="3"></textarea>
+                                      oninput="onLocationChange(this.value)" rows="3"
+                                      title="Complete address of where the event will be held"></textarea>
                             <div id="transportFeePanel" style="display:none; margin-top:12px; padding:12px; background:var(--sys-green-tint2); border-radius:12px; border:0.5px solid rgba(48,209,88,0.2);">
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
                                     <span style="font-size:13px; font-weight:700; color:var(--sys-green-deeper);">🚚 Outside Dasma Transport Fee</span>
                                     <div class="input-group" style="width:120px;">
                                         <span class="input-prefix" style="color:var(--sys-green-dark); font-size:12px;">₱</span>
-                                        <input type="number" class="form-control" id="s1_transport" min="0" placeholder="0.00" autocomplete="off"
-                                               style="font-size:13px; font-weight:700; text-align:right;" 
-                                               oninput="onTransportInput()">
+                                        <input type="text" class="form-control" id="s1_transport" placeholder="0.00" autocomplete="off"
+                                               style="font-size:13px; font-weight:700; text-align:right;" data-restrict="price"
+                                               oninput="onTransportInput()" title="Additional transportation charge for locations outside Dasmariñas">
                                     </div>
                                 </div>
                                 <div style="font-size:10px; color:var(--label-3); margin-top:4px;">Address is outside Dasmariñas. Please enter fee manually.</div>
@@ -159,24 +163,24 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:rgba(60,60,67,0.4); margin-bottom:12px;">New Client Details</div>
                             <div class="form-grid-2">
                                 <div class="form-group">
-                                    <label class="form-label">Full Name <span class="required">*</span></label>
-                                    <input type="text" class="form-control" id="nc_name" placeholder="Maria Santos" maxlength="100">
+                                    <label class="form-label" for="nc_name">Full Name <span class="required">*</span></label>
+                                    <input type="text" class="form-control" id="nc_name" placeholder="Maria Santos" maxlength="100" title="First and Last name of the client">
                                 </div>
                                 <div class="form-group">
-                                    <label class="form-label">Phone Number <span class="required">*</span></label>
-                                    <input type="tel" class="form-control" id="nc_phone" placeholder="09XXXXXXXXX" pattern="\d*" maxlength="11" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+                                    <label class="form-label" for="nc_phone">Phone Number <span class="required">*</span></label>
+                                    <input type="tel" class="form-control" id="nc_phone" placeholder="09XXXXXXXXX" pattern="\d*" maxlength="11" data-restrict="phone" title="11-digit mobile number">
                                 </div>
                                 <div class="form-group">
-                                    <label class="form-label">Email Address <span class="required">*</span></label>
-                                    <input type="email" class="form-control" id="nc_email" placeholder="email@example.com" required maxlength="100">
+                                    <label class="form-label" for="nc_email">Email Address <span class="required">*</span></label>
+                                    <input type="email" class="form-control" id="nc_email" placeholder="email@example.com" required maxlength="100" title="Email for digital receipts and confirmations">
                                 </div>
                                 <div class="form-group">
-                                    <label class="form-label">Messenger/Facebook Link <span class="required">*</span></label>
-                                    <input type="text" class="form-control" id="nc_messenger" placeholder="m.me/username" required maxlength="100">
+                                    <label class="form-label" for="nc_messenger">Messenger/Facebook Link <span class="required">*</span></label>
+                                    <input type="text" class="form-control" id="nc_messenger" placeholder="m.me/username" required maxlength="100" title="Social media contact for quick communication">
                                 </div>
                                 <div class="form-group" style="grid-column: span 2;">
-                                    <label class="form-label">Address</label>
-                                    <input type="text" class="form-control" id="nc_address" placeholder="City, Province" maxlength="255">
+                                    <label class="form-label" for="nc_address">Address</label>
+                                    <input type="text" class="form-control" id="nc_address" placeholder="City, Province" maxlength="255" title="Home or billing address">
                                 </div>
                             </div>
                         </div>
@@ -214,15 +218,16 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             </div>
 
                             <div class="form-group" style="margin-bottom:6px; display:block;">
-                                <label class="form-label" style="font-size:13px; font-weight:700;">
+                                <label class="form-label" style="font-size:13px; font-weight:700;" for="s3_pax">
                                     Number of Guests (Pax) <span class="required">*</span>
                                 </label>
                                 <div class="input-group">
-                                   
-                                    <input type="number" class="form-control" id="s3_pax"
-                                           min="<?= MIN_PAX ?>" max="<?= MAX_PAX ?>" step="5" placeholder="e.g. <?= MIN_PAX + 25 ?>"
+                                    <input type="text" class="form-control" id="s3_pax"
+                                           placeholder="e.g. <?= MIN_PAX + 25 ?>"
                                            style="font-size:20px; font-weight:700; letter-spacing:-0.3px;"
-                                           oninput="calcPricing()">
+                                           data-restrict="number"
+                                           oninput="calcPricing()"
+                                           title="Total number of expected guests">
                                 </div>
                                 <div style="font-size:11.5px; color:rgba(60,60,67,0.4); margin-top:4px;">
                                     Min <?= MIN_PAX ?> guests, Max <?= MAX_PAX ?> guests.
@@ -253,14 +258,15 @@ $stepperRole = $bookingStepperRole ?? 'admin';
 
                             <!-- Dietary / Allergy Notes (Moved to Step 3) -->
                             <div class="form-group" style="margin-top:14px; margin-bottom:0;">
-                                <label class="form-label" style="display:flex; align-items:center; gap:6px;">
+                                <label class="form-label" style="display:flex; align-items:center; gap:6px;" for="s3_dietaryNotes">
                                     <span style="font-size:15px;">⚠️</span> Allergy & Dietary Restrictions
                                     <span style="font-size:11px; font-weight:400; color:rgba(60,60,67,0.4);">(Optional)</span>
                                 </label>
                                 <textarea class="form-control" id="s3_dietaryNotes" rows="3"
                                           placeholder="e.g. 2 guests are lactose intolerant; no pork for 5 guests; less salt for the elderly…"
                                           maxlength="1000"
-                                          style="border-color: rgba(255,149,0,0.4); background: rgba(255,149,0,0.03);"></textarea>
+                                          style="border-color: rgba(255,149,0,0.4); background: rgba(255,149,0,0.03);"
+                                          title="Inform the kitchen about any food allergies or dietary requirements"></textarea>
                                 <div class="form-hint" style="color: rgba(180, 100, 0, 0.7);">This will be flagged on the grocery list and staff briefing.</div>
                             </div>
                         </div>
@@ -416,15 +422,16 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                             </div>
 
                             <div class="form-group">
-                                <label class="form-label" id="dpLabel">
+                                <label class="form-label" id="dpLabel" for="s4_dp">
                                     Downpayment Amount (₱)
                                     <span style="font-size:11px; font-weight:400; color:rgba(60,60,67,0.4);"> — minimum <?= round(MIN_DP_PERCENT * 100) ?>% required (<?= round(RUSH_DP_PERCENT * 100) ?>% within <?= round(RUSH_THRESHOLD_HOURS / 24) ?> days)</span>
                                 </label>
                                 <div class="input-group">
                                     <span class="input-prefix">₱</span>
-                                    <input type="number" class="form-control" id="s4_dp"
-                                           min="0" step="0.01" placeholder="0.00"
-                                           oninput="onDPInput()">
+                                    <input type="text" class="form-control" id="s4_dp"
+                                           placeholder="0.00" data-restrict="price"
+                                           oninput="onDPInput()"
+                                           title="Amount to be paid initially to confirm the booking">
                                 </div>
                                 <div id="s4_dpError" style="font-size:11.5px; color:#C0392B; margin-top:4px; display:none;"></div>
                             </div>
@@ -1807,19 +1814,21 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             const div = document.createElement('div');
             div.style = 'display:grid; grid-template-columns:1fr 100px 100px 40px; gap:8px; align-items:center; background:white; padding:10px; border:0.5px solid rgba(60,60,67,0.1); border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,0.02);';
             div.innerHTML = `
-                <input type="text" class="form-control form-control-sm" placeholder="Item name (e.g. Lechon Belly)" value="${esc(item.name)}" oninput="onCustomItemChange(${item.id}, 'name', this.value)">
-                <select class="form-control form-control-sm" onchange="onCustomItemChange(${item.id}, 'category', this.value)">
+                <input type="text" class="form-control form-control-sm" placeholder="Item name (e.g. Lechon Belly)" value="${esc(item.name)}" oninput="onCustomItemChange(${item.id}, 'name', this.value)" title="Name of the off-menu item">
+                <select class="form-control form-control-sm" onchange="onCustomItemChange(${item.id}, 'category', this.value)" title="Pricing category">
                     <option value="main" ${item.category==='main'?'selected':''}>Main</option>
                     <option value="dessert" ${item.category==='dessert'?'selected':''}>Dessert</option>
                     <option value="other" ${item.category==='other'?'selected':''}>Other</option>
                 </select>
                 <div class="input-group input-group-sm">
                     <span class="input-prefix" style="font-size:10px;">₱</span>
-                    <input type="number" class="form-control form-control-sm" value="${item.price}" oninput="onCustomItemChange(${item.id}, 'price', this.value)" placeholder="Price/Pax">
+                    <input type="text" class="form-control form-control-sm" value="${item.price}" oninput="onCustomItemChange(${item.id}, 'price', this.value)" placeholder="Price" data-restrict="price" title="Cost of this custom item">
                 </div>
-                <button type="button" class="btn btn-sm btn-link text-danger" onclick="removeCustomItem(${item.id})"><i class="fas fa-trash-alt"></i></button>
+                <button type="button" class="btn btn-sm btn-link text-danger" onclick="removeCustomItem(${item.id})" title="Remove custom item"><i class="fas fa-trash-alt"></i></button>
             `;
             container.appendChild(div);
+            // Re-apply restrictions to the new element
+            div.querySelectorAll('[data-restrict]').forEach(el => Form.restrictInput(el, el.dataset.restrict));
         });
     }
 

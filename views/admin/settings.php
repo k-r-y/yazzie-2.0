@@ -53,26 +53,18 @@ async function loadSettings() {
         for (const cat in groups) {
             html += `<h6 class="text-uppercase text-xs fw-800 text-muted mt-4 mb-2" style="letter-spacing:0.5px;">${cat}</h6>`;
             groups[cat].forEach(s => {
-                const inputType = s.type === 'int' || s.type === 'float' ? 'number' : 'text';
+                let restrict = 'number';
+                if (s.type === 'float' || s.key.includes('rate') || s.key.includes('fee')) restrict = 'price';
                 
-                let extras = '';
-                if (s.key === 'standard_dp_percent' || s.key === 'rush_dp_percent') extras = 'min="0.1" max="1.0" step="0.1"';
-                else if (s.key === 'min_pax') extras = 'min="10"';
-                else if (s.key === 'max_pax') extras = 'min="10"';
-                else if (s.key === 'event_duration_hours') extras = 'min="1" max="24"';
-                else if (s.key === 'min_lead_time_days') extras = 'min="0" max="365"';
-                else if (s.key === 'rush_threshold_hours') extras = 'min="1" max="720"';
-                else if (s.type === 'int') extras = 'min="0"';
-                else if (s.type === 'float') extras = 'step="0.01"';
-
                 html += `
                     <div class="setting-item">
-                        <div class="setting-label">${s.key.replace(/_/g, ' ').toUpperCase()}</div>
+                        <label class="setting-label" for="set_${s.key}">${s.key.replace(/_/g, ' ').toUpperCase()}</label>
                         <div class="setting-desc">${s.description}</div>
                         <div class="d-flex gap-2">
                             <input class="form-control form-control-sm" style="max-width:200px;" 
-                                   type="${inputType}" id="set_${s.key}" value="${s.value}" ${extras}>
-                            <button class="btn btn-primary btn-sm px-3" onclick="updateSetting('${s.key}')">
+                                   type="text" id="set_${s.key}" value="${s.value}" 
+                                   data-restrict="${restrict}" title="Update ${s.key.replace(/_/g, ' ')}">
+                            <button class="btn btn-primary btn-sm px-3" onclick="updateSetting('${s.key}')" title="Save this setting">
                                 <i class="fas fa-save"></i> Save
                             </button>
                         </div>
@@ -82,6 +74,8 @@ async function loadSettings() {
         }
         if (!html) html = '<div class="text-muted text-sm text-center">No business settings found.</div>';
         container.innerHTML = html;
+        // Apply restrictions to newly created elements
+        container.querySelectorAll('[data-restrict]').forEach(el => Form.restrictInput(el, el.dataset.restrict));
     } catch (e) { Toast.error(e.message); }
 }
 
