@@ -30,7 +30,7 @@ if ($method === 'GET') {
 
         // Also return booking summary
         $bStmt = $pdo->prepare("
-            SELECT b.total_cost, b.amount_paid, b.payment_status, b.market_cost,
+            SELECT b.total_cost, b.amount_paid, b.payment_status, b.market_cost, b.breakage_total,
                    c.name AS client_name
             FROM bookings b JOIN clients c ON c.id = b.client_id
             WHERE b.id = :bid

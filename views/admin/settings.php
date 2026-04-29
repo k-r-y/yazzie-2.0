@@ -64,7 +64,9 @@ async function loadSettings() {
         'smtp_secure': 'The encryption protocol used for email delivery (typically TLS).',
         'system_timezone': 'The default timezone for all event logs and schedules.',
         'business_name': 'The official name of your catering business as it appears on invoices.',
-        'business_address': 'The physical or mailing address printed on client documents.'
+        'business_address': 'The physical or mailing address printed on client documents.',
+        'terms_and_conditions': 'The fine print and legal terms shown at the bottom of invoices and contracts.',
+        'payment_instructions': 'Detailed instructions for clients on how to settle their payments (e.g., GCash, Bank details).'
     };
 
     try {
@@ -108,6 +110,10 @@ async function loadSettings() {
                             <option value="ssl" ${s.value === 'ssl' ? 'selected' : ''}>SSL</option>
                             <option value="none" ${s.value === 'none' ? 'selected' : ''}>None</option>
                         </select>`;
+                } else if (['terms_and_conditions', 'payment_instructions', 'business_address'].includes(s.key)) {
+                    inputHtml = `
+                        <textarea class="form-control form-control-sm" style="max-width:400px; min-height:100px;" 
+                                  id="set_${s.key}" title="Update ${s.key.replace(/_/g, ' ')}">${s.value}</textarea>`;
                 } else if (['debug_mode', 'maintenance_mode', 'mail_enabled'].includes(s.key)) {
                     inputHtml = `
                         <select class="form-select form-select-sm" style="max-width:200px;" id="set_${s.key}">
@@ -123,13 +129,13 @@ async function loadSettings() {
                 }
                 
                 html += `
-                    <div class="setting-item">
+                    <div class="setting-item ">
                         <label class="setting-label" for="set_${s.key}">${s.key.replace(/_/g, ' ').toUpperCase()}</label>
                         <div class="setting-desc">${s.description}</div>
                         ${instructions[s.key] ? `<div class="text-xs text-muted mb-2" style="font-style:italic;">Note: ${instructions[s.key]}</div>` : ''}
-                        <div class="d-flex gap-2">
+                        <div class="d-flex align-items-start flex-column  gap-2">
                             ${inputHtml}
-                            <button class="btn btn-primary btn-sm px-3" onclick="updateSetting('${s.key}')" title="Save this setting permanently">
+                            <button class="btn btn-primary btn-sm p-3" onclick="updateSetting('${s.key}')" title="Save this setting permanently">
                                 <i class="fas fa-save"></i> Save
                             </button>
                         </div>

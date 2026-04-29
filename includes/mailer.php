@@ -253,15 +253,16 @@ function sendBookingConfirmation(array $booking): bool
             </table>
         </div>
 
-        <div style='text-align: center; margin-bottom: 36px;'>
-            <a href='$invoiceUrl' class='btn-primary'>View Full Invoice</a>
+        <div style='background-color: #F8F8FA; border-radius: 16px; padding: 20px; margin-bottom: 32px; border: 1px solid rgba(60, 60, 67, 0.05); text-align: center;'>
+            <p style='margin: 0; font-size: 13px; color: rgba(60, 60, 67, 0.5);'>A formal invoice has been attached to this email for your records.</p>
         </div>
 
         <p style='margin: 0; font-size: 14px; font-weight: 600; color: #30D158; text-align: center; text-transform: uppercase; letter-spacing: 1px;'>See you soon! 🎉</p>
     ";
 
+    $pdf = (string)generateInvoicePDF((int)$booking['id']);
     $html = renderEmailTemplate("Booking Confirmed", "🍽️", $content, "#30D158", "Your event on $eventDate is officially secured.");
-    return sendMailImmediate($booking['client_email'], $booking['client_name'], $subject, $html);
+    return sendMailImmediate($booking['client_email'], $booking['client_name'], $subject, $html, $pdf, 'Invoice.pdf');
 }
 
 /**
@@ -355,13 +356,8 @@ function sendPaymentReceipt(array $booking, float $paymentAmount, string $method
             </table>
         </div>
 
-        <div style='background-color: #F8F8FA; border-radius: 16px; padding: 20px; margin-bottom: 32px; border: 1px solid rgba(60, 60, 67, 0.05);'>
-            <table style='width: 100%; border-collapse: collapse; font-size: 13px;'>
-                <tr>
-                    <td style='color: rgba(60, 60, 67, 0.5); font-weight: 600;'>Event Details:</td>
-                    <td style='text-align: right; font-weight: 700;'>$eventDate | $pax pax</td>
-                </tr>
-            </table>
+        <div style='background-color: #F8F8FA; border-radius: 16px; padding: 20px; margin-bottom: 32px; border: 1px solid rgba(60, 60, 67, 0.05); text-align: center;'>
+            <p style='margin: 0; font-size: 13px; color: rgba(60, 60, 67, 0.5);'>Your updated invoice has been attached to this email.</p>
         </div>
 
         <p style='margin: 0; font-size: 13px; font-weight: 700; color: #30D158; text-align: center; text-transform: uppercase; letter-spacing: 2px;'>Thank you for choosing " . BUSINESS_NAME . " ✨</p>

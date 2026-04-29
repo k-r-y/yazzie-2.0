@@ -58,6 +58,10 @@ function generateInvoicePDF($bookingId, $generatedBy = null) {
     $pStmt->execute([':bid' => $bookingId]);
     $payments = $pStmt->fetchAll();
 
+    $creatorStmt = $pdo->prepare("SELECT name FROM users WHERE id = :uid");
+    $creatorStmt->execute([':uid' => $b['created_by']]);
+    $creatorName = $creatorStmt->fetchColumn() ?: 'Authorized Signatory';
+
     $brStmt = $pdo->prepare("SELECT bb.*, e.name AS equipment_name FROM booking_breakages bb JOIN equipment e ON e.id = bb.equipment_id WHERE bb.booking_id = :bid AND bb.charge_to = 'client'");
     $brStmt->execute([':bid' => $bookingId]);
     $breakages = $brStmt->fetchAll();
@@ -172,10 +176,10 @@ function generateInvoicePDF($bookingId, $generatedBy = null) {
         <?php endif; ?>
 
         <div class="header">
-            <div class="brand"><?= htmlspecialchars(BUSINESS_NAME) ?></div>
+            <div class="brand"><?= htmlspecialchars(appSetting('business_name', BUSINESS_NAME)) ?></div>
             <div class="biz-details">
-                <?= nl2br(htmlspecialchars(BUSINESS_ADDRESS)) ?><br>
-                Phone: <?= htmlspecialchars(BUSINESS_PHONE) ?> | Email: <?= htmlspecialchars(BUSINESS_EMAIL) ?>
+                <?= nl2br(htmlspecialchars(appSetting('business_address', BUSINESS_ADDRESS))) ?><br>
+                Phone: <?= htmlspecialchars(appSetting('business_phone', BUSINESS_PHONE)) ?> | Email: <?= htmlspecialchars(appSetting('business_email', BUSINESS_EMAIL)) ?>
             </div>
             <div class="invoice-info">
                 <div class="invoice-title">Invoice</div>
@@ -232,7 +236,12 @@ function generateInvoicePDF($bookingId, $generatedBy = null) {
                 <?php endif; ?>
 
                 <?php foreach ($allExtraDishes as $ed): 
-                    $fee = (float)($ed['custom_fee'] > 0 ? $ed['custom_fee'] : EXTRA_MAIN_RATE);
+                    $cat = strtolower($ed['category'] ?? '');
+                    $defaultRate = EXTRA_MAIN_RATE;
+                    if (in_array($cat, ['dessert', 'desserts'])) $defaultRate = EXTRA_DESSERT_RATE;
+                    else if (in_array($cat, ['rice', 'additional'])) $defaultRate = EXTRA_RICE_RATE;
+                    
+                    $fee = (float)($ed['custom_fee'] > 0 ? $ed['custom_fee'] : $defaultRate);
                     $lineTotal = $fee * $b['pax_count'];
                 ?>
                 <tr>
@@ -314,12 +323,12 @@ function generateInvoicePDF($bookingId, $generatedBy = null) {
         <div class="footer">
             <div class="terms">
                 <div class="section-label">Terms & Conditions</div>
-                <div class="terms-text"><?= htmlspecialchars($terms) ?></div>
+                <div class="terms-text"><?= nl2br(htmlspecialchars($terms)) ?></div>
                 <div class="section-label" style="margin-top: 10pt;">Payment Instructions</div>
-                <div class="terms-text"><?= htmlspecialchars(appSetting('payment_instructions')) ?></div>
+                <div class="terms-text"><?= nl2br(htmlspecialchars(appSetting('payment_instructions', ''))) ?></div>
             </div>
             <div class="signature">
-                <div class="sig-line"><?= htmlspecialchars($generatedBy ?: 'Authorized Signatory') ?></div>
+                <div class="sig-line"><?= htmlspecialchars($generatedBy ?: $creatorName) ?></div>
                 <div class="text-muted" style="margin-top: 4pt;">Yazzies Catering OMS</div>
             </div>
         </div>
@@ -336,7 +345,9 @@ function generateInvoicePDF($bookingId, $generatedBy = null) {
         $options->set('defaultFont', 'DejaVu Sans'); // Supports UTF-8 and symbol better
         
         // Ensure temporary directories are defined to avoid "Path cannot be empty"
-        $tmp = sys_get_temp_dir();
+        $tmp = __DIR__ . '/../temp';
+        if (!is_dir($tmp)) @mkdir($tmp, 0777, true);
+        
         $options->set('tempDir', $tmp);
         $options->set('fontDir', $tmp);
         $options->set('fontCache', $tmp);

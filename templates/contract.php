@@ -63,8 +63,8 @@ $balance = $b['total_cost'] - $b['amount_paid'];
 <div class="print-document">
     <div class="print-header">
         <div>
-            <div class="print-logo">Yazzies <span>Catering</span></div>
-            <div class="print-logo-sub">Barangay St. Peter, Dasmariñas City, Cavite</div>
+            <div class="print-logo"><?= htmlspecialchars(appSetting('business_name', 'Yazzies Catering')) ?></div>
+            <div class="print-logo-sub"><?= nl2br(htmlspecialchars(appSetting('business_address', 'Barangay St. Peter, Dasmariñas City, Cavite'))) ?></div>
         </div>
         <div class="print-doc-type">
             <h2>Event Contract</h2>
@@ -158,13 +158,9 @@ $balance = $b['total_cost'] - $b['amount_paid'];
         </div>
     </div>
 
-    <div class="print-section-title">Terms & Conditions</div>
-    <div class="clause"><strong>1. Booking Confirmation.</strong> This contract is binding upon signature of both parties. The event shall be considered confirmed upon receipt of the required downpayment.</div>
-    <div class="clause"><strong>2. Downpayment Policy.</strong> A minimum downpayment of thirty percent (30%) of the total package price is required to confirm and reserve the event date.</div>
-    <div class="clause"><strong>3. Final Payment.</strong> The remaining balance must be settled in full on or before the event date. Yazzies Catering reserves the right to withhold services for unsettled accounts.</div>
-    <div class="clause"><strong>4. Cancellation Policy.</strong> Cancellations made less than seven (7) days before the event date shall forfeit the paid downpayment. Cancellations prior to seven (7) days may be subject to rescheduling at the management's discretion.</div>
-    <div class="clause"><strong>5. Guest Count Changes.</strong> Final guest count adjustments must be communicated no later than three (3) days before the event. Changes may affect the final billing.</div>
-    <div class="clause"><strong>6. Force Majeure.</strong> Yazzies Catering shall not be held liable for service failure due to unforeseen circumstances beyond its control.</div>
+    <div class="clause" style="white-space: pre-line; font-size: 13px;">
+        <?= htmlspecialchars(appSetting('terms_and_conditions', "1. Booking Confirmation. This contract is binding upon signature of both parties.\n2. Downpayment Policy. A minimum downpayment is required.\n3. Final Payment. Remaining balance must be settled on or before the event date.")) ?>
+    </div>
     <?php if ($b['notes']): ?>
     <div class="clause"><strong>Special Instructions:</strong> <?= htmlspecialchars($b['notes']) ?></div>
     <?php endif; ?>
@@ -177,13 +173,13 @@ $balance = $b['total_cost'] - $b['amount_paid'];
         </div>
         <div>
             <div class="print-signature-line"></div>
-            <div class="print-signature-label">Authorized Representative — Yazzies Catering</div>
+            <div class="print-signature-label">Authorized Representative — <?= htmlspecialchars(appSetting('business_name', 'Yazzies Catering')) ?></div>
             <div class="print-signature-name">&nbsp;</div>
         </div>
     </div>
 
     <div class="print-footer">
-        Yazzies Catering &bull; Contract No. YZC-<?= str_pad($bookingId, 5, '0', STR_PAD_LEFT) ?> &bull; <?= date('F j, Y') ?>
+        <?= htmlspecialchars(appSetting('business_name', 'Yazzies Catering')) ?> &bull; Contract No. YZC-<?= str_pad($bookingId, 5, '0', STR_PAD_LEFT) ?> &bull; <?= date('F j, Y') ?>
     </div>
 </div>
 

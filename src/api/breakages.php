@@ -96,10 +96,18 @@ if ($method === 'POST') {
         $pdo->prepare("UPDATE equipment SET current_stock = current_stock - :qty, total_stock = total_stock - :qty_adj WHERE id = :eid")
             ->execute([':qty' => $quantity, ':qty_adj' => $quantity, ':eid' => $equipmentId]);
 
-        // If charged to client, update booking breakage total
+        // If charged to client, update booking breakage total and demote payment status if needed
         if ($chargeTo === 'client') {
-            $pdo->prepare("UPDATE bookings SET breakage_total = breakage_total + :total, total_cost = total_cost + :total_adj WHERE id = :bid")
-                ->execute([':total' => $totalCost, ':total_adj' => $totalCost, ':bid' => $bookingId]);
+            $pdo->prepare("
+                UPDATE bookings 
+                SET breakage_total = breakage_total + :total, 
+                    total_cost = total_cost + :total_adj,
+                    payment_status = CASE 
+                        WHEN payment_status = 'paid' THEN 'partial' 
+                        ELSE payment_status 
+                    END
+                WHERE id = :bid
+            ")->execute([':total' => $totalCost, ':total_adj' => $totalCost, ':bid' => $bookingId]);
         }
 
         // Audit Log
@@ -144,10 +152,23 @@ if ($method === 'DELETE') {
         $pdo->prepare("UPDATE equipment SET current_stock = current_stock + :qty, total_stock = total_stock + :qty_adj WHERE id = :eid")
             ->execute([':qty' => $row['quantity'], ':qty_adj' => $row['quantity'], ':eid' => $row['equipment_id']]);
 
-        // If it was charged to client, subtract from booking totals
+        // If it was charged to client, subtract from booking totals and re-promote payment status if balance is zero
         if ($row['charge_to'] === 'client') {
-            $pdo->prepare("UPDATE bookings SET breakage_total = breakage_total - :total, total_cost = total_cost - :total_adj WHERE id = :bid")
-                ->execute([':total' => $row['total_cost'], ':total_adj' => $row['total_cost'], ':bid' => $row['booking_id']]);
+            $pdo->prepare("
+                UPDATE bookings 
+                SET breakage_total = breakage_total - :total, 
+                    total_cost = total_cost - :total_adj,
+                    payment_status = CASE 
+                        WHEN (amount_paid >= (total_cost - :total_adj2) - 0.01) THEN 'paid'
+                        ELSE payment_status
+                    END
+                WHERE id = :bid
+            ")->execute([
+                ':total'      => $row['total_cost'], 
+                ':total_adj'  => $row['total_cost'],
+                ':total_adj2' => $row['total_cost'],
+                ':bid'        => $row['booking_id']
+            ]);
         }
 
         auditLog($pdo, 'breakage_deleted', 'booking', $row['booking_id'], 

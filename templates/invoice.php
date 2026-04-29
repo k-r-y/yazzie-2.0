@@ -80,6 +80,10 @@ $brStmt = $pdo->prepare("
 $brStmt->execute([':bid' => $bookingId]);
 $breakages = $brStmt->fetchAll();
 
+$creatorStmt = $pdo->prepare("SELECT name FROM users WHERE id = :uid");
+$creatorStmt->execute([':uid' => $b['created_by']]);
+$creatorName = $creatorStmt->fetchColumn() ?: 'Authorized Signatory';
+
 $balance = (float)$b['total_cost'] - (float)$b['amount_paid'];
 $eventDate = date('F j, Y', strtotime($b['event_date']));
 $terms = appSetting('terms_and_conditions', "Full payment is required on or before the event date.");
@@ -269,10 +273,10 @@ $paymentInstructions = appSetting('payment_instructions', "GCash: 09XX-XXX-XXXX"
 
     <div class="header-main">
         <div class="brand-block">
-            <h1><?= htmlspecialchars(BUSINESS_NAME) ?></h1>
+            <h1><?= htmlspecialchars(appSetting('business_name', BUSINESS_NAME)) ?></h1>
             <p>
-                <?= nl2br(htmlspecialchars(BUSINESS_ADDRESS)) ?><br>
-                Phone: <?= htmlspecialchars(BUSINESS_PHONE) ?> | Email: <?= htmlspecialchars(BUSINESS_EMAIL) ?>
+                <?= nl2br(htmlspecialchars(appSetting('business_address', BUSINESS_ADDRESS))) ?><br>
+                Phone: <?= htmlspecialchars(appSetting('business_phone', BUSINESS_PHONE)) ?> | Email: <?= htmlspecialchars(appSetting('business_email', BUSINESS_EMAIL)) ?>
             </p>
         </div>
         <div class="status-block">
@@ -328,7 +332,12 @@ $paymentInstructions = appSetting('payment_instructions', "GCash: 09XX-XXX-XXXX"
             <?php endif; ?>
 
             <?php foreach ($allExtraDishes as $ed): 
-                $fee = (float)($ed['custom_fee'] > 0 ? $ed['custom_fee'] : EXTRA_MAIN_RATE);
+                $cat = strtolower($ed['category'] ?? '');
+                $defaultRate = EXTRA_MAIN_RATE;
+                if (in_array($cat, ['dessert', 'desserts'])) $defaultRate = EXTRA_DESSERT_RATE;
+                else if (in_array($cat, ['rice', 'additional'])) $defaultRate = EXTRA_RICE_RATE;
+
+                $fee = (float)($ed['custom_fee'] > 0 ? $ed['custom_fee'] : $defaultRate);
                 $lineTotal = $fee * $b['pax_count'];
             ?>
             <tr>
@@ -413,14 +422,14 @@ $paymentInstructions = appSetting('payment_instructions', "GCash: 09XX-XXX-XXXX"
     <div class="footer">
         <div class="terms">
             <div class="section-label">Terms & Conditions</div>
-            <p><?= htmlspecialchars($terms) ?></p>
+            <p><?= nl2br(htmlspecialchars($terms)) ?></p>
             <div class="section-label" style="margin-top: 20px;">Payment Instructions</div>
-            <p><?= htmlspecialchars($paymentInstructions) ?></p>
+            <p><?= nl2br(htmlspecialchars($paymentInstructions)) ?></p>
         </div>
-        <div class="signature">
-            <div class="sig-line"><?= htmlspecialchars($generatedBy) ?></div>
-            <div style="font-size: 10px; color: var(--label-3); margin-top: 6px;">Yazzies Catering OMS</div>
-        </div>
+            <div class="signature">
+                <div class="sig-line"><?= htmlspecialchars($generatedBy ?: $creatorName) ?></div>
+                <div class="item-sub" style="margin-top: 4px;">Authorized Representative</div>
+            </div>
     </div>
 </div>
 

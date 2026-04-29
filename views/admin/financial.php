@@ -91,6 +91,12 @@ include __DIR__ . '/../../includes/sidebar.php';
                         </button>
                     </div>
 
+                    <!-- Search Bar -->
+                    <div class="input-group input-group-sm me-2" style="min-width: 250px; flex: 2;">
+                        <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
+                        <input type="text" class="form-control bg-light border-start-0" id="searchLedger" placeholder="Quick search client name...">
+                    </div>
+
                     <select class="form-control" id="filterStatus" style="min-width:130px; flex:1;" title="Filter by booking status">
                         <option value="">All Statuses</option>
 
@@ -273,6 +279,16 @@ include __DIR__ . '/../../includes/sidebar.php';
 const preloadBookingId = <?= $preloadBookingId ?>;
 let currentBalance = 0;
 
+
+// ── SEARCH DEBOUNCE ────────────────────────────────────────────────────
+let searchTimer;
+document.getElementById('searchLedger').addEventListener('input', function() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+        loadLedger();
+    }, 300);
+});
+
 // ── INIT ───────────────────────────────────────────────────────────────
 async function initFinancial() {
     await refreshBookingSelector();
@@ -347,8 +363,8 @@ async function onBookingChange() {
         const payments      = d.payments || [];
         const livePaid      = payments.reduce((s, p) => s + parseFloat(p.amount), 0);
         const breakageTotal = parseFloat(b.breakage_total || 0);
-        const eventTotal    = parseFloat(b.total_cost);
-        const grandTotal    = eventTotal + breakageTotal;
+        const grandTotal    = parseFloat(b.total_cost);
+        const eventTotal    = grandTotal - breakageTotal; 
         const remaining     = Math.max(0, grandTotal - livePaid);
         currentBalance      = remaining;
 
@@ -412,12 +428,14 @@ function validateAmount() {
 
 // ── LEDGER TABLE ───────────────────────────────────────────────────────
 async function loadLedger() {
+    const search  = document.getElementById('searchLedger').value;
     const status  = document.getElementById('filterStatus').value;
     const payment = document.getElementById('filterPayment').value;
     const tf      = getTimeframe();
     
     try {
         const params = { timeframe: tf };
+        if (search)  params.search = search;
         if (status)  params.status = status;
         if (payment) params.payment_status = payment;
         
@@ -432,9 +450,8 @@ async function loadLedger() {
         }
 
         tbody.innerHTML = bookings.map(b => {
-            const eventCost = parseFloat(b.total_cost);
+            const total     = parseFloat(b.total_cost);
             const breakage  = parseFloat(b.breakage_total || 0);
-            const total     = eventCost + breakage;
             const paid      = parseFloat(b.amount_paid);
             const balance   = total - paid;
             const paidPct   = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
@@ -493,9 +510,9 @@ async function loadPaymentHistory(bookingId, bookingInfo) {
         // Update Invoice Link
         btnInv.href = `${BASE}/templates/invoice.php?booking_id=${bookingId}&token=${bookingInfo.invoice_token || ''}`;
         
-        const eventCost = parseFloat(bookingInfo.total_cost);
+        const total     = parseFloat(bookingInfo.total_cost);
         const breakage  = parseFloat(bookingInfo.breakage_total || 0);
-        const total     = eventCost + breakage;
+        const eventCost = total - breakage;
         const paid      = parseFloat(bookingInfo.amount_paid);
         const balance   = total - paid;
         
