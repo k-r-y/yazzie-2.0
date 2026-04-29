@@ -11,6 +11,19 @@ $roleLabel  = getRoleLabel($role);
 $active     = $activePage ?? '';
 $base       = BASE_URL;
 
+// ── Passive Cron: Check for upcoming unpaid bookings ────────────────
+if (in_array($role, ['admin', 'super_admin', 'frontdesk'])) {
+    if (!isset($_SESSION['last_payment_check']) || (time() - $_SESSION['last_payment_check'] > 1800)) { // Every 30 mins
+        try {
+            require_once __DIR__ . '/notifications_helper.php';
+            checkUpcomingUnpaidBookings($pdo);
+            $_SESSION['last_payment_check'] = time();
+        } catch (Throwable $e) {
+            error_log("Payment alert check failed: " . $e->getMessage());
+        }
+    }
+}
+
 /**
  * Nav items per role
  * [id, label, icon, url]
@@ -216,7 +229,7 @@ if ($role === 'super_admin') {
 
     async function fetchCount() {
         try {
-            const r = await fetch(BASE_URL + '/src/api/notifications.php?unread=1', { credentials: 'same-origin' });
+            const r = await fetch(BASE_URL + '/api/notifications/get.php?unread=1', { credentials: 'same-origin' });
             const d = await r.json();
             const n = d.count || 0;
             if (n > 0) {
@@ -231,7 +244,7 @@ if ($role === 'super_admin') {
     async function fetchNotifs() {
         const list = document.getElementById('notifList');
         try {
-            const r = await fetch(BASE_URL + '/src/api/notifications.php', { credentials: 'same-origin' });
+            const r = await fetch(BASE_URL + '/api/notifications/get.php', { credentials: 'same-origin' });
             const d = await r.json();
             const notifs = d.notifications || [];
             if (!notifs.length) {

@@ -328,8 +328,8 @@ if ($method === 'POST') {
         ");
 
         $notif = $pdo->prepare("
-            INSERT INTO notifications (user_id, type, title, body)
-            VALUES (:uid, 'job_assigned', :title, :body)
+            INSERT INTO notifications (user_id, type, title, body, booking_id)
+            VALUES (:uid, 'job_assigned', :title, :body, :bid)
         ");
 
         // Fetch job classes for all staff to be notified
@@ -365,7 +365,8 @@ if ($method === 'POST') {
             $notif->execute([
                 ':uid'   => $sid,
                 ':title' => 'New Job Offer: ' . $role,
-                ':body'  => "Event on " . date('M d', strtotime($booking['event_date'])) . " for " . $booking['client_name'] . ". Please respond in your Job Board."
+                ':body'  => "Event on " . date('M d', strtotime($booking['event_date'])) . " for " . $booking['client_name'] . ". Please respond in your Job Board.",
+                ':bid'   => $bookingId
             ]);
             
             $count++;

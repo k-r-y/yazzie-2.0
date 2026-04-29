@@ -39,6 +39,85 @@ $user = getCurrentUser();
 .job-tab-panel { display: none; }
 .job-tab-panel.active { display: block; }
 
+.job-card {
+    background: var(--surface-1);
+    border: 1px solid var(--glass-sep);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.job-card:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+    border-color: var(--label-4);
+}
+
+.job-card.urgent {
+    border-left: 4px solid #FF9500;
+    background: linear-gradient(135deg, rgba(255, 149, 0, 0.04), transparent);
+}
+
+.job-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.job-card-role {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--label);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.job-card-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--label-2);
+    margin-bottom: 12px;
+}
+
+.job-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.job-meta-item i {
+    width: 16px;
+    text-align: center;
+    color: var(--label-3);
+}
+
+.job-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 0.5px solid var(--glass-sep);
+}
+
+.job-card-actions .btn {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: all 0.15s ease;
+}
+
+.job-card-actions .btn:hover {
+    transform: scale(1.02);
+}
+
 .leave-badge {
     display: inline-flex; align-items: center; justify-content: center;
     min-width: 18px; height: 18px; border-radius: 99px; font-size: 10px;
@@ -47,6 +126,123 @@ $user = getCurrentUser();
 .leave-badge.pending  { background: rgba(255,159,10,0.15); color: #9A5400; }
 .leave-badge.approved { background: rgba(48,209,88,0.15);  color: #1A7A32; }
 .leave-badge.rejected { background: rgba(255,59,48,0.12);  color: #9B1C1C; }
+
+/* FullCalendar Customization */
+.fc {
+    font-family: -apple-system, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', 'Inter', Arial, sans-serif;
+}
+
+.fc .fc-button-primary {
+    background-color: var(--sys-green);
+    border-color: var(--sys-green);
+    color: #fff;
+    font-weight: 600;
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 8px;
+}
+
+.fc .fc-button-primary:hover {
+    background-color: var(--sys-green-dark);
+    border-color: var(--sys-green-dark);
+}
+
+.fc .fc-button-primary.fc-button-active {
+    background-color: var(--sys-green-dark);
+    border-color: var(--sys-green-dark);
+}
+
+.fc .fc-daygrid-day-number {
+    padding: 8px 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.fc .fc-daygrid-day {
+    border-color: var(--glass-sep);
+}
+
+.fc .fc-daygrid-day.fc-day-other {
+    background-color: var(--bg-primary);
+}
+
+.fc .fc-daygrid-day.fc-day-today {
+    background-color: rgba(48, 209, 88, 0.05);
+}
+
+.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+    color: var(--sys-green);
+}
+
+.fc .fc-col-header-cell {
+    background-color: var(--surface-1);
+    padding: 12px 0;
+    font-weight: 700;
+    color: var(--label);
+    border-color: var(--glass-sep);
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+}
+
+.fc .fc-daygrid-day-frame {
+    position: relative;
+}
+
+.fc-daygrid-event {
+    margin: 2px 0;
+    padding: 0 !important;
+}
+
+.fc .fc-daygrid-event-harness {
+    padding: 1px;
+}
+
+.fc .fc-event {
+    all: unset;
+}
+
+.fc-popover {
+    border-radius: 12px;
+    border: 0.5px solid var(--glass-sep);
+    background: var(--glass-ultra);
+    backdrop-filter: var(--glass-blur);
+    box-shadow: var(--shadow-xl);
+}
+
+.fc-popover-header {
+    background: var(--surface-2);
+    padding: 12px;
+    border-bottom: 0.5px solid var(--glass-sep);
+    font-weight: 700;
+    color: var(--label);
+}
+
+.fc-popover-body {
+    padding: 12px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .job-card {
+        padding: 12px;
+    }
+    
+    .job-card-meta {
+        font-size: 12px;
+        gap: 6px;
+    }
+    
+    .fc .fc-daygrid-day-number {
+        padding: 6px 2px;
+        font-size: 11px;
+    }
+    
+    .fc .fc-button-primary {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+}
 </style>
 
 <!-- Tabs -->
@@ -74,14 +270,33 @@ $user = getCurrentUser();
 <div class="job-tab-panel" id="tab-accepted">
     <div class="card mb-4">
         <div class="card-header">
-            <div class="card-title">My Calendar</div>
+            <div>
+                <div class="card-title">My Event Schedule</div>
+                <div class="card-subtitle">Click an event to view details</div>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; font-size:11px;">
+                <div style="display:flex; gap:4px; align-items:center;"><span style="width:8px;height:8px;border-radius:50%;background:#30D158;"></span><span>Head Cook</span></div>
+                <div style="display:flex; gap:4px; align-items:center;"><span style="width:8px;height:8px;border-radius:50%;background:#0A84FF;"></span><span>Waiter</span></div>
+                <div style="display:flex; gap:4px; align-items:center;"><span style="width:8px;height:8px;border-radius:50%;background:#FF9500;"></span><span>Kitchen Staff</span></div>
+                <div style="display:flex; gap:4px; align-items:center;"><span style="width:8px;height:8px;border-radius:50%;background:#A2845E;"></span><span>Other</span></div>
+            </div>
         </div>
         <div class="card-body" style="padding:16px;">
             <div id="calendar"></div>
         </div>
     </div>
     
-    <h5 style="font-size:15px; font-weight:700; color:var(--label-1); margin-bottom:12px;">Upcoming Job Details</h5>
+    <!-- Calendar Legend & Controls -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; font-size:12px; color:var(--label-3);">
+        <div id="calendarStats">
+            <span id="upcomingEventCount">0 upcoming events</span>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" onclick="scrollToToday()" style="padding:4px 12px; font-size:12px;">
+            <i class="fas fa-circle-dot me-1"></i> Jump to Today
+        </button>
+    </div>
+    
+    <h5 style="font-size:15px; font-weight:700; color:var(--label-1); margin-bottom:12px;">📋 Upcoming Job Details</h5>
     <div id="acceptedJobs"><div class="spinner"></div></div>
 </div>
 
@@ -139,11 +354,29 @@ $user = getCurrentUser();
 let allJobs = [];
 let calendar;
 
+// Role-based color scheme
+const roleColors = {
+    'head_cook': '#30D158',      // System green
+    'waiter': '#0A84FF',          // System blue
+    'kitchen_staff': '#FF9500',   // System orange
+    'dishwasher': '#FF3B30',      // System red
+    'default': '#A2845E'          // Brown
+};
+
+function getRoleColor(role) {
+    const normalized = (role || 'default').toLowerCase().replace(/\s+/g, '_');
+    return roleColors[normalized] || roleColors.default;
+}
+
 function initCalendar(acceptedJobs) {
     if (calendar) {
         calendar.destroy();
     }
     const calendarEl = document.getElementById('calendar');
+    
+    // Update event count
+    document.getElementById('upcomingEventCount').textContent = acceptedJobs.length + ' upcoming event' + (acceptedJobs.length !== 1 ? 's' : '');
+    
     calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
         headerToolbar: {
@@ -152,16 +385,130 @@ function initCalendar(acceptedJobs) {
             right: 'dayGridMonth,listWeek'
         },
         height: 'auto',
+        contentHeight: 'auto',
+        expandRows: false,
+        weekText: 'W',
+        dayMaxEventRows: 3,
+        moreLinkText: function(info) {
+            return '+' + info.num + ' more';
+        },
+        moreLinkClick: 'popover',
         events: acceptedJobs.map(j => ({
-            title: j.role_required + ' - ' + j.client_name,
+            title: j.role_required + ' · ' + j.client_name,
             start: j.event_date + (j.event_time ? 'T' + j.event_time : ''),
-            extendedProps: { ...j }
+            backgroundColor: getRoleColor(j.role_required),
+            borderColor: getRoleColor(j.role_required),
+            textColor: '#fff',
+            extendedProps: { 
+                ...j,
+                displayTime: j.event_time ? Format.time(j.event_time) : 'All day',
+                displayLocation: j.event_location || 'TBA',
+                displayPax: j.pax_count + ' guests'
+            }
         })),
+        eventDidMount: function(info) {
+            // Add custom styling to event
+            const el = info.el;
+            el.style.cursor = 'pointer';
+            el.style.fontWeight = '600';
+            el.style.fontSize = '11px';
+            el.style.padding = '2px 4px';
+            el.style.borderRadius = '4px';
+            el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+            el.style.transition = 'all 0.15s ease';
+            
+            // Hover effect
+            el.addEventListener('mouseenter', function() {
+                el.style.transform = 'scale(1.05)';
+                el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                el.style.zIndex = '10';
+            });
+            el.addEventListener('mouseleave', function() {
+                el.style.transform = 'scale(1)';
+                el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                el.style.zIndex = '1';
+            });
+        },
         eventClick: function(info) {
-            Toast.info(info.event.title + ' on ' + Format.dateShort(info.event.start));
+            const job = info.event.extendedProps;
+            
+            // Highlight and scroll to the job card below
+            const jobCards = document.querySelectorAll('.job-card');
+            jobCards.forEach(card => {
+                card.style.borderColor = 'var(--glass-sep)';
+                card.style.borderWidth = '1px';
+            });
+            
+            // Find and highlight matching job
+            const matchingCard = Array.from(jobCards).find(card => 
+                card.textContent.includes('Job #' + job.id)
+            );
+            
+            if (matchingCard) {
+                matchingCard.style.borderColor = getRoleColor(job.role_required);
+                matchingCard.style.borderWidth = '2px';
+                matchingCard.style.backgroundColor = 'rgba(' + 
+                    getRoleColor(job.role_required).replace('#', '').match(/\w\w/g)
+                    .map(x => parseInt(x, 16)).join(', ') + ', 0.05)';
+                matchingCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            
+            // Show detailed popover
+            const roleColor = getRoleColor(job.role_required);
+            const detailsHtml = `
+            <div style="background: linear-gradient(135deg, ${roleColor}, ${roleColor}dd); 
+                        padding: 12px; border-radius: 12px; color: #fff; margin-bottom: 12px;">
+                <div style="font-weight: 700; font-size: 14px; margin-bottom: 8px;">
+                    📋 ${esc(job.role_required.toUpperCase())}
+                </div>
+                <div style="font-size: 12px; line-height: 1.6; opacity: 0.95;">
+                    <div><strong>Client:</strong> ${esc(job.client_name)}</div>
+                    <div><strong>Date:</strong> ${Format.dateShort(job.event_date)} at ${job.displayTime}</div>
+                    <div><strong>Location:</strong> ${esc(job.displayLocation)}</div>
+                    <div><strong>Party Size:</strong> ${job.displayPax}</div>
+                    <div><strong>Menu:</strong> ${esc(job.menu_name || 'Standard')}</div>
+                </div>
+            </div>`;
+            
+            Swal.fire({
+                title: `Event on ${Format.dateShort(job.event_date)}`,
+                html: detailsHtml + (job.notes ? `<p style="text-align: left; font-size: 12px; color: var(--label-2); margin-top: 12px;"><strong>Notes:</strong> ${esc(job.notes)}</p>` : ''),
+                icon: 'info',
+                confirmButtonText: 'Got it',
+                confirmButtonColor: roleColor,
+                background: 'rgba(255,255,255,0.95)',
+                backdrop: 'rgba(0,0,0,0.4)',
+                didOpen: (modal) => {
+                    modal.style.borderRadius = '16px';
+                }
+            });
+        },
+        datesSet: function(info) {
+            // Update the "Jump to Today" button state
+            const isCurrentMonth = new Date().toDateString() === new Date(info.start).toDateString() || 
+                                  (new Date() >= info.start && new Date() <= info.end);
         }
     });
+    
     calendar.render();
+    
+    // Auto-highlight first event on load
+    if (acceptedJobs.length > 0) {
+        const firstJob = acceptedJobs[0];
+        const jobCard = Array.from(document.querySelectorAll('.job-card')).find(card => 
+            card.textContent.includes('Job #' + firstJob.id)
+        );
+        if (jobCard) {
+            jobCard.style.borderColor = getRoleColor(firstJob.role_required);
+            jobCard.style.borderWidth = '2px';
+        }
+    }
+}
+
+function scrollToToday() {
+    if (calendar) {
+        calendar.today();
+    }
 }
 
 function switchTab(tab, el) {
@@ -170,7 +517,9 @@ function switchTab(tab, el) {
     el.classList.add('active');
     document.getElementById('tab-' + tab).classList.add('active');
     if (tab === 'leaves') loadMyLeaves();
-    if (tab === 'accepted' && calendar) calendar.render(); // re-render layout
+    if (tab === 'accepted' && calendar) {
+        setTimeout(() => calendar.render(), 100); // re-render layout with slight delay
+    }
 }
 
 function renderJob(j, showActions = true) {
