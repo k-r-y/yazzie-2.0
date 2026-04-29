@@ -1,0 +1,37 @@
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Testing / Scratch
+scratch/
+test/
+tests/
+phpunit.xml
+
+# Dependencies
+vendor/
+node_modules/
+composer.lock
+package-lock.json
+
+# Database Dumps & Backups
+*.sql
+*.sql.gz
+backups/
+database/*.sql
+
+# Logs
+*.log
+logs/
+
+# OS / IDE Files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# XAMPP Specific
+xampp/
+cgi-bin/
