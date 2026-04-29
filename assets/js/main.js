@@ -29,7 +29,7 @@ const Toast = {
             return Swal.fire({
                 icon: 'success',
                 title: 'Success!',
-                text: message,
+                html: message,
                 showConfirmButton: false,
                 timer: 2000,
                 timerProgressBar: true,
@@ -47,7 +47,7 @@ const Toast = {
             toast: true,
             position: 'top-end',
             icon: type,
-            title: message,
+            html: message,
             showConfirmButton: false,
             timer: duration,
             timerProgressBar: true,

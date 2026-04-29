@@ -152,9 +152,14 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <div class="card-title" id="historyTitle">Payment History</div>
                     <div class="card-subtitle" id="historySubtitle"></div>
                 </div>
-                <button class="btn btn-secondary btn-sm" onclick="closeHistory()">
-                    <i class="fas fa-times"></i> Close
-                </button>
+                <div class="d-flex gap-2">
+                    <a id="btnGenInvoice" href="#" target="_blank" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-file-invoice"></i> Generate Invoice
+                    </a>
+                    <button class="btn btn-secondary btn-sm" onclick="closeHistory()">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
             </div>
             <div class="table-wrapper">
                 <table class="data-table">
@@ -479,10 +484,15 @@ async function viewHistory(bookingId) {
 async function loadPaymentHistory(bookingId, bookingInfo) {
     const card = document.getElementById('paymentHistoryCard');
     const tbody = document.getElementById('historyBody');
+    const btnInv = document.getElementById('btnGenInvoice');
+
     card.style.display = 'block';
     tbody.innerHTML = '<tr><td colspan="6"><div class="spinner"></div></td></tr>';
 
     if (bookingInfo) {
+        // Update Invoice Link
+        btnInv.href = `${BASE}/templates/invoice.php?booking_id=${bookingId}&token=${bookingInfo.invoice_token || ''}`;
+        
         const eventCost = parseFloat(bookingInfo.total_cost);
         const breakage  = parseFloat(bookingInfo.breakage_total || 0);
         const total     = eventCost + breakage;
@@ -571,11 +581,14 @@ document.getElementById('paymentForm').addEventListener('submit', async function
 
         // Show success with updated balance from API response
         const newBalance = res.balance ?? 0;
+        const invUrl = `${BASE}/templates/invoice.php?booking_id=${bid}&token=${res.invoice_token || ''}`;
+        
         Toast.success(
             `Payment of ${Format.peso(amount)} recorded! ` +
             (newBalance > 0.005
                 ? `Remaining balance: ${Format.peso(newBalance)}.`
-                : 'Booking fully paid! ✅')
+                : 'Booking fully paid! ✅') +
+            `<br><a href="${invUrl}" target="_blank" class="text-white fw-bold" style="text-decoration:underline;">View Updated Invoice</a>`
         );
 
         // Reset form but keep the date

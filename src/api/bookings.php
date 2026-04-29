@@ -723,7 +723,7 @@ if ($method === 'POST') {
             ':surcharge_total'=> $totalSurchargePerPax + $customItemsTotal,
             ':total_cost'     => $totalCost,
             ':booking_status' => $initialStatus,
-            ':invoice_token'  => bin2hex(random_bytes(16)),
+            ':invoice_token'  => ($invToken = bin2hex(random_bytes(16))),
             ':notes'          => !empty($data['notes']) ? trim(substr((string)$data['notes'], 0, 2000)) : null,
             ':dietary_notes'  => !empty($data['dietary_notes']) ? trim(substr((string)$data['dietary_notes'], 0, 1000)) : null,
             ':created_by'     => $creatorId,
@@ -840,6 +840,8 @@ if ($method === 'POST') {
             require_once __DIR__ . '/../../includes/mailer.php';
             try {
                 sendBookingConfirmation([
+                    'id'           => $newId,
+                    'invoice_token'=> $invToken,
                     'client_email' => $client['email'],
                     'client_name'  => $client['name'],
                     'event_date'   => $eventDate,

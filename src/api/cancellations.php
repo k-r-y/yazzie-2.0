@@ -277,6 +277,27 @@ if ($method === 'PUT') {
         ]);
         
         $pdo->commit();
+
+        // ── Send Refund Receipt Email ──
+        if ($status === 'processed' && $cancel['refund_status'] !== 'processed' && $cancel['refundable_amount'] > 0) {
+            $bStmt = $pdo->prepare("
+                SELECT b.*,
+                       pk.set_name AS menu_name,
+                       c.name AS client_name, c.email AS client_email 
+                FROM bookings b 
+                JOIN clients c ON c.id = b.client_id 
+                LEFT JOIN packages pk ON pk.id = b.package_id
+                WHERE b.id = :bid
+            ");
+            $bStmt->execute([':bid' => $cancel['booking_id']]);
+            $booking = $bStmt->fetch();
+            
+            if ($booking && !empty($booking['client_email'])) {
+                require_once __DIR__ . '/../../includes/mailer.php';
+                sendRefundReceipt($booking, (float)$cancel['refundable_amount'], (string)$rmethod);
+            }
+        }
+
     } catch (Throwable $e) {
         $pdo->rollBack();
         jsonResponse(false, 'Failed to update refund status: ' . $e->getMessage(), [], 500);

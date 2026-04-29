@@ -86,11 +86,14 @@ if ($method === 'POST') {
     $bookingId = (int)$d['booking_id'];
     $amount    = (float)$d['amount'];
 
-    // Verify booking exists + get current booking_status for auto-promotion
+    // Verify booking exists + get current details for receipt
     $bStmt = $pdo->prepare("
-        SELECT b.id, b.total_cost, b.booking_status, b.event_date, c.email AS client_email, c.name AS client_name
+        SELECT b.id, b.total_cost, b.amount_paid, b.booking_status, b.event_date, b.invoice_token, 
+               b.pax_count, COALESCE(pk.set_name, 'Catering Service') AS menu_name,
+               c.email AS client_email, c.name AS client_name
         FROM bookings b
         JOIN clients c ON c.id = b.client_id
+        LEFT JOIN packages pk ON pk.id = b.package_id
         WHERE b.id = :id
     ");
     $bStmt->execute([':id' => $bookingId]);
@@ -200,6 +203,10 @@ if ($method === 'POST') {
     if (!empty($booking['client_email'])) {
         require_once __DIR__ . '/../../includes/mailer.php';
         try {
+            // Update the booking object with the NEW paid amount for the receipt
+            $booking['amount_paid'] = round($totalAlreadyPaid + $amount, 2);
+            
+            error_log("[Payment API] Attempting to send receipt to " . $booking['client_email']);
             sendPaymentReceipt($booking, (float)$amount, (string)$d['payment_method']);
         } catch (\Throwable $e) {
             error_log("[Payment Receipt Error] " . $e->getMessage());
@@ -211,7 +218,8 @@ if ($method === 'POST') {
         'amount_paid'    => round($newPaid, 2),
         'balance'        => round($totalCost - $newPaid, 2),
         'payment_status' => $status,
-        'booking_status' => $finalStatus,  // let the UI know if it was promoted
+        'booking_status' => $finalStatus,
+        'invoice_token'  => $booking['invoice_token'],
     ], 201);
 }
 

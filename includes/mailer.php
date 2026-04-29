@@ -16,6 +16,7 @@
 // Load PHPMailer — try Composer autoload first, then manual
 $composerAutoload = __DIR__ . '/../vendor/autoload.php';
 $phpmailerSrc     = __DIR__ . '/phpmailer/PHPMailer.php';
+require_once __DIR__ . '/pdf_generator.php';
 
 if (file_exists($composerAutoload)) {
     require_once $composerAutoload;
@@ -38,7 +39,7 @@ use PHPMailer\PHPMailer\Exception as MailException;
  * @param string $htmlBody    HTML content of the email
  * @return bool               True on success, false on failure
  */
-function sendMailImmediate(string $toEmail, string $toName, string $subject, string $htmlBody): bool
+function sendMailImmediate(string $toEmail, string $toName, string $subject, string $htmlBody, string $attachment = '', string $attachmentName = ''): bool
 {
     if (!MAIL_ENABLED) {
         error_log("[Mailer] MAIL_ENABLED is false. Skipped sending email to: $toEmail");
@@ -64,6 +65,14 @@ function sendMailImmediate(string $toEmail, string $toName, string $subject, str
         }
         
         $mail->Port       = MAIL_PORT;
+        
+        // Enable detailed debug output if system is in debug mode
+        if (defined('DEBUG_MODE') && DEBUG_MODE) {
+            $mail->SMTPDebug = 2; // 2 = client and server messages
+            $mail->Debugoutput = function($str, $level) {
+                error_log("[SMTP Debug] $str");
+            };
+        }
 
         $mail->setFrom(MAIL_FROM, MAIL_FROM_NAME);
         $mail->addAddress($toEmail, $toName);
@@ -72,9 +81,13 @@ function sendMailImmediate(string $toEmail, string $toName, string $subject, str
         $mail->Body    = $htmlBody;
         $mail->AltBody = strip_tags($htmlBody);
 
+        if (!empty($attachment)) {
+            $mail->addStringAttachment($attachment, $attachmentName);
+        }
+
         return $mail->send();
     } catch (\Exception $e) {
-        error_log("[Mailer Error] " . $e->getMessage());
+        error_log("[Mailer Critical Error] Failed to send to $toEmail. Error: " . $e->getMessage());
         return false;
     }
 }
@@ -193,6 +206,8 @@ function sendBookingConfirmation(array $booking): bool
     $subject   = "Booking Confirmed — " . APP_NAME;
     $eventDate = date('F j, Y', strtotime($booking['event_date']));
     
+    $invoiceUrl = BASE_URL . "/templates/invoice.php?booking_id={$booking['id']}&token=" . ($booking['invoice_token'] ?? '');
+
     $content = "
         <h2 style='margin: 0 0 12px; font-size: 21px; font-weight: 700; color: #1C1C1E; letter-spacing: -0.8px;'>Hi, {$booking['client_name']}!</h2>
         <p style='margin: 0 0 36px; font-size: 15px; color: rgba(60, 60, 67, 0.7); line-height: 1.6;'>Your event is officially secured. We are excited to deliver a professional catering experience for you.</p>
@@ -229,6 +244,10 @@ function sendBookingConfirmation(array $booking): bool
             </table>
         </div>
 
+        <div style='text-align: center; margin-bottom: 36px;'>
+            <a href='$invoiceUrl' class='btn-primary'>View Full Invoice</a>
+        </div>
+
         <p style='margin: 0; font-size: 14px; font-weight: 600; color: #30D158; text-align: center; text-transform: uppercase; letter-spacing: 1px;'>See you soon! 🎉</p>
     ";
 
@@ -241,28 +260,204 @@ function sendBookingConfirmation(array $booking): bool
  */
 function sendPaymentReceipt(array $booking, float $paymentAmount, string $method): bool
 {
+    global $pdo;
+
     if (empty($booking['client_email'])) return false;
 
-    $subject = "Payment Received — " . APP_NAME;
-    $balance = max(0, $booking['total_cost'] - $booking['amount_paid']);
+    $subject    = "Payment Received — " . APP_NAME;
+    $balance    = max(0, $booking['total_cost'] - (float)($booking['amount_paid'] ?? 0));
+    $invoiceUrl = BASE_URL . "/templates/invoice.php?booking_id={$booking['id']}&token=" . ($booking['invoice_token'] ?? '');
+    
+    $eventDate  = date('F j, Y', strtotime($booking['event_date']));
+    $packageName = htmlspecialchars($booking['menu_name'] ?? 'Catering Service');
+    $pax         = (int)($booking['pax_count'] ?? 0);
+
+    // Fetch breakdown for email consistency
+    $cStmt = $pdo->prepare("SELECT name, price FROM booking_custom_items WHERE booking_id = :bid");
+    $cStmt->execute([':bid' => $booking['id']]);
+    $customItems = $cStmt->fetchAll();
+
+    // Fetch dishes for email inclusion
+    $dStmt = $pdo->prepare("SELECT d.name FROM booking_dishes bd JOIN dishes d ON d.id = bd.dish_id WHERE bd.booking_id = :bid");
+    $dStmt->execute([':bid' => $booking['id']]);
+    $dishesList = implode(', ', $dStmt->fetchAll(PDO::FETCH_COLUMN));
+    if (empty($dishesList)) $dishesList = "Standard Menu Items";
+
+    $breakdownRows = "";
+    // Base Package
+    $extraCost = (float)($booking['extra_cost'] ?? 0);
+    $overtimeTotal = (float)($booking['overtime_total'] ?? 0);
+    $breakageTotal = (float)($booking['breakage_total'] ?? 0);
+    $transportFee  = (float)($booking['transport_fee'] ?? 0);
+    $customSum = array_sum(array_column($customItems, 'price'));
+    $trueMiscSurcharge = round(max(0, (float)($booking['surcharge_total'] ?? 0) - $customSum), 2);
+    $baseLineAmount = round(max(0, $booking['total_cost'] - $extraCost - $overtimeTotal - $breakageTotal - $transportFee - (float)($booking['surcharge_total'] ?? 0)), 2);
+
+    $breakdownRows .= "<tr><td style='padding:8px 0; color:#1C1C1E; font-weight:600;'>$packageName</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($baseLineAmount, 2) . "</td></tr>";
+    $breakdownRows .= "<tr><td colspan='2' style='padding:0 0 8px; color:rgba(60,60,67,0.5); font-size:11px; font-style:italic;'>Inclusions: $dishesList</td></tr>";
+    
+    if ($extraCost > 0) {
+        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Additional Guest Service</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($extraCost, 2) . "</td></tr>";
+    }
+    if ($transportFee > 0) {
+        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Transport Fee</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($transportFee, 2) . "</td></tr>";
+    }
+    if ($trueMiscSurcharge > 0) {
+        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Menu & Service Surcharge</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($trueMiscSurcharge, 2) . "</td></tr>";
+    }
+    foreach ($customItems as $ci) {
+        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>" . htmlspecialchars($ci['name']) . "</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($ci['price'], 2) . "</td></tr>";
+    }
+    if ($overtimeTotal > 0) {
+        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Overtime Extension</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($overtimeTotal, 2) . "</td></tr>";
+    }
+    if ($breakageTotal > 0) {
+        $breakdownRows .= "<tr><td style='padding:8px 0; color:#FF3B30; font-size:12px;'>Breakage / Damage</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($breakageTotal, 2) . "</td></tr>";
+    }
 
     $content = "
-        <h2 style='margin: 0 0 12px; font-size: 21px; font-weight: 700; color: #1C1C1E; letter-spacing: -0.8px;'>Hi, {$booking['client_name']}!</h2>
-        <p style='margin: 0 0 36px; font-size: 15px; color: rgba(60, 60, 67, 0.7); line-height: 1.6;'>We've successfully processed your payment. Thank you for your continued trust in Yazzies Catering.</p>
-
-        <div style='background-color: #F8F8FA; border-radius: 20px; padding: 36px; margin-bottom: 36px; text-align: center; border: 0.5px solid rgba(60, 60, 67, 0.08);'>
-            <p style='margin: 0 0 10px; font-size: 11px; color: rgba(60, 60, 67, 0.5); font-weight: 700; text-transform: uppercase; letter-spacing: 1px;'>Payment via $method</p>
-            <div style='font-size: 44px; font-weight: 800; color: #30D158; letter-spacing: -2px;'>₱" . number_format($paymentAmount, 2) . "</div>
-            <div style='margin-top: 28px; padding-top: 24px; border-top: 0.5px solid rgba(60, 60, 67, 0.1);'>
-                <p style='margin: 0; font-size: 14px; color: rgba(60, 60, 67, 0.5);'>New Remaining Balance: <strong style='color: #1C1C1E;'>₱" . number_format($balance, 2) . "</strong></p>
+        <h2 style='margin: 0 0 12px; font-size: 22px; font-weight: 800; color: #1C1C1E; letter-spacing: -0.8px;'>Hi, {$booking['client_name']}!</h2>
+        <p style='margin: 0 0 32px; font-size: 15px; color: rgba(60, 60, 67, 0.6); line-height: 1.6;'>We've successfully processed your payment. Thank you for your continued trust in Yazzies Catering. Below is your updated transaction summary.</p>
+        
+        <div style='background-color: #F8F8FA; border-radius: 24px; padding: 32px; margin-bottom: 32px; border: 1px solid rgba(60, 60, 67, 0.08);'>
+            <div style='text-align: center; margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid rgba(60, 60, 67, 0.08);'>
+                <p style='margin: 0 0 8px; font-size: 11px; color: #30D158; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;'>Payment Received via $method</p>
+                <div style='font-size: 48px; font-weight: 800; color: #1C1C1E; letter-spacing: -2px;'>₱" . number_format($paymentAmount, 2) . "</div>
             </div>
+
+            <table style='width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px;'>
+                <tr>
+                    <td colspan='2' style='padding: 10px 0; color: rgba(60, 60, 67, 0.5); font-weight: 700; text-transform: uppercase; font-size: 10px; border-bottom: 1px solid rgba(60,60,67,0.08);'>Billing Breakdown</td>
+                </tr>
+                $breakdownRows
+                <tr><td colspan='2' style='padding: 12px 0;'><div style='border-top: 1px dashed rgba(60, 60, 67, 0.1);'></div></td></tr>
+                <tr>
+                    <td style='padding: 8px 0; color: rgba(60, 60, 67, 0.5); font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;'>Total Amount Due</td>
+                    <td style='padding: 8px 0; text-align: right; font-weight: 700; color: #1C1C1E;'>₱" . number_format($booking['total_cost'], 2) . "</td>
+                </tr>
+                <tr>
+                    <td style='padding: 8px 0; color: rgba(60, 60, 67, 0.5); font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;'>Total Payments</td>
+                    <td style='padding: 8px 0; text-align: right; font-weight: 700; color: #1C1C1E;'>₱" . number_format($booking['amount_paid'], 2) . "</td>
+                </tr>
+                <tr>
+                    <td style='padding: 8px 0; color: #30D158; font-weight: 800; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;'>Remaining Balance</td>
+                    <td style='padding: 8px 0; text-align: right; font-weight: 800; color: #30D158; font-size: 18px;'>₱" . number_format($balance, 2) . "</td>
+                </tr>
+            </table>
         </div>
 
-        <p style='margin: 0; font-size: 14px; font-weight: 700; color: #30D158; text-align: center; text-transform: uppercase; letter-spacing: 1px;'>Thank you! ✨</p>
+        <div style='background-color: #F8F8FA; border-radius: 16px; padding: 20px; margin-bottom: 32px; border: 1px solid rgba(60, 60, 67, 0.05);'>
+            <table style='width: 100%; border-collapse: collapse; font-size: 13px;'>
+                <tr>
+                    <td style='color: rgba(60, 60, 67, 0.5); font-weight: 600;'>Event Details:</td>
+                    <td style='text-align: right; font-weight: 700;'>$eventDate | $pax pax</td>
+                </tr>
+            </table>
+        </div>
+
+        <p style='margin: 0; font-size: 13px; font-weight: 700; color: #30D158; text-align: center; text-transform: uppercase; letter-spacing: 2px;'>Thank you for choosing Yazzies ✨</p>
     ";
 
-    $html = renderEmailTemplate("Payment Received", "💳", $content, "#30D158", "We have processed your payment of ₱" . number_format($paymentAmount, 2) . ".");
-    return sendMailImmediate($booking['client_email'], $booking['client_name'], $subject, $html);
+    $pdf = generateInvoicePDF((int)$booking['id']);
+
+    $html = renderEmailTemplate("Payment Received", "💳", $content, "#30D158", "Success: We've received your payment of ₱" . number_format($paymentAmount, 2) . ".");
+    
+    return sendMailImmediate($booking['client_email'], $booking['client_name'], $subject, $html, $pdf, 'Invoice.pdf');
+}
+
+/**
+ * Send a refund receipt email to a client.
+ */
+function sendRefundReceipt(array $booking, float $refundAmount, string $method): bool
+{
+    global $pdo;
+
+    if (empty($booking['client_email'])) return false;
+
+    $subject    = "Refund Processed — " . APP_NAME;
+    $invoiceUrl = BASE_URL . "/templates/invoice.php?booking_id={$booking['id']}&token=" . ($booking['invoice_token'] ?? '');
+
+    $eventDate   = date('F j, Y', strtotime($booking['event_date']));
+    $packageName = htmlspecialchars($booking['menu_name'] ?? 'Catering Service');
+
+    // Fetch breakdown for email consistency
+    $cStmt = $pdo->prepare("SELECT name, price FROM booking_custom_items WHERE booking_id = :bid");
+    $cStmt->execute([':bid' => $booking['id']]);
+    $customItems = $cStmt->fetchAll();
+
+    // Fetch dishes for email inclusion
+    $dStmt = $pdo->prepare("SELECT d.name FROM booking_dishes bd JOIN dishes d ON d.id = bd.dish_id WHERE bd.booking_id = :bid");
+    $dStmt->execute([':bid' => $booking['id']]);
+    $dishesList = implode(', ', $dStmt->fetchAll(PDO::FETCH_COLUMN));
+    if (empty($dishesList)) $dishesList = "Standard Menu Items";
+
+    $breakdownRows = "";
+    // Base Package
+    $extraCost = (float)($booking['extra_cost'] ?? 0);
+    $overtimeTotal = (float)($booking['overtime_total'] ?? 0);
+    $breakageTotal = (float)($booking['breakage_total'] ?? 0);
+    $transportFee  = (float)($booking['transport_fee'] ?? 0);
+    $customSum = array_sum(array_column($customItems, 'price'));
+    $trueMiscSurcharge = round(max(0, (float)($booking['surcharge_total'] ?? 0) - $customSum), 2);
+    $baseLineAmount = round(max(0, $booking['total_cost'] - $extraCost - $overtimeTotal - $breakageTotal - $transportFee - (float)($booking['surcharge_total'] ?? 0)), 2);
+
+    $breakdownRows .= "<tr><td style='padding:8px 0; color:#1C1C1E; font-weight:600;'>$packageName</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($baseLineAmount, 2) . "</td></tr>";
+    $breakdownRows .= "<tr><td colspan='2' style='padding:0 0 8px; color:rgba(60,60,67,0.5); font-size:11px; font-style:italic;'>Inclusions: $dishesList</td></tr>";
+    
+    if ($extraCost > 0) {
+        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Additional Guest Service</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($extraCost, 2) . "</td></tr>";
+    }
+    if ($transportFee > 0) {
+        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Transport Fee</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($transportFee, 2) . "</td></tr>";
+    }
+    if ($trueMiscSurcharge > 0) {
+        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Menu & Service Surcharge</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($trueMiscSurcharge, 2) . "</td></tr>";
+    }
+    foreach ($customItems as $ci) {
+        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>" . htmlspecialchars($ci['name']) . "</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($ci['price'], 2) . "</td></tr>";
+    }
+    if ($overtimeTotal > 0) {
+        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Overtime Extension</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($overtimeTotal, 2) . "</td></tr>";
+    }
+    if ($breakageTotal > 0) {
+        $breakdownRows .= "<tr><td style='padding:8px 0; color:#FF3B30; font-size:12px;'>Breakage / Damage</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($breakageTotal, 2) . "</td></tr>";
+    }
+
+    $content = "
+        <h2 style='margin: 0 0 12px; font-size: 22px; font-weight: 800; color: #1C1C1E; letter-spacing: -0.8px;'>Hi, {$booking['client_name']}!</h2>
+        <p style='margin: 0 0 32px; font-size: 15px; color: rgba(60, 60, 67, 0.6); line-height: 1.6;'>We have processed a refund for your booking. Please find the formal summary of the transaction below.</p>
+        
+        <div style='background-color: #FFF5F5; border-radius: 24px; padding: 32px; margin-bottom: 32px; border: 1px solid rgba(255, 59, 48, 0.1);'>
+            <div style='text-align: center; margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid rgba(255, 59, 48, 0.1);'>
+                <p style='margin: 0 0 8px; font-size: 11px; color: #FF3B30; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;'>Refund Processed via $method</p>
+                <div style='font-size: 48px; font-weight: 800; color: #FF3B30; letter-spacing: -2px;'>₱" . number_format($refundAmount, 2) . "</div>
+            </div>
+
+            <table style='width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px;'>
+                <tr>
+                    <td colspan='2' style='padding: 10px 0; color: rgba(60, 60, 67, 0.5); font-weight: 700; text-transform: uppercase; font-size: 10px; border-bottom: 1px solid rgba(60,60,67,0.08);'>Original Billing Breakdown</td>
+                </tr>
+                $breakdownRows
+                <tr><td colspan='2' style='padding: 12px 0;'><div style='border-top: 1px dashed rgba(255, 59, 48, 0.1);'></div></td></tr>
+                <tr>
+                    <td style='padding: 8px 0; color: rgba(60, 60, 67, 0.5); font-weight: 600; text-transform: uppercase; font-size: 10px;'>Booking Date</td>
+                    <td style='padding: 8px 0; text-align: right; font-weight: 700; color: #1C1C1E;'>$eventDate</td>
+                </tr>
+                <tr>
+                    <td style='padding: 8px 0; color: rgba(60, 60, 67, 0.5); font-weight: 600; text-transform: uppercase; font-size: 10px;'>Final Status</td>
+                    <td style='padding: 8px 0; text-align: right; font-weight: 700; color: #FF3B30;'>REFUNDED</td>
+                </tr>
+            </table>
+        </div>
+
+        <p style='margin: 0; font-size: 13px; font-weight: 700; color: #FF3B30; text-align: center; text-transform: uppercase; letter-spacing: 2px;'>Processed Successfully 🔄</p>
+    ";
+
+    $pdf = generateInvoicePDF((int)$booking['id']);
+
+    $html = renderEmailTemplate("Refund Processed", "🔄", $content, "#FF3B30", "We have processed a refund of ₱" . number_format($refundAmount, 2) . ".");
+    
+    return sendMailImmediate($booking['client_email'], $booking['client_name'], $subject, $html, $pdf, 'Invoice.pdf');
 }
 /**
  * Send a manual payment reminder email to a client.
