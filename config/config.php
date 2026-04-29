@@ -136,7 +136,11 @@ function appSettingFloat(string $key, float $default): float {
 // ============================================================
 // Business Logic Constants (Dynamically loaded)
 // ============================================================
-define('APP_NAME',             appSetting('company_name', 'Yazzies Catering OMS'));
+define('BUSINESS_NAME',        appSetting('business_name', 'Yazzies Catering Services'));
+define('BUSINESS_ADDRESS',     appSetting('business_address', 'Poblacion, Alabel, Sarangani Province'));
+define('BUSINESS_PHONE',       appSetting('business_phone', '09XX-XXX-XXXX'));
+define('BUSINESS_EMAIL',       appSetting('business_email', 'info@yazzies.com'));
+define('APP_NAME',             BUSINESS_NAME);
 define('MIN_LEAD_TIME_DAYS',   appSettingInt('min_lead_time_days', 1));
 define('MIN_PAX',              appSettingInt('min_pax', 50));
 define('MAX_PAX',              appSettingInt('max_pax', 300));

@@ -39,8 +39,18 @@ use PHPMailer\PHPMailer\Exception as MailException;
  * @param string $htmlBody    HTML content of the email
  * @return bool               True on success, false on failure
  */
-function sendMailImmediate(string $toEmail, string $toName, string $subject, string $htmlBody, string $attachment = '', string $attachmentName = ''): bool
+function sendMailImmediate(?string $toEmail, ?string $toName, ?string $subject, ?string $htmlBody, string $attachment = '', string $attachmentName = ''): bool
 {
+    $toEmail = (string)$toEmail;
+    $toName = (string)$toName;
+    $subject = (string)$subject;
+    $htmlBody = (string)$htmlBody;
+
+    if (empty($toEmail)) {
+        error_log("[Mailer] No recipient email provided. Skipped.");
+        return false;
+    }
+
     if (!MAIL_ENABLED) {
         error_log("[Mailer] MAIL_ENABLED is false. Skipped sending email to: $toEmail");
         return false;
@@ -86,8 +96,8 @@ function sendMailImmediate(string $toEmail, string $toName, string $subject, str
         }
 
         return $mail->send();
-    } catch (\Exception $e) {
-        error_log("[Mailer Critical Error] Failed to send to $toEmail. Error: " . $e->getMessage());
+    } catch (\Throwable $e) {
+        error_log("[Mailer Critical Error] Failed to send to $toEmail. Error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
         return false;
     }
 }
@@ -140,8 +150,7 @@ function renderEmailTemplate(string $title, string $emoji, string $content, stri
                     </div>
                     <h1 style='margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -1px; color: #ffffff;'>$title</h1>
                     <div style='margin-top: 10px; opacity: 0.9;'>
-                        <span style='font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;'>YAZZIES</span>
-                        <div style='font-size: 10px; font-weight: 500; letter-spacing: 0.5px; margin-top: 2px;'>CATERING SERVICES</div>
+                        <span style='font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;'>" . BUSINESS_NAME . "</span>
                     </div>
                 </div>
 
@@ -317,7 +326,7 @@ function sendPaymentReceipt(array $booking, float $paymentAmount, string $method
 
     $content = "
         <h2 style='margin: 0 0 12px; font-size: 22px; font-weight: 800; color: #1C1C1E; letter-spacing: -0.8px;'>Hi, {$booking['client_name']}!</h2>
-        <p style='margin: 0 0 32px; font-size: 15px; color: rgba(60, 60, 67, 0.6); line-height: 1.6;'>We've successfully processed your payment. Thank you for your continued trust in Yazzies Catering. Below is your updated transaction summary.</p>
+        <p style='margin: 0 0 32px; font-size: 15px; color: rgba(60, 60, 67, 0.6); line-height: 1.6;'>We've successfully processed your payment. Thank you for your continued trust in " . BUSINESS_NAME . ". Below is your updated transaction summary.</p>
         
         <div style='background-color: #F8F8FA; border-radius: 24px; padding: 32px; margin-bottom: 32px; border: 1px solid rgba(60, 60, 67, 0.08);'>
             <div style='text-align: center; margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid rgba(60, 60, 67, 0.08);'>
@@ -355,10 +364,10 @@ function sendPaymentReceipt(array $booking, float $paymentAmount, string $method
             </table>
         </div>
 
-        <p style='margin: 0; font-size: 13px; font-weight: 700; color: #30D158; text-align: center; text-transform: uppercase; letter-spacing: 2px;'>Thank you for choosing Yazzies ✨</p>
+        <p style='margin: 0; font-size: 13px; font-weight: 700; color: #30D158; text-align: center; text-transform: uppercase; letter-spacing: 2px;'>Thank you for choosing " . BUSINESS_NAME . " ✨</p>
     ";
 
-    $pdf = generateInvoicePDF((int)$booking['id']);
+    $pdf = (string)generateInvoicePDF((int)$booking['id']);
 
     $html = renderEmailTemplate("Payment Received", "💳", $content, "#30D158", "Success: We've received your payment of ₱" . number_format($paymentAmount, 2) . ".");
     
@@ -450,10 +459,10 @@ function sendRefundReceipt(array $booking, float $refundAmount, string $method):
             </table>
         </div>
 
-        <p style='margin: 0; font-size: 13px; font-weight: 700; color: #FF3B30; text-align: center; text-transform: uppercase; letter-spacing: 2px;'>Processed Successfully 🔄</p>
+        <p style='margin: 0; font-size: 13px; font-weight: 700; color: #FF3B30; text-align: center; text-transform: uppercase; letter-spacing: 2px;'>Thank you for your patience with " . BUSINESS_NAME . " ✨</p>
     ";
 
-    $pdf = generateInvoicePDF((int)$booking['id']);
+    $pdf = (string)generateInvoicePDF((int)$booking['id']);
 
     $html = renderEmailTemplate("Refund Processed", "🔄", $content, "#FF3B30", "We have processed a refund of ₱" . number_format($refundAmount, 2) . ".");
     

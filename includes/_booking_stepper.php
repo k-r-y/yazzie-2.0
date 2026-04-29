@@ -1302,6 +1302,14 @@ $stepperRole = $bookingStepperRole ?? 'admin';
             state.totalCost = 0;
             return;
         }
+        if (pax > maxPax) {
+            errEl.textContent   = `Maximum capacity is ${maxPax} guests. Please contact management for larger events.`;
+            errEl.style.display = 'block';
+            badge.style.display = 'none';
+            dishPanel.style.display = 'none';
+            state.totalCost = 0;
+            return;
+        }
         errEl.style.display = 'none';
 
         // ── USER-SELECTED PACKAGE TIER LOGIC ────────────────

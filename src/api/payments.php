@@ -89,7 +89,8 @@ if ($method === 'POST') {
     // Verify booking exists + get current details for receipt
     $bStmt = $pdo->prepare("
         SELECT b.id, b.total_cost, b.amount_paid, b.booking_status, b.event_date, b.invoice_token, 
-               b.pax_count, COALESCE(pk.set_name, 'Catering Service') AS menu_name,
+               b.pax_count, b.extra_cost, b.transport_fee, b.overtime_total, b.breakage_total, b.surcharge_total,
+               COALESCE(pk.set_name, 'Catering Service') AS menu_name,
                c.email AS client_email, c.name AS client_name
         FROM bookings b
         JOIN clients c ON c.id = b.client_id

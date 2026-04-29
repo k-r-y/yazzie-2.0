@@ -62,7 +62,9 @@ async function loadSettings() {
         'debug_mode': 'Enables detailed error reporting (for developers only).',
         'mail_enabled': 'Master switch for all system email notifications.',
         'smtp_secure': 'The encryption protocol used for email delivery (typically TLS).',
-        'system_timezone': 'The default timezone for all event logs and schedules.'
+        'system_timezone': 'The default timezone for all event logs and schedules.',
+        'business_name': 'The official name of your catering business as it appears on invoices.',
+        'business_address': 'The physical or mailing address printed on client documents.'
     };
 
     try {
@@ -79,11 +81,19 @@ async function loadSettings() {
         for (const cat in groups) {
             html += `<h6 class="text-uppercase text-xs fw-800 text-muted mt-4 mb-2" style="letter-spacing:0.5px;">${cat}</h6>`;
             groups[cat].forEach(s => {
-                let restrict = 'number';
+                let restrict = '';
                 let inputType = 'text';
                 let inputHtml = '';
                 
-                if (s.type === 'float' || s.key.includes('rate') || s.key.includes('fee')) restrict = 'price';
+                // Numeric fields
+                if (['min_pax', 'max_pax', 'event_duration_hours', 'min_lead_time_days', 'rush_threshold_hours', 'max_admins', 'max_file_upload_mb'].includes(s.key)) {
+                    restrict = 'number';
+                }
+                
+                // Price/Percentage fields
+                if (s.type === 'float' || s.key.includes('rate') || s.key.includes('fee') || s.key.includes('percent')) {
+                    restrict = 'price';
+                }
                 
                 if (s.key.includes('hours_start') || s.key.includes('hours_end')) {
                     inputType = 'time';
