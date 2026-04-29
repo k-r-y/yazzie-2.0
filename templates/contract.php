@@ -158,9 +158,13 @@ $balance = $b['total_cost'] - $b['amount_paid'];
         </div>
     </div>
 
-    <div class="clause" style="white-space: pre-line; font-size: 13px;">
+    <div>
+        <h4 class="print-section-title" style="padding: 0; margin: 0;">Terms and Conditions</h4>
+        <div class="clause" style="white-space: pre-line; font-size: 13px;">
         <?= htmlspecialchars(appSetting('terms_and_conditions', "1. Booking Confirmation. This contract is binding upon signature of both parties.\n2. Downpayment Policy. A minimum downpayment is required.\n3. Final Payment. Remaining balance must be settled on or before the event date.")) ?>
     </div>
+    </div>
+    
     <?php if ($b['notes']): ?>
     <div class="clause"><strong>Special Instructions:</strong> <?= htmlspecialchars($b['notes']) ?></div>
     <?php endif; ?>
