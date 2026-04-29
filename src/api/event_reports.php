@@ -146,56 +146,8 @@ if ($method === 'POST') {
 
         // ── Log breakages ──
         $breakageTotal = 0;
-        if (!empty($breakages)) {
-            $insertBreak = $pdo->prepare("
-                INSERT INTO booking_breakages (booking_id, equipment_id, quantity, unit_price, total_cost, charge_to, notes, logged_by)
-                VALUES (:bid, :eid, :qty, :price, :total, :charge, :notes, :uid)
-            ");
-            $updateStock = $pdo->prepare("UPDATE equipment SET current_stock = current_stock - :qty, total_stock = total_stock - :qty WHERE id = :eid");
-            
-            foreach ($breakages as $br) {
-                if (empty($br['equipment_id']) || empty($br['quantity'])) continue;
-                $qty = max(1, (int)$br['quantity']);
-                $chargeTo = in_array($br['charge_to'] ?? '', ['client', 'staff', 'business']) ? $br['charge_to'] : 'client';
-
-                // Get equipment price
-                $eStmt = $pdo->prepare("SELECT name, replacement_cost, current_stock FROM equipment WHERE id = :id AND is_active = 1");
-                $eStmt->execute([':id' => (int)$br['equipment_id']]);
-                $equipment = $eStmt->fetch();
-                if (!$equipment) continue;
-
-                // Stop if insufficient stock
-                if ($equipment['current_stock'] < $qty) {
-                    throw new Exception("Insufficient stock for " . $equipment['name'] . ". Only " . $equipment['current_stock'] . " available.");
-                }
-
-                $unitPrice = (float)$equipment['replacement_cost'];
-                $total = round($unitPrice * $qty, 2);
-                
-                if ($chargeTo === 'client') {
-                    $breakageTotal += $total;
-                }
-
-                $insertBreak->execute([
-                    ':bid'    => $bid,
-                    ':eid'    => (int)$br['equipment_id'],
-                    ':qty'    => $qty,
-                    ':price'  => $unitPrice,
-                    ':total'  => $total,
-                    ':charge' => $chargeTo,
-                    ':notes'  => $br['notes'] ?? null,
-                    ':uid'    => $userId,
-                ]);
-
-                $updateStock->execute([':qty' => $qty, ':eid' => (int)$br['equipment_id']]);
-            }
-
-            // Update booking breakage_total if client was charged
-            if ($breakageTotal > 0) {
-                $pdo->prepare("UPDATE bookings SET breakage_total = breakage_total + :total, total_cost = total_cost + :total WHERE id = :bid")
-                    ->execute([':total' => $breakageTotal, ':bid' => $bid]);
-            }
-        }
+        // Breakage logging removed — now handled via Inventory Dispatch module
+        $breakageTotal = 0;
 
         // Audit Trail
         auditLog($pdo, 'event_report_submitted', 'booking', $bid, null, [

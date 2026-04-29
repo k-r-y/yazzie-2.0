@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
-requireRole('frontdesk');
+requireRole(['frontdesk','admin']);
 
 $pageTitle    = 'Staff Dispatching';
 $pageSubtitle = 'Broadcast job offers to on-call staff';

@@ -164,14 +164,15 @@ function loadReportForm() {
                     placeholder="Any client complaints, incidents, or notes…">${esc(booking.event_report_notes || '')}</textarea>
             </div>
 
-            <!-- Breakage Logger -->
+            <!-- Inventory Status -->
             <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:rgba(60,60,67,0.4); margin-bottom:12px;">
-                🔧 Equipment Breakage / Loss
+                📦 Inventory Status
             </div>
-            <div id="breakageRows" style="margin-bottom:10px;"></div>
-            <button type="button" class="btn btn-outline-secondary btn-sm py-3" onclick="addBreakageRow()" style="margin-bottom:20px;">
-                <i class="fas fa-plus"></i> Add Breakage Entry
-            </button>
+            <div id="inventoryStatusSummary" style="margin-bottom:20px;">
+                <div class="spinner"></div>
+            </div>
+
+            <!-- Breakage Logger has been moved to Inventory Dispatch module in Dashboard -->
 
             <!-- Submit -->
             <div style="border-top:1px solid var(--border); padding-top:16px; display:flex; justify-content:flex-end; gap:10px;">
@@ -183,44 +184,44 @@ function loadReportForm() {
 
     // Pre-populate overtime badge if times exist
     if (booking.actual_start_time && booking.actual_end_time) calcOvertime();
+
+    loadInventoryStatus(bookingId);
 }
 
-let breakageCounter = 0;
+async function loadInventoryStatus(bookingId) {
+    const summaryDiv = document.getElementById('inventoryStatusSummary');
+    try {
+        const d = await Api.get(BASE + 'src/api/inventory_dispatch.php', { booking_id: bookingId });
+        const items = d.items || [];
+        
+        if (items.length === 0) {
+            summaryDiv.innerHTML = `<div class="text-xs text-muted">No inventory was dispatched for this event.</div>`;
+            return;
+        }
 
-function addBreakageRow() {
-    breakageCounter++;
-    const eqOptions = equipmentList.map(e =>
-        `<option value="${e.id}">${esc(e.name)} (₱${parseFloat(e.replacement_cost).toFixed(2)})</option>`
-    ).join('');
+        const pendingReturns = items.filter(i => i.quantity_in === null).length;
+        const totalDispatched = items.length;
+        const returnedCount = totalDispatched - pendingReturns;
 
-    const row = document.createElement('div');
-    row.className = 'breakage-row';
-    row.id = 'br_row_' + breakageCounter;
-    row.style.cssText = 'display:flex; gap:8px; align-items:flex-start; margin-bottom:8px; padding:10px; background:rgba(255,59,48,0.03); border:1px solid rgba(255,59,48,0.1); border-radius:10px;';
-    row.innerHTML = `
-        <div style="flex:2;">
-            <select class="form-control br-equip" style="font-size:12px;">
-                <option value="">Select item…</option>
-                ${eqOptions}
-            </select>
-        </div>
-        <div style="flex:0 0 70px;">
-            <input type="number" class="form-control br-qty" placeholder="Qty" min="1" value="1" style="font-size:12px;">
-        </div>
-        <div style="flex:1;">
-            <select class="form-control br-charge-to" style="font-size:12px;">
-                <option value="client">Charge: Client</option>
-                <option value="staff">Charge: Staff</option>
-                <option value="business">Charge: Business</option>
-            </select>
-        </div>
-        <div style="flex:1;">
-            <input type="text" class="form-control br-notes" placeholder="Notes…" style="font-size:12px;">
-        </div>
-        <button type="button" onclick="document.getElementById('br_row_${breakageCounter}').remove()" style="background:none;border:none;color:#FF3B30;cursor:pointer;font-size:16px;padding:6px;">
-            <i class="fas fa-trash-can"></i>
-        </button>`;
-    document.getElementById('breakageRows').appendChild(row);
+        let statusHtml = `
+            <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:12px;">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="text-xs fw-700">${returnedCount} of ${totalDispatched} item types returned</span>
+                    <span class="badge ${pendingReturns === 0 ? 'badge-accepted' : 'badge-pending'}">${pendingReturns === 0 ? 'Completed' : 'Pending Return'}</span>
+                </div>
+                <div class="progress" style="height:6px; background:var(--border); border-radius:3px; overflow:hidden;">
+                    <div class="progress-bar" style="width:${(returnedCount / totalDispatched) * 100}%; background:var(--sys-green); height:100%;"></div>
+                </div>
+                ${pendingReturns > 0 ? `
+                <div class="mt-2 text-xs text-danger">
+                    <i class="fas fa-exclamation-triangle me-1"></i> Please finalize inventory return in the <a href="dashboard.php" class="fw-700">Dashboard</a>.
+                </div>` : ''}
+            </div>
+        `;
+        summaryDiv.innerHTML = statusHtml;
+    } catch (e) {
+        summaryDiv.innerHTML = `<div class="text-xs text-danger">Failed to load inventory status.</div>`;
+    }
 }
 
 function calcOvertime() {
@@ -284,18 +285,6 @@ async function submitReport(bookingId) {
         return;
     }
 
-    // Collect breakage rows
-    const breakageRows = document.querySelectorAll('.breakage-row');
-    const breakages = [];
-    breakageRows.forEach(row => {
-        const equipId = row.querySelector('.br-equip').value;
-        const qty     = parseInt(row.querySelector('.br-qty').value) || 0;
-        const notes   = row.querySelector('.br-notes').value.trim();
-        if (equipId && qty > 0) {
-            const chargeTo = row.querySelector('.br-charge-to')?.value || 'client';
-            breakages.push({ equipment_id: parseInt(equipId), quantity: qty, charge_to: chargeTo, notes: notes || null });
-        }
-    });
 
     const btn = document.getElementById('submitReportBtn');
     Form.setLoading(btn, true);
@@ -306,7 +295,6 @@ async function submitReport(bookingId) {
             actual_start_time: startTime,
             actual_end_time: endTime,
             complaints,
-            breakages,
         });
 
         let msg = 'Event report submitted successfully!';

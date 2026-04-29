@@ -41,6 +41,7 @@ $nav = [
         ['inventory',   'Inventory Items',   'fa-boxes-stacked',  '/views/admin/inventory.php'],
         ['financial',   'Financials',   'fa-coins',        '/views/admin/financial.php'],
         ['section' => 'Human Resources'],
+        ['dispatching', 'Staff Dispatching', 'fa-bullhorn',  '/views/frontdesk/dispatching.php'],
         ['staff',       'Staff',        'fa-id-badge',     '/views/admin/staff.php'],
         ['section' => 'Business Rules'],
         ['settings',    'Business Settings', 'fa-sliders',      '/views/admin/settings.php'],

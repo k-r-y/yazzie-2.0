@@ -105,9 +105,15 @@ if ($method === 'POST') {
                     payment_status = CASE 
                         WHEN payment_status = 'paid' THEN 'partial' 
                         ELSE payment_status 
-                    END
+                    END,
+                    is_archived = 0,
+                    archived_at = NULL,
+                    archived_by = NULL
                 WHERE id = :bid
             ")->execute([':total' => $totalCost, ':total_adj' => $totalCost, ':bid' => $bookingId]);
+
+            // If it was archived, remove from archived_bookings table too
+            $pdo->prepare("DELETE FROM archived_bookings WHERE original_id = :bid")->execute([':bid' => $bookingId]);
         }
 
         // Audit Log

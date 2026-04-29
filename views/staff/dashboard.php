@@ -85,17 +85,32 @@ $user = getCurrentUser();
     margin-bottom: 12px;
 }
 
-.job-meta-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
+    .job-meta-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--label-2); margin-bottom: 6px; }
+    .job-meta-item i { width: 14px; text-align: center; color: var(--label-3); font-size: 12px; }
 
-.job-meta-item i {
-    width: 16px;
-    text-align: center;
-    color: var(--label-3);
-}
+    /* Compact Grid Layout */
+    .job-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 16px;
+    }
+    .job-card.compact {
+        padding: 16px;
+        margin-bottom: 0;
+    }
+    .job-card.compact .job-card-header {
+        margin-bottom: 12px;
+    }
+    .job-card.compact .job-card-meta {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 4px;
+        margin-bottom: 0;
+    }
+    .job-card.compact .job-meta-item {
+        margin-bottom: 0;
+        font-size: 12px;
+    }
 
 .job-card-actions {
     display: flex;
@@ -259,6 +274,9 @@ $user = getCurrentUser();
     <button class="job-tab" id="tab-btn-history" onclick="switchTab('history', this)">
         <i class="fas fa-history"></i> History
     </button>
+    <button class="job-tab" id="tab-btn-inventory" onclick="switchTab('inventory', this)">
+        <i class="fas fa-boxes-stacked"></i> Inventory Dispatch
+    </button>
 </div>
 
 <!-- ── TAB: Pending Job Offers ── -->
@@ -297,7 +315,7 @@ $user = getCurrentUser();
     </div>
     
     <h5 style="font-size:15px; font-weight:700; color:var(--label-1); margin-bottom:12px;">📋 Upcoming Job Details</h5>
-    <div id="acceptedJobs"><div class="spinner"></div></div>
+    <div id="acceptedJobs" class="job-grid"><div class="spinner"></div></div>
 </div>
 
 <!-- ── TAB: Leave Requests ── -->
@@ -346,7 +364,98 @@ $user = getCurrentUser();
 
 <!-- ── TAB: History ── -->
 <div class="job-tab-panel" id="tab-history">
-    <div id="historyJobs"><div class="spinner"></div></div>
+    <div id="historyJobs" class="job-grid"><div class="spinner"></div></div>
+</div>
+
+<!-- ── TAB: Inventory ── -->
+<div class="job-tab-panel" id="tab-inventory">
+    <div class="row">
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Select Event</div>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <select class="form-control" id="invEventSelect" onchange="loadInventoryForEvent()">
+                            <option value="">Choose an upcoming event…</option>
+                        </select>
+                    </div>
+                    <div id="invBookingDetails" class="mt-3" style="display:none;">
+                        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;">
+                            <div class="mb-2">
+                                <div class="text-xs text-muted text-bold">CLIENT</div>
+                                <div class="fw-600" id="inv-detail-client">—</div>
+                            </div>
+                            <div class="mb-2">
+                                <div class="text-xs text-muted text-bold">EVENT DATE</div>
+                                <div class="fw-600" id="inv-detail-date">—</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="card" id="invActionCard" style="display:none;">
+                <div class="card-header" style="justify-content: space-between; display: flex; align-items: center;">
+                    <div class="card-title">Dispatch / Return Log</div>
+                    <div class="job-tabs" style="margin-bottom:0; border-bottom:none;">
+                        <button class="job-tab active" id="inv-subtab-dispatch" onclick="switchInvSubTab('dispatch')">Ingress (Out)</button>
+                        <button class="job-tab" id="inv-subtab-return" onclick="switchInvSubTab('return')">Egress (In)</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Dispatch Panel -->
+                    <div id="inv-panel-dispatch">
+                        <div style="font-size:12px; color:var(--label-3); margin-bottom:12px;">Add items being sent to the event location.</div>
+                        <div id="dispatchRows"></div>
+                        <button class="btn btn-outline-secondary btn-sm mt-2" onclick="addDispatchRow()">
+                            <i class="fas fa-plus me-1"></i> Add Item
+                        </button>
+                        <hr class="my-4">
+                        <div class="d-flex justify-content-end">
+                            <button class="btn btn-primary" id="btnSaveDispatch" onclick="saveDispatch()">
+                                <i class="fas fa-truck-loading me-1"></i> Record Dispatch
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Return Panel -->
+                    <div id="inv-panel-return" style="display:none;">
+                        <div style="font-size:12px; color:var(--label-3); margin-bottom:12px;">Record items returned from the event. Discrepancies will be logged as breakages.</div>
+                        <div class="table-wrapper">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th style="width:100px;">Out</th>
+                                        <th style="width:100px;">In (Return)</th>
+                                        <th>Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="returnTableBody">
+                                    <tr><td colspan="4" class="text-center">No items dispatched yet.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <hr class="my-4">
+                        <div class="d-flex justify-content-end">
+                            <button class="btn btn-success" id="btnSaveReturn" onclick="saveReturn()">
+                                <i class="fas fa-clipboard-check me-1"></i> Record Return & Finalize
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="invEmptyState">
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i class="fas fa-boxes-stacked"></i></div>
+                    <h3>No event selected</h3>
+                    <p>Select an event from the left to manage inventory dispatch.</p>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
@@ -466,7 +575,6 @@ function initCalendar(acceptedJobs) {
                     <div><strong>Date:</strong> ${Format.dateShort(job.event_date)} at ${job.displayTime}</div>
                     <div><strong>Location:</strong> ${esc(job.displayLocation)}</div>
                     <div><strong>Party Size:</strong> ${job.displayPax}</div>
-                    <div><strong>Menu:</strong> ${esc(job.menu_name || 'Standard')}</div>
                 </div>
             </div>`;
             
@@ -516,31 +624,220 @@ function switchTab(tab, el) {
     document.querySelectorAll('.job-tab-panel').forEach(p => p.classList.remove('active'));
     el.classList.add('active');
     document.getElementById('tab-' + tab).classList.add('active');
+
     if (tab === 'leaves') loadMyLeaves();
     if (tab === 'accepted' && calendar) {
-        setTimeout(() => calendar.render(), 100); // re-render layout with slight delay
+        setTimeout(() => calendar.render(), 100);
+    }
+    if (tab === 'inventory') loadInventoryEvents();
+}
+
+// ── INVENTORY DISPATCH ─────────────────────────────────────────────
+let equipmentList = [];
+let dispatchedItems = [];
+let invSelectedBookingId = null;
+
+async function loadInventoryEvents() {
+    const accepted = allJobs.filter(j => j.status === 'accepted');
+    const sel = document.getElementById('invEventSelect');
+    sel.innerHTML = '<option value="">Choose an upcoming event…</option>' +
+        accepted.map(j => `<option value="${j.booking_id}">#${j.booking_id} — ${esc(j.client_name)} (${Format.dateShort(j.event_date)})</option>`).join('');
+    
+    // Pre-load equipment list if empty
+    if (equipmentList.length === 0) {
+        const d = await Api.get(BASE + 'src/api/inventory.php');
+        equipmentList = d.equipment || [];
     }
 }
 
-function renderJob(j, showActions = true) {
+function loadInventoryForEvent() {
+    const bid = document.getElementById('invEventSelect').value;
+    invSelectedBookingId = bid;
+    
+    if (!bid) {
+        document.getElementById('invBookingDetails').style.display = 'none';
+        document.getElementById('invActionCard').style.display = 'none';
+        document.getElementById('invEmptyState').style.display = 'block';
+        return;
+    }
+
+    const job = allJobs.find(j => j.booking_id == bid);
+    document.getElementById('inv-detail-client').textContent = job.client_name;
+    document.getElementById('inv-detail-date').textContent = Format.dateShort(job.event_date);
+    document.getElementById('invBookingDetails').style.display = 'block';
+    document.getElementById('invActionCard').style.display = 'block';
+    document.getElementById('invEmptyState').style.display = 'none';
+    
+    refreshInventoryList();
+}
+
+async function refreshInventoryList() {
+    try {
+        const d = await Api.get(BASE + 'src/api/inventory_dispatch.php', { booking_id: invSelectedBookingId });
+        dispatchedItems = d.items || [];
+        renderReturnTable();
+        
+        // If items exist, default to Return tab, else Dispatch
+        if (dispatchedItems.length > 0) {
+            switchInvSubTab('return');
+        } else {
+            switchInvSubTab('dispatch');
+            document.getElementById('dispatchRows').innerHTML = '';
+            addDispatchRow();
+        }
+    } catch(e) { Toast.error(e.message); }
+}
+
+function switchInvSubTab(sub) {
+    document.getElementById('inv-subtab-dispatch').classList.toggle('active', sub === 'dispatch');
+    document.getElementById('inv-subtab-return').classList.toggle('active', sub === 'return');
+    document.getElementById('inv-panel-dispatch').style.display = sub === 'dispatch' ? 'block' : 'none';
+    document.getElementById('inv-panel-return').style.display = sub === 'return' ? 'block' : 'none';
+}
+
+function addDispatchRow() {
+    const container = document.getElementById('dispatchRows');
+    const row = document.createElement('div');
+    row.className = 'd-flex gap-2 mb-2 dispatch-row';
+    const options = equipmentList.map(e => `<option value="${e.id}" data-stock="${e.current_stock}">${esc(e.name)} (Stock: ${e.current_stock})</option>`).join('');
+    row.innerHTML = `
+        <select class="form-control inv-eid" style="flex:3;">
+            <option value="">Select Item…</option>
+            ${options}
+        </select>
+        <input type="number" class="form-control inv-qty" placeholder="Qty" style="flex:1;" min="1" value="1">
+        <input type="text" class="form-control inv-notes" placeholder="Notes" style="flex:2;">
+        <button class="btn btn-outline-danger btn-sm" onclick="this.parentElement.remove()">
+            <i class="fas fa-trash"></i>
+        </button>
+    `;
+    container.appendChild(row);
+}
+
+function renderReturnTable() {
+    const tbody = document.getElementById('returnTableBody');
+    if (dispatchedItems.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center">No items dispatched yet.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = dispatchedItems.map(item => `
+        <tr class="return-row" data-id="${item.id}" data-out="${item.quantity_out}">
+            <td>
+                <div class="fw-600">${esc(item.equipment_name)}</div>
+                <div class="text-xs text-muted">Dispatched by ${esc(item.dispatched_by_name)}</div>
+            </td>
+            <td><span class="badge badge-secondary">${item.quantity_out} ${item.unit}</span></td>
+            <td>
+                <input type="number" class="form-control form-control-sm inv-qty-in" 
+                    value="${item.quantity_in !== null ? item.quantity_in : item.quantity_out}" 
+                    max="${item.quantity_out}" min="0">
+            </td>
+            <td>
+                <input type="text" class="form-control form-control-sm inv-ret-notes" 
+                    placeholder="e.g. Broken 2" value="${esc(item.return_notes || '')}">
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function saveDispatch() {
+    const rows = document.querySelectorAll('.dispatch-row');
+    const items = [];
+    const errors = [];
+    rows.forEach(r => {
+        const sel = r.querySelector('.inv-eid');
+        const eid = sel.value;
+        const qty = parseInt(r.querySelector('.inv-qty').value);
+        const notes = r.querySelector('.inv-notes').value;
+        
+        if (eid && qty > 0) {
+            const opt = sel.options[sel.selectedIndex];
+            const stock = parseInt(opt.dataset.stock);
+            if (qty > stock) {
+                const name = opt.text.split(' (Stock:')[0];
+                errors.push(`Insufficient stock for "${name}". Available: ${stock}`);
+            }
+            items.push({ equipment_id: eid, quantity: qty, notes });
+        }
+    });
+
+    if (errors.length > 0) return Toast.error(errors.join('<br>'));
+    if (items.length === 0) return Toast.error('Please add at least one item.');
+
+    const btn = document.getElementById('btnSaveDispatch');
+    Form.setLoading(btn, true);
+    try {
+        await Api.post(BASE + 'src/api/inventory_dispatch.php', { booking_id: invSelectedBookingId, items });
+        Toast.success('Dispatch recorded!');
+        refreshInventoryList();
+    } catch(e) { Toast.error(e.message); }
+    Form.setLoading(btn, false);
+}
+
+async function saveReturn() {
+    const rows = document.querySelectorAll('.return-row');
+    const returns = [];
+    let hasDiscrepancy = false;
+
+    rows.forEach(r => {
+        const id = r.dataset.id;
+        const qtyOut = parseInt(r.dataset.out);
+        const qtyIn = parseInt(r.querySelector('.inv-qty-in').value);
+        const notes = r.querySelector('.inv-ret-notes').value;
+        
+        returns.push({ id, quantity_in: qtyIn, notes });
+        if (qtyIn < qtyOut) hasDiscrepancy = true;
+    });
+
+    if (hasDiscrepancy) {
+        const { value: chargeTo } = await Swal.fire({
+            title: 'Discrepancy Detected',
+            text: 'Some items were not returned. Who should be charged for the loss?',
+            icon: 'warning',
+            input: 'select',
+            inputOptions: {
+                'client': 'Charge to Client (Adds to balance)',
+                'staff': 'Charge to Staff',
+                'business': 'Business Loss'
+            },
+            inputPlaceholder: 'Select responsible party',
+            showCancelButton: true,
+            confirmButtonColor: '#FF9500'
+        });
+        
+        if (!chargeTo) return; // Cancelled
+        returns.forEach(ret => ret.charge_to = chargeTo);
+    }
+
+    const btn = document.getElementById('btnSaveReturn');
+    Form.setLoading(btn, true);
+    try {
+        const res = await Api.put(BASE + 'src/api/inventory_dispatch.php', { booking_id: invSelectedBookingId, returns });
+        Toast.success(res.message);
+        refreshInventoryList();
+    } catch(e) { Toast.error(e.message); }
+    Form.setLoading(btn, false);
+}
+
+function renderJob(j, showActions = true, compact = false) {
     const statusColor = { pending: 'badge-pending', accepted: 'badge-accepted', declined: 'badge-cancelled' };
     return `
-    <div class="job-card ${j.status === 'pending' ? 'urgent' : ''}">
+    <div class="job-card ${compact ? 'compact' : ''} ${j.status === 'pending' ? 'urgent' : ''}">
         <div class="job-card-header">
             <div>
-                <div class="job-card-role">${esc(j.role_required)}</div>
-                <div class="text-sm text-muted">Job #${j.id}</div>
+                <div class="job-card-role" style="${compact ? 'font-size:13px;' : ''}">${esc(j.role_required)}</div>
+                <div class="text-xs text-muted">Job #${j.id}</div>
             </div>
             <span class="badge ${statusColor[j.status] || ''}">${j.status.charAt(0).toUpperCase() + j.status.slice(1)}</span>
         </div>
         <div class="job-card-meta">
-            <div class="job-meta-item"><i class="fas fa-user"></i>${esc(j.client_name)}</div>
-            <div class="job-meta-item"><i class="fas fa-calendar"></i>${Format.dateShort(j.event_date)}${j.event_time ? ' · ' + Format.time(j.event_time) : ''}</div>
-            <div class="job-meta-item"><i class="fas fa-location-dot"></i>${esc(j.event_location || '—')}</div>
-            <div class="job-meta-item"><i class="fas fa-utensils"></i>${esc(j.menu_name)}</div>
-            <div class="job-meta-item"><i class="fas fa-users"></i>${j.pax_count} guests</div>
+            <div class="job-meta-item"><i class="fas fa-user"></i><span>${esc(j.client_name)}</span></div>
+            <div class="job-meta-item"><i class="fas fa-calendar"></i><span>${Format.dateShort(j.event_date)}${j.event_time ? ' · ' + Format.time(j.event_time) : ''}</span></div>
+            <div class="job-meta-item"><i class="fas fa-location-dot"></i><span class="text-truncate">${esc(j.event_location || '—')}</span></div>
+            ${!compact ? `<div class="job-meta-item"><i class="fas fa-users"></i><span>${j.pax_count} guests</span></div>` : ''}
         </div>
-        ${j.notes ? `<div class="text-sm text-muted mb-3"><i class="fas fa-note-sticky me-1"></i>${esc(j.notes)}</div>` : ''}
+        ${!compact && j.notes ? `<div class="text-sm text-muted mb-3 mt-2"><i class="fas fa-note-sticky me-1"></i>${esc(j.notes)}</div>` : ''}
         ${showActions && j.status === 'pending' ? `
         <div class="job-card-actions">
             <button class="btn btn-success" onclick="respond(${j.id}, 'accepted')">
@@ -568,11 +865,11 @@ async function loadJobs() {
             `<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-${icon}"></i></div><h3>${title}</h3><p>${msg}</p></div>`;
 
         document.getElementById('pendingJobs').innerHTML  = pending.length  ? pending.map(j => renderJob(j, true)).join('')  : emptyState('inbox','No Pending Offers','No new job offers at the moment.');
-        document.getElementById('acceptedJobs').innerHTML = accepted.length ? accepted.map(j => renderJob(j, false)).join('') : emptyState('calendar-check','No Upcoming Jobs','You have no accepted upcoming events.');
+        document.getElementById('acceptedJobs').innerHTML = accepted.length ? accepted.map(j => renderJob(j, false, true)).join('') : emptyState('calendar-check','No Upcoming Jobs','You have no accepted upcoming events.');
         
         initCalendar(accepted);
         
-        document.getElementById('historyJobs').innerHTML  = history.length  ? history.map(j => renderJob(j, false)).join('')  : emptyState('history','No History','Past jobs will appear here.');
+        document.getElementById('historyJobs').innerHTML  = history.length  ? history.map(j => renderJob(j, false, true)).join('')  : emptyState('history','No History','Past jobs will appear here.');
     } catch (e) {
         document.getElementById('pendingJobs').innerHTML = `<div class="empty-state"><p>Failed to load jobs. Please refresh.</p></div>`;
     }
