@@ -28,8 +28,8 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <option value="cancelled">Cancelled</option>
             </select>
             <select class="form-control" id="filterOrder" style="width:160px;">
-                <option value="DESC">Latest First</option>
                 <option value="ASC">Upcoming First</option>
+                <option value="DESC">Latest First</option>
             </select>
             <select class="form-control" id="filterPayment" style="width:160px;">
                 <option value="">All Payments</option>

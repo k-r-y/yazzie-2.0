@@ -188,23 +188,42 @@
 }
 
 /* Signatures */
+.layout-row {
+    display: flex;
+    gap: 24pt;
+    margin: 24pt 0;
+    width: 100%;
+}
+
+.layout-col {
+    flex: 1;
+}
+
+/* Signatures */
 .print-signatures {
-  
-    gap: 40pt;
-    margin-top: 40pt;
+    display: flex;
+    justify-content: space-between;
+    gap: 24pt;
+    margin-top: 60pt;
+    width: 100%;
+}
+
+.signature-col {
+    flex: 1;
 }
 
 .print-signature-line {
     border-top: 1.5px solid #171717;
     margin-bottom: 5pt;
-    width: 60%;
+    width: 85%;
 }
 
 .print-signature-label {
     font-size: 7.5pt;
     color: #737373;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
+    letter-spacing: 0.5px;
+    margin-top: 1pt;
 }
 
 .print-signature-name {
@@ -216,10 +235,12 @@
 
 /* Footer */
 .print-footer {
-    margin-top: 28pt;
-    padding-top: 10pt;
-    border-top: 1px solid #E5E5E5;
+    margin: 50pt -40px 0;
+    padding: 15pt 40px 0;
+    border-top: 2px solid #166534;
     font-size: 7.5pt;
     color: #A3A3A3;
     text-align: center;
+    width: auto;
 }
+

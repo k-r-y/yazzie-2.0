@@ -144,7 +144,7 @@ function sendEventReminders(PDO $pdo, callable $log): int
     }
 
     // v2: helper is used directly inside the loop
-...
+
     // Check if we already sent reminders for today (prevent duplicates on re-runs)
     $checkSent = $pdo->prepare("
         SELECT COUNT(*) FROM notifications 

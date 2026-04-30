@@ -230,47 +230,86 @@ $privacyNotice = appSetting('data_privacy_notice', "We value your privacy. Your 
         .history-table td { padding: 8px; border-bottom: 0.5px solid #F8F8F8; }
         .history-table tfoot th { background: #F8F8F8; padding: 10px 8px; border-top: 0.5px solid var(--sep); font-weight: 800; color: var(--label); }
 
-        .footer {
-            margin-top: 50px;
-            display: grid;
-            grid-template-columns: 1.5fr 1fr;
-            gap: 40px;
-        }
-        .terms p { font-size: 11px; color: var(--label-3); white-space: pre-line; line-height: 1.4; }
-        .signature { text-align: center; }
-        .sig-line { border-top: 1px solid var(--label); margin-top: 40px; padding-top: 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
-
         .stamp {
-            position: absolute; top: 100px; right: 60px;
-            border: 2px solid var(--sys-green); padding: 5px 15px;
-            color: var(--sys-green); font-size: 24px; font-weight: 900;
-            text-transform: uppercase; opacity: 0.15;
-            transform: rotate(-10deg); pointer-events: none;
+            position: absolute;
+            top: 60pt;
+            right: 40pt;
+            border: 4px double;
+            padding: 8pt 20pt;
+            font-size: 32pt;
+            font-weight: 900;
+            text-transform: uppercase;
+            opacity: 0.6;
+            transform: rotate(-15deg);
+            pointer-events: none;
+            z-index: 100;
+            font-family: 'Outfit', sans-serif;
+            letter-spacing: 2px;
+        }
+        .stamp.paid { border-color: #059669; color: #059669; }
+        .stamp.partial { border-color: #D97706; color: #D97706; }
+        .stamp.unpaid { border-color: #DC2626; color: #DC2626; }
+
+        .layout-row { display: flex; gap: 24pt; margin: 24pt 0; width: 100%; }
+        .layout-col { flex: 1; }
+        .print-signatures { display: flex; justify-content: space-between; gap: 40pt; margin-top: 60pt; width: 100%; page-break-inside: avoid; }
+        .signature-col { flex: 1; }
+        .print-signature-line { border-top: 1.5px solid var(--label); margin-bottom: 5pt; width: 100%; }
+        .print-signature-label { font-size: 7.5pt; color: var(--label-3); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 1pt; }
+        .print-signature-name { font-size: 10pt; font-weight: 700; color: var(--label); }
+
+        .print-footer {
+            margin: 40pt -40px -40px;
+            padding: 15pt 40px 15pt;
+            border-top: 2px solid var(--sys-green);
+            font-size: 9px;
+            color: var(--sys-green-dark);
+            text-align: center;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .print-btn-container {
+            position: fixed;
+            bottom: 24pt;
+            right: 24pt;
+            z-index: 9999;
         }
 
         .print-btn {
-            position: fixed; bottom: 30px; right: 30px;
-            background: var(--sys-green-dark); color: white;
-            border: none; padding: 12px 24px; border-radius: 100px;
-            font-weight: 700; cursor: pointer; font-family: inherit;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            background: #C8501E;
+            color: white;
+            border: none;
+            padding: 12pt 24pt;
+            border-radius: 12pt;
+            font-size: 14pt;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 8pt 24pt rgba(200, 80, 30, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 8pt;
+            transition: transform 0.2s;
         }
+        .print-btn:hover { transform: translateY(-2pt); }
 
         @media print {
             body { background: white; padding: 0; }
-            .invoice-wrapper { box-shadow: none; border: none; padding: 0; }
-            .print-btn { display: none; }
+            .invoice-wrapper { box-shadow: none; border: none; padding: 0; margin: 0; }
+            .print-btn-container { display: none; }
+            .print-footer { margin-left: 0; margin-right: 0; }
         }
     </style>
 </head>
 <body>
 
 <div class="invoice-wrapper">
-    <?php if ($b['payment_status'] === 'paid'): ?>
-        <div class="stamp">FULLY PAID</div>
-    <?php elseif ($b['payment_status'] === 'partial'): ?>
-        <div class="stamp" style="border-color: #FF9500; color: #FF9500;">PARTIAL</div>
-    <?php endif; ?>
+    <?php 
+        $statusClass = strtolower($b['payment_status'] ?? 'unpaid');
+        $statusLabel = ($statusClass === 'paid') ? 'FULLY PAID' : strtoupper($statusClass);
+    ?>
+    <div class="stamp <?= $statusClass ?>"><?= $statusLabel ?></div>
 
     <div class="header-main">
         <div class="brand-block">
@@ -342,7 +381,7 @@ $privacyNotice = appSetting('data_privacy_notice', "We value your privacy. Your 
                 $lineTotal = $fee * $b['pax_count'];
             ?>
             <tr>
-                <td><div class="item-name"><?= htmlspecialchars($ed['name']) ?></div><div class="item-sub">Extra Course Surcharge</div></td>
+                <td><div class="item-name"><?= htmlspecialchars($ed['name']) ?></div><div class="item-sub">Extra Dish Surcharge</div></td>
                 <td class="text-center"><?= $b['pax_count'] ?></td>
                 <td class="text-right">&#8369;<?= number_format($fee, 2) ?></td>
                 <td class="text-right">&#8369;<?= number_format($lineTotal, 2) ?></td>
@@ -420,25 +459,46 @@ $privacyNotice = appSetting('data_privacy_notice', "We value your privacy. Your 
     </div>
     <?php endif; ?>
 
-    <div class="footer">
-        <div class="terms">
-            <div class="section-label">Terms & Conditions</div>
-            <p><?= nl2br(htmlspecialchars($terms)) ?></p>
-            
-            <div class="section-label" style="margin-top: 15px;">Data Privacy Notice</div>
-            <p><?= nl2br(htmlspecialchars($privacyNotice)) ?></p>
-
-            <div class="section-label" style="margin-top: 15px;">Payment Instructions</div>
-            <p><?= nl2br(htmlspecialchars($paymentInstructions)) ?></p>
-        </div>
-            <div class="signature">
-                <div class="sig-line"><?= htmlspecialchars($generatedBy ?: $creatorName) ?></div>
-                <div class="item-sub" style="margin-top: 4px;">Authorized Representative</div>
+    <!-- Row 1: Terms & Privacy (2 Columns) -->
+    <div class="layout-row" style="margin-top: 30pt; display: flex; gap: 20pt; width: 100%; page-break-inside: avoid;">
+        <div style="flex: 1; padding: 15pt; background: #fafafa; border-radius: 12pt; border: 1px solid #eee; box-sizing: border-box;">
+            <div class="print-signature-label" style="margin-bottom: 8pt; color: var(--sys-green-dark); font-weight: 800; font-size: 10px; text-transform: uppercase;">Terms & Conditions</div>
+            <div style="font-size: 11px; line-height: 1.5; color: var(--label-2);">
+                <?= nl2br(htmlspecialchars($terms)) ?>
             </div>
+        </div>
+        <div style="flex: 1; padding: 15pt; background: #fafafa; border-radius: 12pt; border: 1px solid #eee; box-sizing: border-box;">
+            <div class="print-signature-label" style="margin-bottom: 8pt; color: var(--sys-green-dark); font-weight: 800; font-size: 10px; text-transform: uppercase;">Data Privacy Notice</div>
+            <div style="font-size: 11px; line-height: 1.5; color: var(--label-2);">
+                <?= nl2br(htmlspecialchars($privacyNotice)) ?>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 2: Signatures (2 Columns) -->
+    <div class="print-signatures" style="margin-top: 50pt; display: flex; justify-content: space-between; gap: 60pt; width: 100%; page-break-inside: avoid;">
+        <div class="signature-col" style="flex: 1;">
+            <div class="print-signature-line" style="border-top: 1.5px solid var(--label); width: 100%; margin-bottom: 5pt;"></div>
+            <div class="print-signature-name" style="font-size: 11pt; font-weight: 700;"><?= htmlspecialchars($b['client_name']) ?></div>
+            <div class="print-signature-label" style="font-size: 8pt; color: var(--label-3); text-transform: uppercase;">Customer Signature</div>
+        </div>
+        <div class="signature-col" style="flex: 1;">
+            <div class="print-signature-line" style="border-top: 1.5px solid var(--label); width: 100%; margin-bottom: 5pt;"></div>
+            <div class="print-signature-name" style="font-size: 11pt; font-weight: 700;"><?= htmlspecialchars(appSetting('business_name', 'Yazzies Catering Services')) ?></div>
+            <div class="print-signature-label" style="font-size: 8pt; color: var(--label-3); text-transform: uppercase;">Authorized Signature</div>
+        </div>
+    </div>
+
+    <div class="print-footer">
+        <?= htmlspecialchars(appSetting('business_name', 'Yazzies Catering')) ?> &bull; Invoice #INV-<?= str_pad($bookingId, 5, '0', STR_PAD_LEFT) ?> &bull; <?= date('F j, Y') ?>
     </div>
 </div>
 
-<button class="print-btn" onclick="window.print()">Print Invoice</button>
+<div class="no-print print-btn-container">
+    <button class="print-btn" onclick="window.print()">
+        <span>🖨️</span> Print Invoice
+    </button>
+</div>
 
 </body>
 </html>

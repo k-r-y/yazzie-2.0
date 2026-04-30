@@ -162,6 +162,9 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <a id="btnGenInvoice" href="#" target="_blank" class="btn btn-outline-primary btn-sm">
                         <i class="fas fa-file-invoice"></i> Generate Invoice
                     </a>
+                    <button id="btnEmailInvoice" class="btn btn-outline-success btn-sm">
+                        <i class="fas fa-paper-plane"></i> Email Invoice
+                    </button>
                     <button class="btn btn-secondary btn-sm" onclick="closeHistory()">
                         <i class="fas fa-times"></i> Close
                     </button>
@@ -502,13 +505,15 @@ async function loadPaymentHistory(bookingId, bookingInfo) {
     const card = document.getElementById('paymentHistoryCard');
     const tbody = document.getElementById('historyBody');
     const btnInv = document.getElementById('btnGenInvoice');
+    const btnEmail = document.getElementById('btnEmailInvoice');
 
     card.style.display = 'block';
     tbody.innerHTML = '<tr><td colspan="6"><div class="spinner"></div></td></tr>';
 
     if (bookingInfo) {
-        // Update Invoice Link
+        // Update Links
         btnInv.href = `${BASE}/templates/invoice.php?booking_id=${bookingId}&token=${bookingInfo.invoice_token || ''}`;
+        btnEmail.onclick = () => sendInvoice(bookingId);
         
         const total     = parseFloat(bookingInfo.total_cost);
         const breakage  = parseFloat(bookingInfo.breakage_total || 0);
@@ -555,6 +560,32 @@ async function loadPaymentHistory(bookingId, bookingInfo) {
 
 function closeHistory() {
     document.getElementById('paymentHistoryCard').style.display = 'none';
+}
+
+// ── SEND INVOICE VIA EMAIL ─────────────────────────────────────────────
+async function sendInvoice(bookingId) {
+    if (!bookingId) return;
+    
+    const btn = document.getElementById('btnEmailInvoice');
+    const originalHtml = btn.innerHTML;
+    
+    try {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+        
+        const res = await Api.post(BASE + 'src/api/send_invoice.php', { booking_id: bookingId });
+        
+        if (res.success) {
+            Toast.success(res.message);
+        } else {
+            Toast.error(res.message);
+        }
+    } catch (e) {
+        Toast.error('An unexpected error occurred while sending the email.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
 }
 
 // ── QUICK PAY: select booking in the right panel and scroll ────────────

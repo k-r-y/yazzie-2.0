@@ -260,7 +260,8 @@ function sendBookingConfirmation(array $booking): bool
         <p style='margin: 0; font-size: 14px; font-weight: 600; color: #30D158; text-align: center; text-transform: uppercase; letter-spacing: 1px;'>See you soon! 🎉</p>
     ";
 
-    $pdf = (string)generateInvoicePDF((int)$booking['id']);
+    global $pdo;
+    $pdf = (string)generateInvoicePDF($pdo, (int)$booking['id']);
     $html = renderEmailTemplate("Booking Confirmed", "🍽️", $content, "#30D158", "Your event on $eventDate is officially secured.");
     return sendMailImmediate($booking['client_email'], $booking['client_name'], $subject, $html, $pdf, 'Invoice.pdf');
 }
@@ -363,7 +364,7 @@ function sendPaymentReceipt(array $booking, float $paymentAmount, string $method
         <p style='margin: 0; font-size: 13px; font-weight: 700; color: #30D158; text-align: center; text-transform: uppercase; letter-spacing: 2px;'>Thank you for choosing " . BUSINESS_NAME . " ✨</p>
     ";
 
-    $pdf = (string)generateInvoicePDF((int)$booking['id']);
+    $pdf = (string)generateInvoicePDF($pdo, (int)$booking['id']);
 
     $html = renderEmailTemplate("Payment Received", "💳", $content, "#30D158", "Success: We've received your payment of ₱" . number_format($paymentAmount, 2) . ".");
     
@@ -458,7 +459,7 @@ function sendRefundReceipt(array $booking, float $refundAmount, string $method):
         <p style='margin: 0; font-size: 13px; font-weight: 700; color: #FF3B30; text-align: center; text-transform: uppercase; letter-spacing: 2px;'>Thank you for your patience with " . BUSINESS_NAME . " ✨</p>
     ";
 
-    $pdf = (string)generateInvoicePDF((int)$booking['id']);
+    $pdf = (string)generateInvoicePDF($pdo, (int)$booking['id']);
 
     $html = renderEmailTemplate("Refund Processed", "🔄", $content, "#FF3B30", "We have processed a refund of ₱" . number_format($refundAmount, 2) . ".");
     

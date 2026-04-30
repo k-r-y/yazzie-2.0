@@ -87,125 +87,126 @@ $balance = $b['total_cost'] - $b['amount_paid'];
         <div class="print-info-item"><label>Event Time</label><span><?= $eventTime ?: '—' ?></span></div>
         <div class="print-info-item"><label>Venue / Location</label><span><?= htmlspecialchars($b['event_location'] ?? '—') ?></span></div>
         <div class="print-info-item"><label>Number of Guests</label><span><?= $b['pax_count'] ?> persons</span></div>
-       <div class="print-section-title">Selected Menu</div>
-<div class="print-info-grid" style="display: block;"> <?php if (empty($selectedDishes)): ?>
-        <p>No dishes selected.</p>
-    <?php else: ?>
-        <?php foreach ($selectedDishes as $category => $dishes): ?>
-            <div style="margin-bottom: 10px;">
-                <strong style="text-transform: uppercase; font-size: 12px; color: #C8501E;">
-                    <?= htmlspecialchars($category) ?>:
-                </strong>
-                <span style="font-size: 14px; margin-left: 10px;">
-                    <?= implode(', ', array_column($dishes, 'name')) ?>
-                </span>
+    </div>
+
+    <div class="print-info-grid" style="align-items: start; gap: 40px; margin-top: 20px;">
+        <!-- Left Column: Totals -->
+        <div class="print-total-block" style="max-width:100%; margin:0;">
+            <div class="print-total-row">
+                <span>Base Package (<?= $b['base_pax'] ?> pax)</span>
+                <span>₱<?= number_format($b['base_price'], 2) ?></span>
             </div>
-        <?php endforeach; ?>
-    <?php endif; ?>
+            
+            <?php if ($b['extra_pax'] > 0): ?>
+            <div class="print-total-row">
+                <span>Extra Guests (<?= $b['extra_pax'] ?> × ₱<?= number_format(125, 2) ?>)</span>
+                <span>₱<?= number_format($b['extra_cost'], 2) ?></span>
+            </div>
+            <?php endif; ?>
 
-    <?php if (!empty($customItems)): ?>
-        <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #ddd;">
-             <strong style="text-transform: uppercase; font-size: 12px; color: #C8501E;">Additional / Custom Items:</strong>
-             <ul style="margin: 5px 0; font-size: 14px; padding-left: 20px;">
-                <?php foreach ($customItems as $ci): ?>
-                    <li><?= htmlspecialchars($ci['name']) ?> (<?= htmlspecialchars($ci['category']) ?>)</li>
-                <?php endforeach; ?>
-             </ul>
-        </div>
-    <?php endif; ?>
-</div>
+            <?php if ($b['transport_fee'] > 0): ?>
+            <div class="print-total-row">
+                <span>Transport Fee / Surcharge</span>
+                <span>₱<?= number_format($b['transport_fee'], 2) ?></span>
+            </div>
+            <?php endif; ?>
 
-    <div class="print-total-block" style="max-width:100%;margin:0 0 16pt;">
-        <div class="print-total-row">
-            <span>Base Package (<?= $b['base_pax'] ?> pax)</span>
-            <span>₱<?= number_format($b['base_price'], 2) ?></span>
-        </div>
-        
-        <?php if ($b['extra_pax'] > 0): ?>
-        <div class="print-total-row">
-            <span>Extra Guests (<?= $b['extra_pax'] ?> × ₱<?= number_format(125, 2) ?>)</span>
-            <span>₱<?= number_format($b['extra_cost'], 2) ?></span>
-        </div>
-        <?php endif; ?>
+            <?php if ($b['surcharge_total'] > 0): ?>
+            <div class="print-total-row">
+                <span>Additional Items / Menu Surcharges</span>
+                <span>₱<?= number_format($b['surcharge_total'], 2) ?></span>
+            </div>
+            <?php endif; ?>
 
-        <?php if ($b['transport_fee'] > 0): ?>
-        <div class="print-total-row">
-            <span>Transport Fee / Surcharge</span>
-            <span>₱<?= number_format($b['transport_fee'], 2) ?></span>
-        </div>
-        <?php endif; ?>
-
-        <?php if ($b['surcharge_total'] > 0): ?>
-        <div class="print-total-row">
-            <span>Additional Items / Menu Surcharges</span>
-            <span>₱<?= number_format($b['surcharge_total'], 2) ?></span>
-        </div>
-        <?php endif; ?>
-
-        <div style="height:1px; background:#ddd; margin:8px 0;"></div>
-        
-        <div class="print-total-row">
-            <span style="font-weight:700;">TOTAL CONTRACT AMOUNT</span>
-            <span style="font-weight:700;">₱<?= number_format($b['total_cost'], 2) ?></span>
-        </div>
-        <div class="print-total-row">
-            <span>Amount Paid / Downpayment</span>
-            <span style="color:#059669;">(₱<?= number_format($b['amount_paid'], 2) ?>)</span>
-        </div>
-        <div class="print-total-row grand">
-            <span>OUTSTANDING BALANCE</span>
-            <span style="color:<?= $balance > 0 ? '#DC2626' : '#059669'; ?>">₱<?= number_format(max(0, $balance), 2) ?></span>
-        </div>
-    </div>
-
-    <?php if ($b['notes']): ?>
-    <div style="margin: 20pt 0; padding: 12pt; background: #fafafa; border-radius: 8pt; border: 1px solid #eee;">
-        <div class="print-signature-label" style="margin-bottom: 4pt; color: #C8501E; font-weight: 800;">Special Instructions</div>
-        <div style="font-size: 13px; color: #171717; font-weight: 500;">
-            <?= htmlspecialchars($b['notes']) ?>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <div style="width: 100%; margin: 24pt 0; padding: 20pt; background: #fafafa; border-radius: 12pt; border: 1px solid #eee; box-sizing: border-box;">
-        <div style="width: 100%;">
-            <h4 class="print-section-title" style="margin-top: 0; padding-top: 0; color: #166534; border-color: #166534;">Terms and Conditions</h4>
-            <div class="clause" style="white-space: pre-line; font-size: 11px; line-height: 1.5; color: #171717;">
-                <?= htmlspecialchars(appSetting('terms_and_conditions', "1. Booking Confirmation. This contract is binding upon signature of both parties.\n2. Downpayment Policy. A minimum downpayment is required.\n3. Final Payment. Remaining balance must be settled on or before the event date.")) ?>
+            <div style="height:1px; background:#ddd; margin:8px 0;"></div>
+            
+            <div class="print-total-row">
+                <span style="font-weight:700;">TOTAL CONTRACT AMOUNT</span>
+                <span style="font-weight:700;">₱<?= number_format($b['total_cost'], 2) ?></span>
+            </div>
+            <div class="print-total-row">
+                <span>Amount Paid / Downpayment</span>
+                <span style="color:#059669;">(₱<?= number_format($b['amount_paid'], 2) ?>)</span>
+            </div>
+            <div class="print-total-row grand">
+                <span>OUTSTANDING BALANCE</span>
+                <span style="color:<?= $balance > 0 ? '#DC2626' : '#059669'; ?>">₱<?= number_format(max(0, $balance), 2) ?></span>
             </div>
         </div>
 
-        
+        <!-- Right Column: Menu & Instructions -->
+        <div>
+            <div class="print-section-title" style="margin-top: 0;">Selected Menu</div>
+            <div style="margin-bottom: 20px;">
+                <?php if (empty($selectedDishes)): ?>
+                    <p style="font-size: 13px; color: #666;">No dishes selected.</p>
+                <?php else: ?>
+                    <?php foreach ($selectedDishes as $category => $dishes): ?>
+                        <div style="margin-bottom: 8px;">
+                            <strong style="text-transform: uppercase; font-size: 11px; color: #C8501E;">
+                                <?= htmlspecialchars($category) ?>:
+                            </strong>
+                            <span style="font-size: 13px; margin-left: 8px; color: #333;">
+                                <?= implode(', ', array_column($dishes, 'name')) ?>
+                            </span>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+
+                <?php if (!empty($customItems)): ?>
+                    <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #ddd;">
+                         <strong style="text-transform: uppercase; font-size: 11px; color: #C8501E;">Additional Items:</strong>
+                         <ul style="margin: 5px 0; font-size: 13px; padding-left: 20px; color: #333;">
+                            <?php foreach ($customItems as $ci): ?>
+                                <li><?= htmlspecialchars($ci['name']) ?></li>
+                            <?php endforeach; ?>
+                         </ul>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <?php if ($b['notes']): ?>
+            <div style="padding: 12pt; background: #fafafa; border-radius: 8pt; border: 1px solid #eee;">
+                <div class="print-signature-label" style="margin-bottom: 4pt; color: #C8501E; font-weight: 800; font-size: 10px; text-transform: uppercase;">Special Instructions</div>
+                <div style="font-size: 13px; color: #171717; font-weight: 500; line-height: 1.4;">
+                    <?= htmlspecialchars($b['notes']) ?>
+                </div>
+            </div>
+            <?php endif; ?>
+        </div>
     </div>
-    <div style="width: 100%; margin: 24pt 0; padding: 20pt; background: #fafafa; border-radius: 12pt; border: 1px solid #eee; box-sizing: border-box;">
-        <div style="width: 100%;">
-            <h4 class="print-section-title" style="margin-top: 0; padding-top: 0; color: #166534; border-color: #166534;">Data Privacy Notice</h4>
-            <div class="clause" style="white-space: pre-line; font-size: 11px; line-height: 1.5; color: #171717;">
-                <?= htmlspecialchars(appSetting('data_privacy_notice', "We value your privacy. Your personal data is collected solely for the purpose of managing your booking and will not be shared with third parties without your consent.")) ?>
+
+    <!-- Row 1: Terms & Privacy (2 Columns) -->
+    <div class="layout-row" style="margin-top: 30pt; display: flex; gap: 20pt; width: 100%; page-break-inside: avoid;">
+        <div style="flex: 1; padding: 15pt; background: #fafafa; border-radius: 12pt; border: 1px solid #eee; box-sizing: border-box;">
+            <div class="print-signature-label" style="margin-bottom: 8pt; color: #166534; font-weight: 800; font-size: 10px; text-transform: uppercase;">Terms & Conditions</div>
+            <div style="font-size: 11px; line-height: 1.5; color: #171717;">
+                <?= nl2br(htmlspecialchars(appSetting('terms_and_conditions', "1. Full payment is required on or before the event date.\n2. This document serves as an official statement of account for your catering booking.\n3. Cancellations must be made 7 days before the event for a partial refund."))) ?>
             </div>
         </div>
-
-        
-    </div>
-
-    <div class="print-signatures" style="margin-top: 60pt; width: 100%;">
-        <div style="width: 200%;">
-            <div class="print-signature-line" style="border-top: 1.5px solid #171717;"></div>
-            <div class="print-signature-label">Client Signature over Printed Name</div>
-            <div class="print-signature-name" style="font-size: 11px;"><?= htmlspecialchars($b['client_name']) ?></div>
-        </div>
-       
-    </div>
-    <div class="print-signatures" style="margin-top: 60pt; width: 100%;">
-        
-        <div style="width: 200%;">
-            <div class="print-signature-line" style="border-top: 1.5px solid #171717;"></div>
-            <div class="print-signature-label">Authorized Representative — <?= htmlspecialchars(appSetting('business_name', 'Yazzies Catering')) ?></div>
-            <div class="print-signature-name" style="font-size: 11px;">&nbsp;</div>
+        <div style="flex: 1; padding: 15pt; background: #fafafa; border-radius: 12pt; border: 1px solid #eee; box-sizing: border-box;">
+            <div class="print-signature-label" style="margin-bottom: 8pt; color: #166534; font-weight: 800; font-size: 10px; text-transform: uppercase;">Data Privacy Notice</div>
+            <div style="font-size: 11px; line-height: 1.5; color: #171717;">
+                <?= nl2br(htmlspecialchars(appSetting('data_privacy_notice', "We value your privacy. Your personal data is collected solely for the purpose of managing your booking and will not be shared with third parties without your consent."))) ?>
+            </div>
         </div>
     </div>
 
-    <div class="print-footer" style="width: 200%; border-top: 2px solid #166534; margin-top: 50pt; padding-top: 15pt; color: #166534; font-weight: 700; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;">
+    <!-- Row 2: Signatures (2 Columns) -->
+    <div class="print-signatures" style="margin-top: 50pt; display: flex; justify-content: space-between; gap: 60pt; width: 100%; page-break-inside: avoid;">
+        <div class="signature-col" style="flex: 1;">
+            <div class="print-signature-line" style="border-top: 1.5px solid #171717; width: 100%; margin-bottom: 5pt;"></div>
+            <div class="print-signature-name" style="font-size: 11pt; font-weight: 700;"><?= htmlspecialchars($b['client_name']) ?></div>
+            <div class="print-signature-label" style="font-size: 8pt; color: #737373; text-transform: uppercase;">Customer Signature</div>
+        </div>
+        <div class="signature-col" style="flex: 1;">
+            <div class="print-signature-line" style="border-top: 1.5px solid #171717; width: 100%; margin-bottom: 5pt;"></div>
+            <div class="print-signature-name" style="font-size: 11pt; font-weight: 700;"><?= htmlspecialchars(appSetting('business_name', 'Yazzies Catering Services')) ?></div>
+            <div class="print-signature-label" style="font-size: 8pt; color: #737373; text-transform: uppercase;">Authorized Signature</div>
+        </div>
+    </div>
+
+    <div class="print-footer">
         <?= htmlspecialchars(appSetting('business_name', 'Yazzies Catering')) ?> &bull; Contract No. YZC-<?= str_pad($bookingId, 5, '0', STR_PAD_LEFT) ?> &bull; <?= date('F j, Y') ?>
     </div>
 </div>

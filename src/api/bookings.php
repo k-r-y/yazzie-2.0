@@ -161,17 +161,8 @@ function autoCompleteExpiredBookings(PDO $pdo): int {
     $stmt->execute();
     $affected = $stmt->rowCount();
 
-    // 2. Auto-archive fully paid completed bookings (System Action)
-    // Only if not already archived.
-    $pdo->exec("
-        UPDATE bookings
-        SET is_archived = 1,
-            archived_at = NOW(),
-            archived_by = NULL
-        WHERE booking_status = 'completed'
-          AND payment_status = 'paid'
-          AND is_archived = 0
-    ");
+    // 2. Auto-archive fully paid completed bookings (System Action) - DEPRECATED
+    // We now require manual archiving to ensure a proper historical snapshot is created.
     
     return $affected;
 }
@@ -356,9 +347,9 @@ if ($method === 'GET') {
     $totalRecords = (int)$countStmt->fetchColumn();
     $totalPages = (int)ceil($totalRecords / $limit);
 
-    $order = 'DESC';
-    if (isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC') {
-        $order = 'ASC';
+    $order = 'ASC';
+    if (isset($_GET['order']) && strtoupper($_GET['order']) === 'DESC') {
+        $order = 'DESC';
     }
 
     $stmt = $pdo->prepare("

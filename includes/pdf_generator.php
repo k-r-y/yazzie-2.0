@@ -1,36 +1,15 @@
 <?php
-/**
- * Professional Invoice Generator
- * Generates high-fidelity PDF invoices for client bookings.
- */
-require_once __DIR__ . '/../vendor/autoload.php';
-require_once __DIR__ . '/../config/config.php';
-
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
-/**
- * Generates a professional PDF invoice for a specific booking.
- * 
- * @param int $bookingId The ID of the booking to generate the invoice for.
- * @param string|null $generatedBy The name of the user generating the invoice.
- * @return string The binary PDF data.
- */
-function generateInvoicePDF($bookingId, $generatedBy = null) {
-    global $pdo;
-
-    // Try to get generator name from session if not provided
-    if (!$generatedBy && isset($_SESSION['user_name'])) {
-        $generatedBy = $_SESSION['user_name'];
-    }
-
-    // 1. Fetch Booking Data
+function generateInvoicePDF($pdo, $bookingId) {
+    // 1. Fetch main booking data
     $stmt = $pdo->prepare("
         SELECT b.*,
                c.name  AS client_name,
                c.phone AS client_phone,
                c.email AS client_email,
-               COALESCE(pk.set_name, 'Custom Package') AS menu_name,
+               COALESCE(pk.set_name, 'Catering Package') AS menu_name,
                pk.max_main_dishes, pk.max_desserts, pk.includes_rice
         FROM bookings b
         JOIN clients   c  ON c.id  = b.client_id
@@ -39,34 +18,15 @@ function generateInvoicePDF($bookingId, $generatedBy = null) {
     ");
     $stmt->execute([':id' => $bookingId]);
     $b = $stmt->fetch();
+    if (!$b) return false;
 
-    if (!$b) {
-        error_log("[PDF Generator] Booking #$bookingId not found.");
-        return '';
-    }
+    // 2. Fetch related data
+    $ratePerPax = $b['base_pax'] > 0 ? ($b['base_price'] / $b['base_pax']) : 0;
 
-    // 2. Fetch Supporting Data
     $dStmt = $pdo->prepare("SELECT d.name, d.category, d.custom_fee FROM booking_dishes bd JOIN dishes d ON d.id = bd.dish_id WHERE bd.booking_id = :bid ORDER BY d.category ASC");
     $dStmt->execute([':bid' => $bookingId]);
     $dishes = $dStmt->fetchAll();
 
-    $cStmt = $pdo->prepare("SELECT name, price, category FROM booking_custom_items WHERE booking_id = :bid");
-    $cStmt->execute([':bid' => $bookingId]);
-    $customItems = $cStmt->fetchAll();
-
-    $pStmt = $pdo->prepare("SELECT p.*, u.name AS recorded_by_name FROM payments p JOIN users u ON u.id = p.recorded_by WHERE p.booking_id = :bid ORDER BY p.payment_date ASC");
-    $pStmt->execute([':bid' => $bookingId]);
-    $payments = $pStmt->fetchAll();
-
-    $creatorStmt = $pdo->prepare("SELECT name FROM users WHERE id = :uid");
-    $creatorStmt->execute([':uid' => $b['created_by']]);
-    $creatorName = $creatorStmt->fetchColumn() ?: 'Authorized Signatory';
-
-    $brStmt = $pdo->prepare("SELECT bb.*, e.name AS equipment_name FROM booking_breakages bb JOIN equipment e ON e.id = bb.equipment_id WHERE bb.booking_id = :bid AND bb.charge_to = 'client'");
-    $brStmt->execute([':bid' => $bookingId]);
-    $breakages = $brStmt->fetchAll();
-
-    // 3. Logic: Extra Dishes
     $mainLimit = (int)($b['max_main_dishes'] ?? 5);
     $dessertLimit = (int)($b['max_desserts'] ?? 1);
     $riceLimit = ($b['includes_rice'] == 1) ? 99 : 1;
@@ -80,15 +40,30 @@ function generateInvoicePDF($bookingId, $generatedBy = null) {
     $extraOthers = array_slice($others, $riceLimit);
     $allExtraDishes = array_merge($extraMains, $extraDesserts, $extraOthers);
 
-    // 4. Formatted Values
-    $invoiceDate = date('F j, Y');
-    $eventDate = date('F j, Y', strtotime($b['event_date']));
-    $ratePerPax = $b['base_pax'] > 0 ? ($b['base_price'] / $b['base_pax']) : 0;
+    $cStmt = $pdo->prepare("SELECT name, price, category FROM booking_custom_items WHERE booking_id = :bid");
+    $cStmt->execute([':bid' => $bookingId]);
+    $customItems = $cStmt->fetchAll();
+
+    $pStmt = $pdo->prepare("SELECT * FROM payments WHERE booking_id = :bid ORDER BY payment_date ASC");
+    $pStmt->execute([':bid' => $bookingId]);
+    $payments = $pStmt->fetchAll();
+
+    $brStmt = $pdo->prepare("
+        SELECT bb.*, e.name AS equipment_name 
+        FROM booking_breakages bb 
+        JOIN equipment e ON e.id = bb.equipment_id 
+        WHERE bb.booking_id = :bid AND bb.charge_to = 'client'
+    ");
+    $brStmt->execute([':bid' => $bookingId]);
+    $breakages = $brStmt->fetchAll();
+
     $balance = (float)$b['total_cost'] - (float)$b['amount_paid'];
-    $terms = appSetting('terms_and_conditions', "Full payment is required on or before the event date.\nThis document serves as an official statement of account.");
+    $eventDate = date('F j, Y', strtotime($b['event_date']));
+    $invoiceDate = date('F j, Y');
+    $terms = appSetting('terms_and_conditions', "Full payment is required on or before the event date.");
     $privacy = appSetting('data_privacy_notice', "We value your privacy. Your data is handled securely.");
 
-    // 5. Generate HTML
+    // 3. Prepare HTML Content (DomPDF-friendly version of invoice.php)
     ob_start();
     ?>
     <!DOCTYPE html>
@@ -96,97 +71,67 @@ function generateInvoicePDF($bookingId, $generatedBy = null) {
     <head>
         <meta charset="UTF-8">
         <style>
-            @page { margin: 25pt; }
-            body { 
-                font-family: 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; 
-                font-size: 10pt; 
-                color: #1c1c1e; 
-                margin: 0; padding: 0;
-                line-height: 1.3;
-            }
-            .clear { clear: both; }
+            @page { margin: 40px; }
+            body { font-family: 'DejaVu Sans', sans-serif; font-size: 9pt; color: #1c1c1e; line-height: 1.4; }
             
-            /* Typography */
-            .text-muted { color: #8e8e93; font-size: 9pt; }
-            .text-right { text-align: right !important; }
-            .text-center { text-align: center !important; }
-            .text-left { text-align: left !important; }
-            
-            /* Header */
             .header { border-bottom: 0.5pt solid #e5e5ea; padding-bottom: 15pt; margin-bottom: 20pt; }
-            .brand { font-size: 16pt; font-weight: 800; color: #25A244; text-transform: uppercase; letter-spacing: -0.5pt; }
-            .biz-details { font-size: 8pt; color: #8e8e93; margin-top: 2pt; line-height: 1.1; }
-            
-            .invoice-info { float: right; text-align: right; margin-top: -38pt; }
-            .invoice-title { font-size: 12pt; font-weight: 700; text-transform: uppercase; margin-bottom: 2pt; color: #1c1c1e; }
-            .meta-label { font-size: 7.5pt; font-weight: 700; color: #8e8e93; text-transform: uppercase; margin-right: 4pt; }
-            .meta-val { font-weight: 600; }
+            .brand { color: #25A244; font-size: 16pt; font-weight: bold; text-transform: uppercase; margin-bottom: 4pt; }
+            .biz-details { font-size: 8pt; color: #8e8e93; line-height: 1.2; float: left; width: 60%; }
+            .invoice-info { float: right; text-align: right; width: 35%; }
+            .invoice-title { font-size: 12pt; font-weight: bold; margin-bottom: 2pt; }
+            .meta-item { font-size: 8pt; color: #3a3a3c; }
+            .meta-label { color: #8e8e93; }
 
-            /* Client & Event Info */
-            .info-grid { margin-bottom: 15pt; }
+            .info-grid { width: 100%; margin-bottom: 20pt; clear: both; }
             .info-box { float: left; width: 48%; }
-            .section-label { font-size: 7.5pt; font-weight: 800; color: #8e8e93; text-transform: uppercase; margin-bottom: 4pt; border-bottom: 0.5pt solid #f2f2f7; padding-bottom: 2pt; }
-            .info-name { font-size: 11pt; font-weight: 700; margin-bottom: 2pt; }
+            .info-box.right { float: right; text-align: right; }
+            .section-label { font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #8e8e93; border-bottom: 0.5pt solid #e5e5ea; padding-bottom: 2pt; margin-bottom: 6pt; letter-spacing: 0.5pt; }
+            .info-name { font-size: 11pt; font-weight: bold; margin-bottom: 2pt; }
             .info-detail { font-size: 9pt; color: #3a3a3c; }
 
-            /* Table */
-            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 10pt; table-layout: fixed; }
-            .items-table th { background: #f2f2f7; padding: 5pt 8pt; text-align: left; font-size: 7.5pt; font-weight: 700; color: #8e8e93; text-transform: uppercase; border-bottom: 0.5pt solid #d1d1d6; }
-            .items-table td { padding: 8pt; border-bottom: 0.5pt solid #f2f2f7; vertical-align: top; word-wrap: break-word; }
-            .items-table tfoot th { background: #f8f8f8; padding: 5pt 8pt; border-top: 0.5pt solid #d1d1d6; }
-            .item-name { font-weight: 700; font-size: 9.5pt; }
-            .item-desc { font-size: 8pt; color: #8e8e93; margin-top: 1pt; }
+            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15pt; clear: both; }
+            .items-table th { background: #f8f8f8; color: #8e8e93; font-size: 7.5pt; font-weight: bold; text-transform: uppercase; text-align: left; padding: 8pt 6pt; border-bottom: 0.5pt solid #e5e5ea; }
+            .items-table td { padding: 8pt 6pt; border-bottom: 0.5pt solid #f8f8f8; vertical-align: top; }
+            .item-name { font-weight: bold; font-size: 9pt; color: #1c1c1e; }
+            .item-sub { font-size: 7.5pt; color: #8e8e93; margin-top: 1pt; }
+            .text-right { text-align: right; }
+            .text-center { text-align: center; }
 
-            /* Financials */
-            .summary-area { float: right; width: 200pt; margin-top: 5pt; }
-            .summary-row { padding: 3pt 0; border-bottom: 0.5pt solid #f2f2f7; overflow: hidden; }
-            .summary-label { float: left; font-size: 9pt; color: #3a3a3c; }
-            .summary-val { float: right; font-weight: 600; font-size: 9.5pt; }
-            .summary-row.grand { border-top: 1pt solid #1c1c1e; border-bottom: none; padding-top: 6pt; margin-top: 4pt; }
-            .summary-row.grand .summary-label { font-size: 10pt; font-weight: 800; }
-            .summary-row.grand .summary-val { font-size: 12pt; font-weight: 800; color: #25A244; }
+            .financial-summary { width: 100%; margin-top: 5pt; clear: both; }
 
-            /* History */
-            .history { margin-top: 25pt; clear: both; }
-            .history-table { width: 100%; border-collapse: collapse; margin-top: 5pt; table-layout: fixed; }
-            .history-table th { font-size: 7.5pt; color: #8e8e93; text-align: left; padding: 3pt 8pt; border-bottom: 0.5pt solid #e5e5ea; }
-            .history-table td { font-size: 8.5pt; padding: 4pt 8pt; border-bottom: 0.5pt solid #f2f2f7; }
-            .history-table tfoot th { font-size: 8.5pt; color: #1c1c1e; padding: 6pt 8pt; border-top: 0.5pt solid #d1d1d6; background: #f8f8f8; }
+            .history-section { margin-top: 30pt; clear: both; }
+            .history-table { width: 100%; border-collapse: collapse; font-size: 8pt; }
+            .history-table th { border-bottom: 0.5pt solid #e5e5ea; padding: 6pt; text-align: left; color: #8e8e93; }
+            .history-table td { padding: 6pt; border-bottom: 0.5pt solid #f8f8f8; }
 
-            /* Footer */
-            .footer { margin-top: 30pt; }
-            .terms { float: left; width: 65%; }
-            .signature { float: right; width: 30%; text-align: center; }
-            .sig-line { border-top: 0.5pt solid #1c1c1e; margin-top: 30pt; padding-top: 3pt; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; }
-
-            /* Stamp */
-            .stamp {
-                position: absolute; top: 80pt; right: 40pt;
-                border: 1.5pt solid #25A244; padding: 4pt 10pt;
-                color: #25A244; font-size: 20pt; font-weight: 900;
-                text-transform: uppercase; opacity: 0.1;
-                transform: rotate(-10deg);
-            }
+            .stamp { position: absolute; top: 100pt; right: 50pt; border: 3pt double; padding: 6pt 15pt; font-size: 24pt; font-weight: bold; transform: rotate(-15deg); opacity: 0.4; }
+            .stamp.paid { border-color: #25A244; color: #25A244; }
+            .stamp.partial { border-color: #D97706; color: #D97706; }
+            .stamp.unpaid { border-color: #DC2626; color: #DC2626; }
+            
+            .pdf-footer { border-top: 1.5pt solid #30D158; padding-top: 10pt; margin-top: 30pt; text-align: center; color: #25A244; font-size: 8pt; font-weight: bold; text-transform: uppercase; clear: both; }
+            .clear { clear: both; height: 0; line-height: 0; }
         </style>
     </head>
     <body>
-        <?php if ($b['payment_status'] === 'paid'): ?>
-            <div class="stamp">FULLY PAID</div>
-        <?php elseif ($b['payment_status'] === 'partial'): ?>
-            <div class="stamp" style="border-color: #FF9500; color: #FF9500;">PARTIAL</div>
-        <?php endif; ?>
+        <?php 
+            $statusClass = strtolower($b['payment_status'] ?? 'unpaid');
+            $statusLabel = ($statusClass === 'paid') ? 'FULLY PAID' : strtoupper($statusClass);
+        ?>
+        <div class="stamp <?= $statusClass ?>"><?= $statusLabel ?></div>
 
         <div class="header">
-            <div class="brand"><?= htmlspecialchars(appSetting('business_name', BUSINESS_NAME)) ?></div>
             <div class="biz-details">
+                <div class="brand"><?= htmlspecialchars(appSetting('business_name', BUSINESS_NAME)) ?></div>
                 <?= nl2br(htmlspecialchars(appSetting('business_address', BUSINESS_ADDRESS))) ?><br>
                 Phone: <?= htmlspecialchars(appSetting('business_phone', BUSINESS_PHONE)) ?> | Email: <?= htmlspecialchars(appSetting('business_email', BUSINESS_EMAIL)) ?>
             </div>
             <div class="invoice-info">
                 <div class="invoice-title">Invoice</div>
-                <div class="meta-item"><span class="meta-label">ID:</span><span class="meta-val">INV-<?= str_pad($bookingId, 5, '0', STR_PAD_LEFT) ?></span></div>
-                <div class="meta-item"><span class="meta-label">Date:</span><span class="meta-val"><?= $invoiceDate ?></span></div>
+                <div class="meta-item"><span class="meta-label">ID:</span> #INV-<?= str_pad($bookingId, 5, '0', STR_PAD_LEFT) ?></div>
+                <div class="meta-item"><span class="meta-label">Date:</span> <?= $invoiceDate ?></div>
             </div>
+            <div class="clear"></div>
         </div>
 
         <div class="info-grid">
@@ -196,10 +141,10 @@ function generateInvoicePDF($bookingId, $generatedBy = null) {
                 <div class="info-detail"><?= htmlspecialchars($b['client_phone']) ?></div>
                 <div class="info-detail"><?= htmlspecialchars($b['client_email']) ?></div>
             </div>
-            <div class="info-box text-right" style="float: right;">
+            <div class="info-box right">
                 <div class="section-label">Event Details</div>
                 <div class="info-detail"><span class="meta-label">Date:</span> <?= $eventDate ?></div>
-                <div class="info-detail"><span class="meta-label">Occasion:</span> <?= htmlspecialchars($b['event_type']) ?></div>
+                <div class="info-detail"><span class="meta-label">Type:</span> <?= htmlspecialchars($b['event_type']) ?></div>
                 <div class="info-detail"><span class="meta-label">Guests:</span> <?= $b['pax_count'] ?> Pax</div>
             </div>
             <div class="clear"></div>
@@ -208,75 +153,62 @@ function generateInvoicePDF($bookingId, $generatedBy = null) {
         <table class="items-table">
             <thead>
                 <tr>
-                    <th width="45%">Description</th>
-                    <th class="text-center" width="10%">Qty</th>
-                    <th class="text-right" width="22%">Price</th>
-                    <th class="text-right" width="23%">Total</th>
+                    <th width="50%">Description</th>
+                    <th width="10%" class="text-center">Qty</th>
+                    <th width="20%" class="text-right">Price</th>
+                    <th width="20%" class="text-right">Total</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
-                    <td>
-                        <div class="item-name"><?= htmlspecialchars($b['menu_name']) ?></div>
-                        <div class="item-desc">Base package inclusions.</div>
-                    </td>
+                    <td><div class="item-name"><?= htmlspecialchars($b['menu_name']) ?></div><div class="item-sub">Base package inclusions.</div></td>
                     <td class="text-center"><?= $b['base_pax'] ?></td>
                     <td class="text-right">&#8369;<?= number_format($ratePerPax, 2) ?></td>
                     <td class="text-right">&#8369;<?= number_format($b['base_price'], 2) ?></td>
                 </tr>
                 <?php if ($b['extra_pax'] > 0): ?>
                 <tr>
-                    <td>
-                        <div class="item-name">Exceeding Pax</div>
-                        <div class="item-desc">Guests beyond base limit.</div>
-                    </td>
+                    <td><div class="item-name">Exceeding Pax</div><div class="item-sub">Guests beyond base limit.</div></td>
                     <td class="text-center"><?= $b['extra_pax'] ?></td>
                     <td class="text-right">&#8369;<?= number_format($ratePerPax, 2) ?></td>
                     <td class="text-right">&#8369;<?= number_format($b['extra_cost'], 2) ?></td>
                 </tr>
                 <?php endif; ?>
-
                 <?php foreach ($allExtraDishes as $ed): 
                     $cat = strtolower($ed['category'] ?? '');
                     $defaultRate = EXTRA_MAIN_RATE;
                     if (in_array($cat, ['dessert', 'desserts'])) $defaultRate = EXTRA_DESSERT_RATE;
                     else if (in_array($cat, ['rice', 'additional'])) $defaultRate = EXTRA_RICE_RATE;
-                    
                     $fee = (float)($ed['custom_fee'] > 0 ? $ed['custom_fee'] : $defaultRate);
-                    $lineTotal = $fee * $b['pax_count'];
                 ?>
                 <tr>
-                    <td><div class="item-name"><?= htmlspecialchars($ed['name']) ?></div><div class="item-desc">Extra Dish Surcharge</div></td>
+                    <td><div class="item-name"><?= htmlspecialchars($ed['name']) ?></div><div class="item-sub">Extra Dish Surcharge</div></td>
                     <td class="text-center"><?= $b['pax_count'] ?></td>
                     <td class="text-right">&#8369;<?= number_format($fee, 2) ?></td>
-                    <td class="text-right">&#8369;<?= number_format($lineTotal, 2) ?></td>
+                    <td class="text-right">&#8369;<?= number_format($fee * $b['pax_count'], 2) ?></td>
                 </tr>
                 <?php endforeach; ?>
-
                 <?php foreach ($customItems as $ci): 
                     $qty = in_array(strtolower($ci['category']), ['main','dessert','food']) ? $b['pax_count'] : 1;
-                    $lineTotal = $ci['price'] * $qty;
                 ?>
                 <tr>
-                    <td><div class="item-name"><?= htmlspecialchars($ci['name']) ?></div><div class="item-desc">Custom Add-on</div></td>
+                    <td><div class="item-name"><?= htmlspecialchars($ci['name']) ?></div><div class="item-sub">Custom Add-on</div></td>
                     <td class="text-center"><?= $qty ?></td>
                     <td class="text-right">&#8369;<?= number_format($ci['price'], 2) ?></td>
-                    <td class="text-right">&#8369;<?= number_format($lineTotal, 2) ?></td>
+                    <td class="text-right">&#8369;<?= number_format($ci['price'] * $qty, 2) ?></td>
                 </tr>
                 <?php endforeach; ?>
-
                 <?php if ($b['transport_fee'] > 0): ?>
                 <tr>
-                    <td><div class="item-name">Transport Fee</div><div class="item-desc">Mobilization.</div></td>
+                    <td><div class="item-name">Transport Fee</div><div class="item-sub">Mobilization.</div></td>
                     <td class="text-center">-</td>
                     <td class="text-right">&#8369;<?= number_format($b['transport_fee'], 2) ?></td>
                     <td class="text-right">&#8369;<?= number_format($b['transport_fee'], 2) ?></td>
                 </tr>
                 <?php endif; ?>
-
                 <?php foreach ($breakages as $br): ?>
                 <tr>
-                    <td><div class="item-name">Breakage: <?= htmlspecialchars($br['equipment_name']) ?></div><div class="item-desc">Damaged item.</div></td>
+                    <td><div class="item-name">Breakage: <?= htmlspecialchars($br['equipment_name']) ?></div><div class="item-sub">Damaged item.</div></td>
                     <td class="text-center"><?= $br['quantity'] ?></td>
                     <td class="text-right">&#8369;<?= number_format($br['unit_price'], 2) ?></td>
                     <td class="text-right">&#8369;<?= number_format($br['total_cost'], 2) ?></td>
@@ -285,55 +217,79 @@ function generateInvoicePDF($bookingId, $generatedBy = null) {
             </tbody>
         </table>
 
-        <div class="summary-area">
-            <div class="summary-row"><span class="summary-label">Total Billing</span><span class="summary-val">&#8369;<?= number_format($b['total_cost'], 2) ?></span></div>
-            <div class="summary-row"><span class="summary-label">Total Payments</span><span class="summary-val">&#8369;<?= number_format($b['amount_paid'], 2) ?></span></div>
-            <div class="summary-row grand"><span class="summary-label">Balance Due</span><span class="summary-val">&#8369;<?= number_format(max(0, $balance), 2) ?></span></div>
+        <div class="financial-summary">
+            <table style="width: 240pt; float: right; border-collapse: collapse; margin-top: 10pt;">
+                <tr>
+                    <td style="padding: 4pt 0; font-size: 9pt; color: #3a3a3c;">Subtotal</td>
+                    <td style="padding: 4pt 0; font-size: 9pt; font-weight: bold; text-align: right;">&#8369;<?= number_format($b['total_cost'], 2) ?></td>
+                </tr>
+                <tr>
+                    <td style="padding: 4pt 0; font-size: 9pt; color: #25A244;">Payments Received</td>
+                    <td style="padding: 4pt 0; font-size: 9pt; font-weight: bold; text-align: right; color: #25A244;">- &#8369;<?= number_format($b['amount_paid'], 2) ?></td>
+                </tr>
+                <tr>
+                    <td style="padding: 10pt 0 4pt; font-size: 11pt; border-top: 0.5pt solid #1c1c1e;">Balance Due</td>
+                    <td style="padding: 10pt 0 4pt; font-size: 11pt; font-weight: bold; text-align: right; color: #25A244; border-top: 0.5pt solid #1c1c1e;">&#8369;<?= number_format(max(0, $balance), 2) ?></td>
+                </tr>
+            </table>
+            <div class="clear"></div>
         </div>
-        <div class="clear"></div>
 
         <?php if (!empty($payments)): ?>
-        <div class="history">
+        <div class="history-section">
             <div class="section-label">Payment Registry</div>
             <table class="history-table">
-                <thead><tr><th width="20%">Date</th><th width="20%">Method</th><th width="35%">Reference</th><th width="25%" class="text-right">Amount</th></tr></thead>
+                <thead>
+                    <tr><th>Date</th><th>Method</th><th>Reference</th><th class="text-right">Amount</th></tr>
+                </thead>
                 <tbody>
-                    <?php 
-                    $totalPay = 0;
-                    foreach ($payments as $p): 
-                        $totalPay += (float)$p['amount'];
-                    ?>
+                    <?php foreach ($payments as $p): ?>
                     <tr>
                         <td><?= date('M d, Y', strtotime($p['payment_date'])) ?></td>
                         <td><?= strtoupper($p['payment_method']) ?></td>
                         <td><?= htmlspecialchars($p['reference_no'] ?: '—') ?></td>
-                        <td class="text-right" style="font-weight: 600;">&#8369;<?= number_format($p['amount'], 2) ?></td>
+                        <td class="text-right">&#8369;<?= number_format($p['amount'], 2) ?></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
-                <tfoot>
-                    <tr>
-                        <th colspan="3" class="text-right">Total Payments Recorded</th>
-                        <th class="text-right">&#8369;<?= number_format($totalPay, 2) ?></th>
-                    </tr>
-                </tfoot>
             </table>
         </div>
         <?php endif; ?>
 
-        <div class="footer">
-            <div class="terms">
-                <div class="section-label">Terms & Conditions</div>
-                <div class="terms-text"><?= nl2br(htmlspecialchars($terms)) ?></div>
-                <div class="section-label" style="margin-top: 8pt;">Data Privacy Notice</div>
-                <div class="terms-text"><?= nl2br(htmlspecialchars($privacy)) ?></div>
-                <div class="section-label" style="margin-top: 8pt;">Payment Instructions</div>
-                <div class="terms-text"><?= nl2br(htmlspecialchars(appSetting('payment_instructions', ''))) ?></div>
-            </div>
-            <div class="signature">
-                <div class="sig-line"><?= htmlspecialchars($generatedBy ?: $creatorName) ?></div>
-                <div class="text-muted" style="margin-top: 4pt;">Yazzies Catering OMS</div>
-            </div>
+        <div style="margin-top: 40pt; clear: both;">
+            <table style="width: 100%; border-collapse: separate; border-spacing: 20pt 0; margin: 0 -20pt;">
+                <tr>
+                    <td style="width: 50%; vertical-align: top; padding: 12pt; background: #f9f9f9; border: 0.5pt solid #e5e5ea; border-radius: 8pt;">
+                        <div style="color:#25A244; font-size: 8pt; font-weight:bold; text-transform: uppercase; margin-bottom:6pt;">Terms & Conditions</div>
+                        <div style="font-size:7.5pt; color:#3a3a3c; line-height:1.4;"><?= nl2br(htmlspecialchars($terms)) ?></div>
+                    </td>
+                    <td style="width: 50%; vertical-align: top; padding: 12pt; background: #f9f9f9; border: 0.5pt solid #e5e5ea; border-radius: 8pt;">
+                        <div style="color:#25A244; font-size: 8pt; font-weight:bold; text-transform: uppercase; margin-bottom:6pt;">Data Privacy Notice</div>
+                        <div style="font-size:7.5pt; color:#3a3a3c; line-height:1.4;"><?= nl2br(htmlspecialchars($privacy)) ?></div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <div style="margin-top: 60pt; clear: both;">
+            <table style="width: 100%; border-collapse: separate; border-spacing: 20pt 0; margin: 0 -20pt;">
+                <tr>
+                    <td style="width: 40%; vertical-align: bottom;">
+                        <div style="border-top: 1pt solid #1c1c1e; margin-bottom: 4pt;"></div>
+                        <div style="font-weight: bold; font-size: 10pt;"><?= htmlspecialchars($b['client_name']) ?></div>
+                        <div style="font-size: 7.5pt; color: #8e8e93; text-transform: uppercase;">Customer Signature</div>
+                    </td>
+                    <td style="width: 40%; vertical-align: bottom;">
+                        <div style="border-top: 1pt solid #1c1c1e; margin-bottom: 4pt;"></div>
+                        <div style="font-weight: bold; font-size: 10pt;"><?= htmlspecialchars(appSetting('business_name', 'Yazzies Catering Services')) ?></div>
+                        <div style="font-size: 7.5pt; color: #8e8e93; text-transform: uppercase;">Authorized Signature</div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="pdf-footer">
+            <?= htmlspecialchars(appSetting('business_name', 'Yazzies Catering')) ?> &bull; Invoice #INV-<?= str_pad($bookingId, 5, '0', STR_PAD_LEFT) ?> &bull; <?= date('F j, Y') ?>
         </div>
     </body>
     </html>
@@ -341,28 +297,22 @@ function generateInvoicePDF($bookingId, $generatedBy = null) {
     $html = ob_get_clean();
 
     try {
-        // 6. Init Dompdf
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isPhpEnabled', true);
-        $options->set('defaultFont', 'DejaVu Sans'); // Supports UTF-8 and symbol better
+        $options->set('defaultFont', 'DejaVu Sans');
         
-        // Ensure temporary directories are defined to avoid "Path cannot be empty"
         $tmp = __DIR__ . '/../temp';
         if (!is_dir($tmp)) @mkdir($tmp, 0777, true);
-        
         $options->set('tempDir', $tmp);
-        $options->set('fontDir', $tmp);
-        $options->set('fontCache', $tmp);
         
         $dompdf = new Dompdf($options);
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
-
-        return (string)$dompdf->output();
-    } catch (\Throwable $e) {
-        error_log("[PDF Generation Error] Booking #$bookingId: " . $e->getMessage());
-        return '';
+        return $dompdf->output();
+    } catch (Exception $e) {
+        error_log("PDF Generation Error: " . $e->getMessage());
+        return false;
     }
 }
