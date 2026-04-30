@@ -20,14 +20,14 @@ $stepperRole = $bookingStepperRole ?? 'admin';
         <div class="modal-content" style="border-radius:24px; overflow:hidden;">
 
             <!-- ── HEADER ── -->
-            <div class="modal-header" style="padding:18px 24px; border-bottom:0.5px solid rgba(60,60,67,0.08);">
-                <div>
+            <div class="modal-header" style="padding:18px 24px; border-bottom:0.5px solid rgba(60,60,67,0.08); position:relative;">
+                <div style="padding-right:40px;">
                     <h5 class="modal-title" style="font-size:16px; font-weight:800; letter-spacing:-0.3px;">
                         <i class="fas fa-calendar-plus me-2" style="color:var(--sys-green);"></i>New Event Booking
                     </h5>
                     <div id="stepperSubtitle" style="font-size:11px; color:rgba(60,60,67,0.4); margin-top:1px;">Step 1 of 4</div>
                 </div>
-                <button type="button" class="btn-close" onclick="closeBookingStepper()"></button>
+                <button type="button" class="btn-close" onclick="closeBookingStepper()" style="position:absolute; right:20px; top:20px;"></button>
             </div>
 
             <!-- ── STEP PROGRESS NAV ── -->
@@ -695,9 +695,9 @@ $stepperRole = $bookingStepperRole ?? 'admin';
 <div class="modal fade" id="termsModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="border-radius:18px;">
-            <div class="modal-header">
-                <h5 class="modal-title" style="font-weight:800;">Terms & Conditions</h5>
-                <button type="button" class="btn-close" onclick="Modal.close('termsModal')"></button>
+            <div class="modal-header" style="position:relative;">
+                <h5 class="modal-title" style="font-weight:800; padding-right:40px;">Terms & Conditions</h5>
+                <button type="button" class="btn-close" onclick="Modal.close('termsModal')" style="position:absolute; right:20px; top:20px;"></button>
             </div>
             <div class="modal-body" style="padding:24px; max-height:60vh; overflow-y:auto; font-size:13px; color:var(--label-2); line-height:1.7;">
                 <p style="margin-bottom:15px;"><strong>1. Reservation & Downpayment</strong><br>A non-refundable <?= round(MIN_DP_PERCENT * 100) ?>% downpayment is required to officially lock in the date. The remaining balance must be settled on or before the event date.</p>

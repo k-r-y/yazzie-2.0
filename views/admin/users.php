@@ -71,9 +71,9 @@ include __DIR__ . '/../../includes/sidebar.php';
 <div class="modal fade" id="userModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="userModalTitle">Add User</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header" style="position:relative;">
+                <h5 class="modal-title" id="userModalTitle" style="padding-right:40px;">Add User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="position:absolute; right:20px; top:20px;"></button>
             </div>
             <div class="modal-body">
                 <form id="userForm">

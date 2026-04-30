@@ -742,6 +742,7 @@ function renderReturnTable() {
 }
 
 async function saveDispatch() {
+    
     const rows = document.querySelectorAll('.dispatch-row');
     const items = [];
     const errors = [];
@@ -770,6 +771,7 @@ async function saveDispatch() {
     try {
         await Api.post(BASE + 'src/api/inventory_dispatch.php', { booking_id: invSelectedBookingId, items });
         Toast.success('Dispatch recorded!');
+        document.getElementById('dispatchRows').innerHTML = '';
         refreshInventoryList();
     } catch(e) { Toast.error(e.message); }
     Form.setLoading(btn, false);
@@ -946,3 +948,4 @@ loadJobs();
 </script>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>
+

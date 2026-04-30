@@ -150,6 +150,10 @@ if ($method === 'PUT') {
             $inv = $infoStmt->fetch();
             if (!$inv) continue;
 
+            if ($qtyIn > $inv['quantity_out']) {
+                throw new Exception("Returned quantity ($qtyIn) for '{$inv['name']}' cannot exceed dispatched quantity ({$inv['quantity_out']}).");
+            }
+
             $updateInv->execute([
                 ':qty_in' => $qtyIn,
                 ':notes'  => $notes,
@@ -158,69 +162,85 @@ if ($method === 'PUT') {
                 ':bid'    => $bookingId
             ]);
 
-            // Replenish current stock with returned quantity
-            if ($qtyIn > 0) {
+            // Replenish current stock using delta to allow idempotent updates
+            $delta = $qtyIn - (int)$inv['quantity_in'];
+            if ($delta != 0) {
                 $pdo->prepare("UPDATE equipment SET current_stock = current_stock + :qty WHERE id = :eid")
-                    ->execute([':qty' => $qtyIn, ':eid' => $inv['equipment_id']]);
+                    ->execute([':qty' => $delta, ':eid' => $inv['equipment_id']]);
             }
 
             $diff = $inv['quantity_out'] - $qtyIn;
             if ($diff > 0) {
-                // Log breakage
-                $unitPrice = (float)$inv['replacement_cost'];
-                $totalCost = round($unitPrice * $diff, 2);
-
+                $totalCost = $diff * $inv['replacement_cost'];
                 $insBreak = $pdo->prepare("
                     INSERT INTO booking_breakages (booking_id, equipment_id, quantity, unit_price, total_cost, charge_to, notes, logged_by)
                     VALUES (:bid, :eid, :qty, :price, :total, :charge, :notes, :uid)
+                    ON DUPLICATE KEY UPDATE 
+                        quantity = VALUES(quantity),
+                        total_cost = VALUES(total_cost),
+                        notes = VALUES(notes),
+                        logged_by = VALUES(logged_by),
+                        logged_at = NOW()
                 ");
                 $insBreak->execute([
                     ':bid'    => $bookingId,
                     ':eid'    => $inv['equipment_id'],
                     ':qty'    => $diff,
-                    ':price'  => $unitPrice,
+                    ':price'  => $inv['replacement_cost'],
                     ':total'  => $totalCost,
-                    ':charge' => $chargeTo,
-                    ':notes'  => "Auto-logged from inventory return discrepancy. " . ($notes ? "Note: $notes" : ""),
+                    ':charge' => 'CLIENT',
+                    ':notes'  => "Auto-logged from inventory return discrepancy.",
                     ':uid'    => $userId
                 ]);
-
-                // Deduct from total stock because it's lost/broken
-                // (current_stock was already reduced during dispatch and not replenished by the loss)
-                $pdo->prepare("UPDATE equipment SET total_stock = total_stock - :qty WHERE id = :eid")
-                    ->execute([':qty' => $diff, ':eid' => $inv['equipment_id']]);
-
-                if ($chargeTo === 'client') {
-                    $breakageTotal += $totalCost;
-                }
+            } else {
+                // If diff <= 0, remove any existing breakage record for this item in this booking
+                $pdo->prepare("DELETE FROM booking_breakages WHERE booking_id = :bid AND equipment_id = :eid")
+                    ->execute([':bid' => $bookingId, ':eid' => $inv['equipment_id']]);
             }
         }
 
-        if ($breakageTotal > 0) {
-            // Update booking totals
-            $pdo->prepare("
-                UPDATE bookings 
-                SET breakage_total = breakage_total + :total, 
-                    total_cost = total_cost + :total,
-                    payment_status = CASE 
-                        WHEN payment_status = 'paid' THEN 'partial' 
-                        ELSE payment_status 
-                    END
-                WHERE id = :bid
-            ")->execute([':total' => $breakageTotal, ':bid' => $bookingId]);
+        // 3. Synchronize Booking Totals (Recalculate from all breakages for this booking)
+        $sync = $pdo->prepare("
+            UPDATE bookings b
+            SET b.breakage_total = (
+                    SELECT COALESCE(SUM(total_cost), 0) 
+                    FROM booking_breakages 
+                    WHERE booking_id = :bid AND charge_to = 'CLIENT'
+                ),
+                b.total_cost = (b.base_price + b.extra_cost + b.transport_fee + b.surcharge_total + b.overtime_total) + (
+                    SELECT COALESCE(SUM(total_cost), 0) 
+                    FROM booking_breakages 
+                    WHERE booking_id = :bid AND charge_to = 'CLIENT'
+                ),
+                b.payment_status = CASE 
+                    WHEN b.amount_paid <= 0 THEN 'unpaid'
+                    WHEN b.amount_paid >= ((b.base_price + b.extra_cost + b.transport_fee + b.surcharge_total + b.overtime_total) + (
+                        SELECT COALESCE(SUM(total_cost), 0) 
+                        FROM booking_breakages 
+                        WHERE booking_id = :bid AND charge_to = 'CLIENT'
+                    )) THEN 'paid'
+                    ELSE 'partial'
+                END
+            WHERE b.id = :bid2
+        ");
+        $sync->execute([':bid' => $bookingId, ':bid2' => $bookingId]);
 
-            // Unarchive logic
-            if ($booking['is_archived']) {
-                $pdo->prepare("UPDATE bookings SET is_archived = 0, archived_at = NULL, archived_by = NULL WHERE id = :bid")
-                    ->execute([':bid' => $bookingId]);
-                $pdo->prepare("DELETE FROM archived_bookings WHERE original_id = :bid")
-                    ->execute([':bid' => $bookingId]);
-                $unarchived = true;
-            }
+        // Unarchive logic
+        if ($booking['is_archived']) {
+            $pdo->prepare("UPDATE bookings SET is_archived = 0, archived_at = NULL, archived_by = NULL WHERE id = :bid")
+                ->execute([':bid' => $bookingId]);
+            $pdo->prepare("DELETE FROM archived_bookings WHERE original_id = :bid")
+                ->execute([':bid' => $bookingId]);
+            $unarchived = true;
         }
+
+        // Fetch updated booking for audit log
+        $updatedBooking = $pdo->prepare("SELECT breakage_total FROM bookings WHERE id = :id");
+        $updatedBooking->execute([':id' => $bookingId]);
+        $newTotals = $updatedBooking->fetch();
 
         auditLog($pdo, 'inventory_returned', 'booking', $bookingId, null, [
-            'breakage_total' => $breakageTotal,
+            'breakage_total' => $newTotals['breakage_total'] ?? 0,
             'unarchived'     => $unarchived
         ]);
 

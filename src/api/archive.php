@@ -73,10 +73,10 @@ if ($method === 'POST') {
         $archStmt = $pdo->prepare("
             INSERT INTO archived_bookings
               (original_id, client_name, client_phone, event_date, event_time,
-               event_location, pax_count, total_cost, amount_paid, payment_status, notes, archived_by)
+               event_location, pax_count, total_cost, amount_paid, payment_status, notes, event_report_notes, archived_by)
             VALUES
               (:original_id, :client_name, :client_phone, :event_date, :event_time,
-               :event_location, :pax_count, :total_cost, :amount_paid, :payment_status, :notes, :archived_by)
+               :event_location, :pax_count, :total_cost, :amount_paid, :payment_status, :notes, :report_notes, :archived_by)
         ");
 
         $archStmt->execute([
@@ -91,6 +91,7 @@ if ($method === 'POST') {
             ':amount_paid'    => $booking['amount_paid'],
             ':payment_status' => $booking['payment_status'],
             ':notes'          => $booking['notes'],
+            ':report_notes'   => $booking['event_report_notes'],
             ':archived_by'    => (int)$currentUser['id'],
         ]);
 

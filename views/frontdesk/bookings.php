@@ -77,9 +77,9 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
 <div class="modal fade" id="editStatusModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Update Booking #<span id="editIdLabel"></span></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header" style="position:relative;">
+                <h5 class="modal-title" style="padding-right:40px;">Update Booking #<span id="editIdLabel"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="position:absolute; right:20px; top:20px;"></button>
             </div>
             <div class="modal-body">
                  <form id="editStatusForm">
@@ -125,9 +125,9 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
 <div class="modal fade" id="addClientModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Add New Client</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header" style="position:relative;">
+                <h5 class="modal-title" style="padding-right:40px;"><i class="fas fa-user-plus me-2"></i>Add New Client</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="position:absolute; right:20px; top:20px;"></button>
             </div>
             <div class="modal-body">
                 <form id="clientForm">

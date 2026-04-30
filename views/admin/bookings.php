@@ -89,17 +89,17 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
 <div class="modal fade" id="viewBookingModal" tabindex="-1" data-bs-focus="false">
     <div class="modal-dialog modal-xl">
         <div class="modal-content" style="border-radius:24px; overflow:hidden; border:none; box-shadow: 0 20px 40px rgba(0,0,0,0.2);">
-            <div class="modal-header" style="background: linear-gradient(135deg, #1a1a1a 0%, #333 100%); color:white; padding:20px 30px; border:none;">
-                <div style="display:flex; align-items:center; gap:15px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #1a1a1a 0%, #333 100%); color:white; padding:20px 30px; border:none; position:relative;">
+                <div style="display:flex; align-items:center; gap:15px; padding-right:40px;">
                     <div style="width:48px; height:48px; background:rgba(255,255,255,0.1); border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:20px;">
                         <i class="fas fa-calendar-check"></i>
                     </div>
                     <div>
-                        <h5 class="modal-title" style="margin:0; font-weight:700; font-size:20px; letter-spacing:-0.5px;">Booking <span id="view_booking_id_title"></span></h5>
+                        <h5 class="modal-title" style="margin:0; font-weight:700; font-size:20px; letter-spacing:-0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:600px;">Booking <span id="view_booking_id_title"></span></h5>
                         <div id="view_status_badge" style="margin-top:4px;"></div>
                     </div>
                 </div>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="position:absolute; right:25px; top:35px;"></button>
             </div>
             <div class="modal-body" style="padding:0; background:#f8f9fa;">
                 <div style="display:grid; grid-template-columns: 350px 1fr; min-height:600px;">
@@ -242,6 +242,20 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                                         No incidents reported.
                                     </div>
                                 </div>
+
+                                <div id="view_report_section">
+                                    <h6 style="font-weight:700; margin-bottom:15px;"><i class="fas fa-clipboard-check me-2" style="color:var(--sys-green);"></i>Staff Event Report</h6>
+                                    <div id="view_report_notes" style="padding:15px; background:#fff8f0; border:1px solid #ffe8cc; border-radius:12px; font-size:13px; line-height:1.5; color:#5a3e1b;">
+                                        <!-- Report notes injected here -->
+                                    </div>
+                                </div>
+
+                                <div id="view_notes_section" style="margin-top:20px;">
+                                    <h6 style="font-weight:700; margin-bottom:15px;"><i class="fas fa-sticky-note me-2" style="color:var(--sys-blue);"></i>Client Notes</h6>
+                                    <div id="view_notes_content" style="padding:15px; background:#f0f7ff; border:1px solid #d0e5ff; border-radius:12px; font-size:13px; line-height:1.5; color:#2c3e50;">
+                                        <!-- Notes injected here -->
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -270,11 +284,7 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                 </div>
             </div>
             <div class="modal-footer" style="padding:20px 30px; background:white; border-top:1px solid #eee;">
-                <div style="flex:1;">
-                    <div id="view_notes_preview" style="font-size:13px; color:#666; max-width:600px; line-height:1.4;">
-                        <i class="fas fa-sticky-note me-2 text-muted"></i><span id="view_notes_text"></span>
-                    </div>
-                </div>
+                <div style="flex:1;"></div>
                 <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
                 <button class="btn btn-primary px-4" id="viewToEditBtn" onclick="openEditFromView()">
                     <i class="fas fa-edit me-2"></i>Edit Booking
@@ -288,9 +298,9 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
 <div class="modal fade" id="editBookingModal" tabindex="-1" data-bs-focus="false">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Booking <span id="editBookingId"></span></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header" style="position:relative;">
+                <h5 class="modal-title" style="padding-right:40px;"><i class="fas fa-edit me-2"></i>Edit Booking <span id="editBookingId"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="position:absolute; right:20px; top:20px;"></button>
             </div>
             <div class="modal-body">
                 <form id="editBookingForm">
@@ -561,6 +571,16 @@ async function openViewBooking(id) {
             noBreakage.style.display = 'block';
         }
 
+        // Staff Report Notes
+        const reportSection = document.getElementById('view_report_section');
+        const reportNotes = document.getElementById('view_report_notes');
+        if (b.event_report_notes) {
+            reportSection.style.display = 'block';
+            reportNotes.innerHTML = `<i class="fas fa-quote-left me-2 opacity-50"></i>${esc(b.event_report_notes)}`;
+        } else {
+            reportSection.style.display = 'none';
+        }
+
         // Payment History
         const payBody = document.getElementById('view_payments_body');
         if (b.payments && b.payments.length > 0) {
@@ -577,12 +597,14 @@ async function openViewBooking(id) {
             payBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No payments recorded.</td></tr>';
         }
 
-        // Notes
+        // Client Notes
+        const notesSection = document.getElementById('view_notes_section');
+        const notesContent = document.getElementById('view_notes_content');
         if (b.notes) {
-            document.getElementById('view_notes_preview').style.display = 'block';
-            document.getElementById('view_notes_text').textContent = b.notes;
+            notesSection.style.display = 'block';
+            notesContent.innerHTML = `<i class="fas fa-quote-left me-2 opacity-50"></i>${esc(b.notes)}`;
         } else {
-            document.getElementById('view_notes_preview').style.display = 'none';
+            notesSection.style.display = 'none';
         }
 
         // Store ID for Edit transition

@@ -155,9 +155,9 @@ include __DIR__ . '/../../includes/sidebar.php';
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="border-radius: 16px; border: none;">
             <form onsubmit="saveIngredient(event)">
-                <div class="modal-header" style="border-bottom: 1px solid rgba(0,0,0,0.05); padding: 20px 24px;">
-                    <h3 id="ingModalTitle" style="font-size: 18px; font-weight: 700; margin: 0;">Add Ingredient</h3>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <div class="modal-header" style="border-bottom: 1px solid rgba(0,0,0,0.05); padding: 20px 24px; position:relative;">
+                    <h3 id="ingModalTitle" style="font-size: 18px; font-weight: 700; margin: 0; padding-right:40px;">Add Ingredient</h3>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="position:absolute; right:20px; top:20px;"></button>
                 </div>
 
                 <div class="modal-body" style="padding: 24px;">
