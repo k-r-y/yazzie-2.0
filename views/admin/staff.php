@@ -60,9 +60,40 @@ include __DIR__ . '/../../includes/sidebar.php';
 
 <!-- ── TAB: Roster ─────────────────────────────────────────────── -->
 <div id="panel-roster">
+    <!-- Filter Bar -->
+    <div class="card mb-3">
+        <div class="card-body" style="padding:14px 20px;">
+            <div class="search-bar">
+                <div class="search-input-wrap">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="search-input" id="staffSearch" placeholder="Search by name, email, phone...">
+                </div>
+                <select class="form-control" id="staffFilterRole" style="width:160px;">
+                    <option value="staff,frontdesk">Staff & Front Desk</option>
+                    <option value="staff">Staff Only</option>
+                    <option value="frontdesk">Front Desk Only</option>
+                    <option value="admin">Admin Only</option>
+                </select>
+                <select class="form-control" id="staffFilterJob" style="width:160px;">
+                    <option value="">All Classifications</option>
+                    <option value="waiter">Waiter</option>
+                    <option value="head_cook">Head Cook</option>
+                    <option value="cook">Cook</option>
+                    <option value="server">Server</option>
+                    <option value="helper">Helper</option>
+                </select>
+                <select class="form-control" id="staffFilterStatus" style="width:140px;">
+                    <option value="">All Status</option>
+                    <option value="1">Active</option>
+                    <option value="0">Inactive</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-header">
-            <div><div class="card-title">All Staff Members</div></div>
+            <div><div class="card-title">Staff Roster</div> <span class="text-xs text-muted" id="staffCount"></span></div>
             <button class="btn btn-primary btn-sm py-3" onclick="openAddModal()" title="Onboard a new staff member or administrator">
                 <i class="fas fa-plus"></i> Add Staff
             </button>
@@ -81,6 +112,15 @@ include __DIR__ . '/../../includes/sidebar.php';
                 </thead>
                 <tbody id="staffBody"><tr><td colspan="7"><div class="spinner"></div></td></tr></tbody>
             </table>
+        </div>
+        <div class="table-pagination" id="staffPagination">
+            <button type="button" class="pagination-button" id="staffPrevBtn" onclick="changeStaffPage(currentStaffPage - 1)" disabled>
+                <i class="fas fa-chevron-left"></i> Previous
+            </button>
+            <div class="pagination-info" id="staffPageInfo">Page 1 of 1</div>
+            <button type="button" class="pagination-button" id="staffNextBtn" onclick="changeStaffPage(currentStaffPage + 1)" disabled>
+                Next <i class="fas fa-chevron-right"></i>
+            </button>
         </div>
     </div>
 </div>
@@ -235,7 +275,11 @@ include __DIR__ . '/../../includes/sidebar.php';
 </style>
 
 <script>
+const currentUserId = <?= (int)$_SESSION['user_id'] ?>;
+const currentUserRole = '<?= $_SESSION['role'] ?>';
 let staffModal, allStaff = [];
+let currentStaffPage = 1;
+let staffTotalPages = 1;
 
 function switchTab(name, el) {
     ['roster','leaves','schedule'].forEach(t => {
@@ -252,7 +296,7 @@ function switchTab(name, el) {
 async function loadKPIs() {
     const today = new Date().toISOString().split('T')[0];
     const [usersData, leaveData, pendingLeave, availData] = await Promise.all([
-        Api.get(BASE + 'src/api/staff.php', { role: 'staff,frontdesk' }),
+        Api.get(BASE + 'src/api/staff.php', { role: 'staff,frontdesk', limit: 1000 }),
         Api.get(BASE + 'src/api/leave.php',  { date: today }),
         Api.get(BASE + 'src/api/leave.php',  { pending_only: 1 }),
         Api.get(BASE + 'src/api/staff.php',  { available_on: today }),
@@ -270,14 +314,35 @@ async function loadKPIs() {
 }
 
 // ── STAFF ROSTER TABLE ─────────────────────────────────────────────
-async function loadRoster() {
+async function loadRoster(page = 1) {
+    currentStaffPage = page;
+    const search = document.getElementById('staffSearch').value;
+    const role   = document.getElementById('staffFilterRole').value;
+    const job    = document.getElementById('staffFilterJob').value;
+    const status = document.getElementById('staffFilterStatus').value;
+
     try {
         const today = new Date().toISOString().split('T')[0];
+        const params = { 
+            role, 
+            search, 
+            job_class: job, 
+            status, 
+            page: currentStaffPage, 
+            limit: 10 
+        };
+
         const [usersData, schedData] = await Promise.all([
-            Api.get(BASE + 'src/api/staff.php', { role: 'staff,frontdesk' }),
+            Api.get(BASE + 'src/api/staff.php', params),
             Api.get(BASE + 'src/api/staff.php',  { available_on: today }),
         ]);
         allStaff = usersData.users || [];
+        staffTotalPages = usersData.meta?.totalPages || 1;
+        const totalRecords = usersData.meta?.totalRecords || allStaff.length;
+        
+        document.getElementById('staffCount').textContent = `${totalRecords} member${totalRecords === 1 ? '' : 's'} found`;
+        renderStaffPagination();
+
         const schedStaff = schedData.staff || [];
         const availMap = {};
         schedStaff.forEach(s => availMap[s.id] = s.availability);
@@ -299,6 +364,10 @@ async function loadRoster() {
                 ? `<br><small class="text-muted">${jobClassLabel[s.job_class] || s.job_class}</small>` 
                 : '';
 
+            const isSelf = parseInt(s.id) === currentUserId;
+            const isAdmin = ['admin', 'super_admin'].includes(s.role);
+            const canManageStatus = !isSelf && (currentUserRole === 'super_admin' || !isAdmin);
+
             return `
             <tr>
                 <td class="td-name">${htmlEsc(s.name)}${jobClassText}</td>
@@ -310,13 +379,25 @@ async function loadRoster() {
                     <button class="btn btn-outline-primary btn-sm" onclick='openEditModal(${JSON.stringify(s)})' title="Edit">
                         <i class="fas fa-pencil"></i>
                     </button>
+                    ${canManageStatus ? `
                     <button class="btn btn-danger btn-sm" onclick="toggleActive(${s.id}, ${s.is_active})" title="${s.is_active ? 'Deactivate' : 'Reactivate'}">
                         <i class="fas fa-${s.is_active ? 'user-slash' : 'user-check'}"></i>
-                    </button>
+                    </button>` : ''}
                 </td>
             </tr>`;
         }).join('');
     } catch(e) { Toast.error('Failed to load staff roster.'); }
+}
+
+function changeStaffPage(p) {
+    if (p < 1 || p > staffTotalPages) return;
+    loadRoster(p);
+}
+
+function renderStaffPagination() {
+    document.getElementById('staffPageInfo').textContent = `Page ${currentStaffPage} of ${staffTotalPages}`;
+    document.getElementById('staffPrevBtn').disabled = currentStaffPage <= 1;
+    document.getElementById('staffNextBtn').disabled = currentStaffPage >= staffTotalPages;
 }
 
 // ── LEAVE REQUESTS ─────────────────────────────────────────────────
@@ -428,7 +509,12 @@ function openEditModal(s) {
     document.getElementById('sf-pw').value    = '';
     document.getElementById('sf-pw-hint').style.display = 'block';
     document.getElementById('sf-pw-req').style.display  = 'none';
-    document.getElementById('sf-active-group').style.display = 'block';
+
+    const isSelf = parseInt(s.id) === currentUserId;
+    const isAdmin = ['admin', 'super_admin'].includes(s.role);
+    const canManageStatus = !isSelf && (currentUserRole === 'super_admin' || !isAdmin);
+    document.getElementById('sf-active-group').style.display = canManageStatus ? 'block' : 'none';
+
     onRoleChange();
     staffModal.show();
 }
@@ -503,6 +589,12 @@ function htmlEsc(str) {
 staffModal = new bootstrap.Modal(document.getElementById('staffModal'));
 loadKPIs();
 loadRoster();
+
+// Event listeners for filters
+['staffFilterRole', 'staffFilterJob', 'staffFilterStatus'].forEach(id => {
+    document.getElementById(id).addEventListener('change', () => loadRoster(1));
+});
+document.getElementById('staffSearch').addEventListener('input', debounce(() => loadRoster(1), 400));
 </script>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

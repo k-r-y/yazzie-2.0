@@ -88,9 +88,14 @@ if ($method === 'GET') {
         $params[':role_staff'] = 'staff';
     }
 
-    if (isset($_GET['active_only'])) {
-        $where[] = 'is_active = :active';
-        $params[':active'] = (int)$_GET['active_only'];
+    if (isset($_GET['status']) && $_GET['status'] !== '') {
+        $where[] = 'is_active = :status';
+        $params[':status'] = (int)$_GET['status'];
+    }
+
+    if (!empty($_GET['job_class'])) {
+        $where[] = 'job_class = :job_class';
+        $params[':job_class'] = $_GET['job_class'];
     }
 
     if (!empty($_GET['search'])) {
@@ -271,6 +276,25 @@ if ($method === 'PUT') {
         ':is_active' => isset($d['is_active']) ? (int)$d['is_active'] : null,
     ];
 
+    // ── DEACTIVATION SECURITY CHECK ──
+    if (isset($d['is_active']) && (int)$d['is_active'] === 0) {
+        $targetId = (int)$d['id'];
+        $currentId = (int)$_SESSION['user_id'];
+        $currentRole = $currentUser['role'];
+
+        if ($targetId === $currentId) {
+            jsonResponse(false, 'You cannot deactivate your own account.', [], 403);
+        }
+
+        $tStmt = $pdo->prepare("SELECT role FROM users WHERE id = :id");
+        $tStmt->execute([':id' => $targetId]);
+        $targetRole = $tStmt->fetchColumn();
+
+        if (in_array($targetRole, ['admin', 'super_admin']) && $currentRole !== 'super_admin') {
+            jsonResponse(false, 'Administrators can only be deactivated by the Super Admin.', [], 403);
+        }
+    }
+
     if (!empty($d['password'])) {
         $pwError = validatePasswordPolicy($d['password']);
         if ($pwError) jsonResponse(false, $pwError, [], 422);
@@ -340,8 +364,20 @@ if ($method === 'DELETE') {
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
     if (empty($d['id'])) jsonResponse(false, 'User ID required.', [], 422);
     // Prevent self-deletion
-    if ((int)$d['id'] === (int)$_SESSION['user_id']) {
+    $targetId = (int)$d['id'];
+    $currentId = (int)$_SESSION['user_id'];
+    $currentRole = $currentUser['role'];
+
+    if ($targetId === $currentId) {
         jsonResponse(false, 'You cannot deactivate your own account.', [], 403);
+    }
+
+    $tStmt = $pdo->prepare("SELECT role FROM users WHERE id = :id");
+    $tStmt->execute([':id' => $targetId]);
+    $targetRole = $tStmt->fetchColumn();
+
+    if (in_array($targetRole, ['admin', 'super_admin']) && $currentRole !== 'super_admin') {
+        jsonResponse(false, 'Administrators can only be deactivated by the Super Admin.', [], 403);
     }
     // Soft delete (deactivate)
     $pdo->prepare("UPDATE users SET is_active = 0 WHERE id = :id")->execute([':id' => (int)$d['id']]);

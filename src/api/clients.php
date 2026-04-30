@@ -14,7 +14,6 @@ require_once __DIR__ . '/../../includes/audit.php';
 $user   = requireApiRole(['admin', 'frontdesk']);
 requireCsrf();
 $method = $_SERVER['REQUEST_METHOD'];
-
 if ($method === 'GET') {
     if (isset($_GET['id'])) {
         $stmt = $pdo->prepare("SELECT * FROM clients WHERE id = :id");
@@ -25,17 +24,79 @@ if ($method === 'GET') {
     }
 
     $search = $_GET['search'] ?? '';
-    $like   = "%$search%";
+    $minBookings = isset($_GET['min_bookings']) ? (int)$_GET['min_bookings'] : null;
+    
+    $where = ['1=1'];
+    $params = [];
+
+    if ($search) {
+        $where[] = '(c.name LIKE :s1 OR c.phone LIKE :s2 OR c.email LIKE :s3)';
+        $like = "%$search%";
+        $params[':s1'] = $like;
+        $params[':s2'] = $like;
+        $params[':s3'] = $like;
+    }
+
+    $having = '';
+    if ($minBookings !== null) {
+        $having = 'HAVING total_bookings >= :min_b';
+        $params[':min_b'] = $minBookings;
+    }
+
+    $whereClause = implode(' AND ', $where);
+
+    // Pagination
+    $page  = max(1, (int)($_GET['page'] ?? 1));
+    $limit = (int)($_GET['limit'] ?? 10);
+    if ($limit < 1) $limit = 10;
+    $offset = ($page - 1) * $limit;
+
+    // Count total for pagination
+    if ($minBookings !== null) {
+        $countSql = "
+            SELECT COUNT(*) FROM (
+                SELECT c.id 
+                FROM clients c
+                LEFT JOIN bookings b ON b.client_id = c.id
+                WHERE $whereClause
+                GROUP BY c.id
+                HAVING COUNT(b.id) >= :min_b
+            ) AS t
+        ";
+    } else {
+        $countSql = "SELECT COUNT(*) FROM clients c WHERE $whereClause";
+    }
+    $countStmt = $pdo->prepare($countSql);
+    $countStmt->execute($params);
+    $totalRecords = (int)$countStmt->fetchColumn();
+    $totalPages = (int)ceil($totalRecords / $limit);
+
     $stmt = $pdo->prepare("
-        SELECT c.*, COUNT(b.id) AS total_bookings
+        SELECT c.*, COUNT(b.id) AS total_bookings,
+               DATE_FORMAT(c.created_at, '%Y-%m-%dT%H:%i:%s') AS created_at
         FROM clients c
         LEFT JOIN bookings b ON b.client_id = c.id
-        WHERE c.name LIKE :s1 OR c.phone LIKE :s2 OR c.email LIKE :s3
+        WHERE $whereClause
         GROUP BY c.id
+        $having
         ORDER BY c.name ASC
+        LIMIT :limit OFFSET :offset
     ");
-    $stmt->execute([':s1' => $like, ':s2' => $like, ':s3' => $like]);
-    jsonResponse(true, '', ['clients' => $stmt->fetchAll()]);
+    foreach ($params as $key => $val) {
+        $stmt->bindValue($key, $val);
+    }
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+
+    jsonResponse(true, '', [
+        'clients' => $stmt->fetchAll(),
+        'meta' => [
+            'currentPage'  => $page,
+            'totalPages'   => $totalPages,
+            'totalRecords' => $totalRecords
+        ]
+    ]);
 }
 
 if ($method === 'POST') {

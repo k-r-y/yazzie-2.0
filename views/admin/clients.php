@@ -42,20 +42,26 @@ include __DIR__ . '/../../includes/sidebar.php';
     </div>
 </div>
 
+<div class="card mb-3">
+    <div class="card-body" style="padding:14px 20px;">
+        <div class="search-bar">
+            <div class="search-input-wrap">
+                <i class="fas fa-search"></i>
+                <input type="text" class="search-input" id="clientSearch" placeholder="Search name, phone, or email...">
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-header">
         <div>
             <div class="card-title">Client Directory</div>
+            <span class="text-xs text-muted" id="clientCount"></span>
         </div>
-        <div style="display:flex;gap:10px;">
-            <div class="search-box-v2" style="width:280px;">
-                <i class="fas fa-search"></i>
-                <input type="text" class="form-control border h-100" id="clientSearch" placeholder="Search name, phone, or email..." oninput="filterClients()" title="Type to filter the client list">
-            </div>
-            <button class="btn btn-primary btn-sm py-3" onclick="openAddModal()" title="Register a new client profile">
-                <i class="fas fa-plus"></i> Add Client
-            </button>
-        </div>
+        <button class="btn btn-primary btn-sm py-3" onclick="openAddModal()" title="Register a new client profile">
+            <i class="fas fa-plus"></i> Add Client
+        </button>
     </div>
     <div class="table-wrapper">
         <table class="data-table">
@@ -72,6 +78,15 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <tr><td colspan="5"><div class="spinner"></div></td></tr>
             </tbody>
         </table>
+    </div>
+    <div class="table-pagination" id="clientPagination">
+        <button type="button" class="pagination-button" id="prevBtn" onclick="changePage(currentPage - 1)" disabled>
+            <i class="fas fa-chevron-left"></i> Previous
+        </button>
+        <div class="pagination-info" id="pageInfo">Page 1 of 1</div>
+        <button type="button" class="pagination-button" id="nextBtn" onclick="changePage(currentPage + 1)" disabled>
+            Next <i class="fas fa-chevron-right"></i>
+        </button>
     </div>
 </div>
 
@@ -126,37 +141,59 @@ include __DIR__ . '/../../includes/sidebar.php';
 <script>
 let clients = [];
 let clientModal;
+let currentPage = 1;
+let totalPages = 1;
 
 async function init() {
     clientModal = new bootstrap.Modal(document.getElementById('clientModal'));
+    
+    // Add event listeners for filters
+    document.getElementById('clientSearch').addEventListener('input', debounce(() => loadData(1), 400));
+    
     await loadData();
 }
 
-async function loadData() {
+async function loadData(page = 1) {
+    currentPage = page;
+    const search = document.getElementById('clientSearch').value;
+
     try {
         const [res, statsRes] = await Promise.all([
-            Api.get(BASE + 'src/api/clients.php'),
+            Api.get(BASE + 'src/api/clients.php', { 
+                search, 
+                page: currentPage, 
+                limit: 10 
+            }),
             Api.get(BASE + 'src/api/analytics.php', { type: 'kpis' }) 
         ]);
 
         clients = res.clients || [];
+        totalPages = res.meta?.totalPages || 1;
+        const totalRecords = res.meta?.totalRecords || 0;
+
+        document.getElementById('clientCount').textContent = `${totalRecords} client${totalRecords === 1 ? '' : 's'} found`;
         renderClients(clients);
+        renderPagination();
 
         // Update KPIs
-        document.getElementById('kpi-total-clients').textContent = clients.length;
+        document.getElementById('kpi-total-clients').textContent = totalRecords;
         document.getElementById('kpi-active-bookings').textContent = statsRes.active_bookings || 0;
-        
-        // Compute "New this month" from client created_at dates
-        const now = new Date();
-        const thisMonth = clients.filter(c => {
-            const d = new Date(c.created_at);
-            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-        }).length;
-        document.getElementById('kpi-new-this-month').textContent = thisMonth;
+        document.getElementById('kpi-new-this-month').textContent = statsRes.total_clients || 0;
 
     } catch (e) {
         Toast.error('Failed to load client data: ' + e.message);
     }
+}
+
+function changePage(p) {
+    if (p < 1 || p > totalPages) return;
+    loadData(p);
+}
+
+function renderPagination() {
+    document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+    document.getElementById('prevBtn').disabled = currentPage <= 1;
+    document.getElementById('nextBtn').disabled = currentPage >= totalPages;
 }
 
 function renderClients(list) {
@@ -210,15 +247,7 @@ function renderClients(list) {
     }).join('');
 }
 
-function filterClients() {
-    const q = document.getElementById('clientSearch').value.toLowerCase();
-    const filtered = clients.filter(c => 
-        c.name.toLowerCase().includes(q) || 
-        c.email.toLowerCase().includes(q) || 
-        c.phone.includes(q)
-    );
-    renderClients(filtered);
-}
+// Removed local filterClients in favor of server-side search via loadData
 
 function openAddModal() {
     document.getElementById('modalTitle').textContent = 'Add New Client';
