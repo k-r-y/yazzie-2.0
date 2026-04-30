@@ -128,7 +128,7 @@ if ($method === 'POST') {
                 overtime_minutes = :ot_min,
                 overtime_rate = :ot_rate,
                 overtime_total = :ot_total,
-                total_cost = total_cost + :ot_total -- Automatically bill overtime
+                total_cost = total_cost + :ot_total_add
             WHERE id = :id
         ");
         $update->execute([
@@ -142,6 +142,7 @@ if ($method === 'POST') {
             ':ot_min'        => $overtimeMinutes,
             ':ot_rate'       => $overtimeRate,
             ':ot_total'      => $overtimeTotal,
+            ':ot_total_add'  => $overtimeTotal,
         ]);
 
         // ── Log breakages ──

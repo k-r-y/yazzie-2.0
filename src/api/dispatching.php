@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../includes/notifications_helper.php';
 /**
  * Dispatching API
  * GET    ?booking_id=X  — List job orders for an event
@@ -238,25 +239,12 @@ if ($method === 'PUT') {
             : "$staffName has DECLINED the job offer for {$bData['client_name']}'s event on $eventDateFormatted. Please update the lineup.";
 
         try {
-            // 1. In-App Notifications
-            $notifyAdmins = $pdo->prepare("
-                INSERT INTO notifications (user_id, type, title, body, booking_id, link_url)
-                SELECT id,
-                       :type,
-                       :title,
-                       :body,
-                       :bid,
-                       :linkUrl
-                FROM users
-                WHERE role IN ('admin', 'super_admin', 'frontdesk')
-                  AND is_active = 1
-            ");
-            $notifyAdmins->execute([
-                ':type'    => ($status === 'accepted' ? 'job_accepted' : 'job_declined'),
-                ':title'   => "Staff $statusLabel Job Offer",
-                ':body'    => $notifBody,
-                ':bid'     => $bData['booking_id'],
-                ':linkUrl' => $bookingUrl,
+            // 1. In-App Notification — broadcast to admin + frontdesk (v2 single-row fan-out)
+            dispatchNotification($pdo, [
+                'target_role' => 'global',
+                'type'        => 'dispatch',
+                'message'     => $notifBody,
+                'action_url'  => '/views/frontdesk/dispatching.php?booking_id=' . $bData['booking_id'],
             ]);
 
             // 2. Email Notifications
@@ -327,11 +315,6 @@ if ($method === 'POST') {
             VALUES (:bid, :sid, :role, :notes, 'pending', :jc)
         ");
 
-        $notif = $pdo->prepare("
-            INSERT INTO notifications (user_id, type, title, body, booking_id)
-            VALUES (:uid, 'job_assigned', :title, :body, :bid)
-        ");
-
         // Fetch job classes for all staff to be notified
         $uStmt = $pdo->prepare("SELECT id, job_class FROM users WHERE id IN (" . implode(',', array_fill(0, count($staffIds), '?')) . ")");
         $uStmt->execute($staffIds);
@@ -361,14 +344,17 @@ if ($method === 'POST') {
                 ':notes' => $notes ?: null,
                 ':jc'    => $staffMap[$sid] ?? 'any'
             ]);
-            
-            $notif->execute([
-                ':uid'   => $sid,
-                ':title' => 'New Job Offer: ' . $role,
-                ':body'  => "Event on " . date('M d', strtotime($booking['event_date'])) . " for " . $booking['client_name'] . ". Please respond in your Job Board.",
-                ':bid'   => $bookingId
+
+            // v2: direct message to each staff member
+            dispatchNotification($pdo, [
+                'recipient_id' => $sid,
+                'type'         => 'dispatch',
+                'message'      => "You have a new job offer as {$role} for {$booking['client_name']}'s event on "
+                                . date('M d, Y', strtotime($booking['event_date']))
+                                . ". Please respond in your Job Board.",
+                'action_url'   => '/views/staff/dashboard.php',
             ]);
-            
+
             $count++;
         }
         $pdo->commit();

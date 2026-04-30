@@ -22,6 +22,7 @@ if (php_sapi_name() !== 'cli' && !defined('CRON_TEST')) {
 
 define('CRON_MODE', true);
 require_once __DIR__ . '/config/config.php';
+require_once __DIR__ . '/includes/notifications_helper.php';
 
 $startTime = microtime(true);
 $log = function(string $msg) {
@@ -142,26 +143,18 @@ function sendEventReminders(PDO $pdo, callable $log): int
         return 0;
     }
 
-    $notifInsert = $pdo->prepare("
-        INSERT INTO notifications (user_id, type, title, body, booking_id, link_url)
-        VALUES (:uid, 'general', :title, :body, :bid, :link)
-    ");
-
+    // v2: helper is used directly inside the loop
+...
     // Check if we already sent reminders for today (prevent duplicates on re-runs)
     $checkSent = $pdo->prepare("
         SELECT COUNT(*) FROM notifications 
-        WHERE booking_id = :bid AND title LIKE '%Event Reminder%' 
+        WHERE message LIKE '%Event Reminder%' 
           AND DATE(created_at) = CURDATE()
+          AND recipient_id = :sid
     ");
 
     $count = 0;
     foreach ($bookings as $bk) {
-        $checkSent->execute([':bid' => $bk['id']]);
-        if ((int)$checkSent->fetchColumn() > 0) {
-            $log("[REMIND] Reminder already sent today for booking #{$bk['id']}. Skipping.");
-            continue;
-        }
-
         // Get accepted staff for this booking
         $staffStmt = $pdo->prepare("
             SELECT jo.staff_id, u.name AS staff_name
@@ -181,16 +174,20 @@ function sendEventReminders(PDO $pdo, callable $log): int
         $eventTimeFormatted = !empty($bk['event_time']) ? date('g:i A', strtotime($bk['event_time'])) : '';
 
         foreach ($staffList as $staff) {
+            // Check if we already sent reminders to this specific staff member today
+            $checkSent->execute([':sid' => $staff['staff_id']]);
+            if ((int)$checkSent->fetchColumn() > 0) {
+                continue;
+            }
             try {
-                $notifInsert->execute([
-                    ':uid'   => $staff['staff_id'],
-                    ':title' => '📅 Event Reminder — 3 Days Away',
-                    ':body'  => "Reminder: You are assigned to {$bk['client_name']}'s event on {$eventDateFormatted}" .
-                                ($eventTimeFormatted ? " at {$eventTimeFormatted}" : '') .
-                                ($bk['event_location'] ? " at {$bk['event_location']}" : '') .
-                                ". Pax: {$bk['pax_count']}. Please confirm your availability.",
-                    ':bid'   => $bk['id'],
-                    ':link'  => BASE_URL . '/views/staff/dashboard.php',
+                dispatchNotification($pdo, [
+                    'recipient_id' => $staff['staff_id'],
+                    'type'         => 'general',
+                    'message'      => "Reminder: You are assigned to {$bk['client_name']}'s event on {$eventDateFormatted}" .
+                                    ($eventTimeFormatted ? " at {$eventTimeFormatted}" : '') .
+                                    ($bk['event_location'] ? " at {$bk['event_location']}" : '') .
+                                    ". Pax: {$bk['pax_count']}. Please confirm your availability.",
+                    'action_url'   => '/views/staff/dashboard.php',
                 ]);
                 $count++;
             } catch (\Throwable $e) {
@@ -246,18 +243,11 @@ function sendBalanceReminders(PDO $pdo, callable $log): int
         
         // Notify the System (Admins/Frontdesk) ONLY — No automatic client email as per new manual control policy
         try {
-            $sysNotif = $pdo->prepare("
-                INSERT INTO notifications (user_id, type, title, body, booking_id, link_url)
-                SELECT id, 'general', :title, :body, :bid, :link
-                FROM users 
-                WHERE role IN ('super_admin', 'admin', 'frontdesk') 
-                  AND is_active = 1
-            ");
-            $sysNotif->execute([
-                ':title' => '💰 Pending Balance: ' . $bk['client_name'],
-                ':body'  => "Booking #{$bk['id']} is in 3 days but still has a remaining balance of ₱" . number_format($balance, 2) . ". Please send a manual reminder if needed.",
-                ':bid'   => $bk['id'],
-                ':link'  => BASE_URL . '/views/admin/bookings.php?highlight=' . $bk['id']
+            dispatchNotification($pdo, [
+                'target_role' => 'global',
+                'type'        => 'finance',
+                'message'     => "Booking #{$bk['id']} is in 3 days but still has a remaining balance of ₱" . number_format($balance, 2) . ". Please send a manual reminder if needed.",
+                'action_url'  => '/views/admin/bookings.php?id=' . $bk['id'],
             ]);
             $count++;
             $log("[BALANCE] Created internal alert for booking #{$bk['id']} ({$bk['client_name']})");

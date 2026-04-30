@@ -221,149 +221,200 @@ if ($role === 'super_admin') {
     });
 })();
 
-// ── Notification Bell ───────────────────────────────────────────────
+// ── Notification Bell v2 — Deep Linking & Role-Based ───────────────────────
 (function () {
     const BASE_URL = '<?= BASE_URL ?>';
     const panel    = document.getElementById('notifPanel');
     const badge    = document.getElementById('notifBadge');
     let panelOpen  = false;
 
-    async function fetchCount() {
-        try {
-            const r = await fetch(BASE_URL + '/api/notifications/get.php?unread=1', { credentials: 'same-origin' });
-            const d = await r.json();
-            const n = d.count || 0;
-            if (n > 0) {
-                badge.textContent = n > 9 ? '9+' : n;
-                badge.style.display = 'flex';
-            } else {
-                badge.style.display = 'none';
-            }
-        } catch(e) {}
+    // ── Icon map for the v2 `type` field ─────────────────────────────────
+    const typeIconMap = {
+        user_management : '🛡️',
+        booking         : '📅',
+        finance         : '💰',
+        dispatch        : '📋',
+        system          : '⚙️',
+        general         : 'ℹ️',
+    };
+
+    // ── Safely escape HTML to prevent XSS in notification content ─────────
+    function esc(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }
 
-    async function fetchNotifs() {
-        const list = document.getElementById('notifList');
+    // ── fetchCount() — runs on page load + every 60 s for the badge ───────
+    async function fetchCount() {
         try {
-            const r = await fetch(BASE_URL + '/api/notifications/get.php', { credentials: 'same-origin' });
+            const r = await fetch(BASE_URL + '/api/notifications/get.php?unread=1', {
+                credentials: 'same-origin'
+            });
+            if (!r.ok) return;
             const d = await r.json();
+            const n = d.count ?? d.unread_count ?? 0;
+            badge.textContent     = n > 9 ? '9+' : n;
+            badge.style.display   = n > 0 ? 'flex' : 'none';
+        } catch (e) { /* silent fail — network may be unreliable */ }
+    }
+
+    // ── fetchNotifications() — called when panel opens ────────────────────
+    async function fetchNotifications() {
+        const list = document.getElementById('notifList');
+        list.innerHTML = '<div class="spinner" style="margin:20px auto;"></div>';
+        try {
+            const r = await fetch(BASE_URL + '/api/notifications/get.php', {
+                credentials: 'same-origin'
+            });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const d = await r.json();
+            if (!d.success) throw new Error(d.message || 'Server error');
+
             const notifs = d.notifications || [];
             if (!notifs.length) {
                 list.innerHTML = '<p style="text-align:center;font-size:12px;color:#9ca3af;padding:20px 16px;">No notifications yet.</p>';
                 return;
             }
-            const typeIcon = { job_assigned: '📋', job_declined: '⚠️', leave_approved: '✅', leave_rejected: '❌', leave_reviewed: '📝', general: 'ℹ️' };
+
             list.innerHTML = notifs.map(n => {
-                // Determine icon dynamically and clean title
-                let icon = typeIcon[n.type] || 'ℹ️';
-                let cleanTitle = n.title || '';
-                
-                if (n.type === 'general') {
-                    if (n.title.includes('Event Reminder')) {
-                        icon = '📅';
-                        cleanTitle = cleanTitle.replace('📅', '').trim();
-                    }
-                    if (n.title.includes('Pending Balance')) {
-                        icon = '💰';
-                        cleanTitle = cleanTitle.replace('💰', '').trim();
-                    }
+                const icon     = typeIconMap[n.type] || 'ℹ️';
+                const isRead   = n.is_read == 1;
+                const timeStr  = new Date(n.created_at.replace(' ', 'T'))
+                    .toLocaleDateString('en-PH', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+
+                // Deep-link: prefer server-supplied action_url; fall back to BASE_URL prefix
+                let destUrl = null;
+                if (n.action_url) {
+                    // Relative URLs get the base prepended; absolute URLs used as-is
+                    destUrl = n.action_url.startsWith('http')
+                        ? n.action_url
+                        : BASE_URL + n.action_url;
                 }
 
-                // Build destination URL for click-to-navigate
-                const BASE_URL_JS = '<?= BASE_URL ?>';
-                let destUrl = null;
-                if (n.link_url) {
-                    destUrl = n.link_url;
-                } else if (n.type === 'job_assigned' || n.type === 'job_declined') {
-                    destUrl = BASE_URL_JS + '/views/staff/dashboard.php';
-                } else if (n.type === 'leave_approved' || n.type === 'leave_rejected' || n.type === 'leave_reviewed') {
-                    destUrl = BASE_URL_JS + '/views/staff/dashboard.php';
-                } else if (n.type === 'general' && n.booking_id) {
-                    // Admin/Frontdesk: route to booking details
-                    const role = '<?= $_SESSION["role"] ?? "staff" ?>';
-                    destUrl = role === 'staff'
-                        ? BASE_URL_JS + '/views/staff/dashboard.php'
-                        : BASE_URL_JS + '/views/admin/bookings.php?highlight=' + n.booking_id;
-                }
-                const clickAttr = destUrl
-                    ? `onclick="markReadAndNavigate(${n.id}, '${destUrl}', this)"`
-                    : `onclick="markRead(${n.id}, this)"`;
+                const clickHandler = destUrl
+                    ? `markAsReadAndRedirect(${n.id}, '${destUrl.replace(/'/g, "\\'")}')`
+                    : `markSingleRead(${n.id}, this)`;
+
                 return `
-                <div ${clickAttr}
-                     style="padding:11px 14px;border-bottom:0.5px solid var(--glass-sep);cursor:pointer;transition:background .15s;background:${n.is_read ? 'transparent' : 'rgba(48,209,88,0.04)'};"
-                     onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='${n.is_read ? 'transparent' : 'rgba(48,209,88,0.04)'}'">
+                <div onclick="${clickHandler}"
+                     data-notif-id="${n.id}"
+                     style="
+                         padding:11px 14px;
+                         border-bottom:0.5px solid var(--glass-sep);
+                         cursor:pointer;
+                         transition:background .15s;
+                         background:${isRead ? 'transparent' : 'rgba(48,209,88,0.04)'};
+                     "
+                     onmouseover="this.style.background='var(--surface-2)'"
+                     onmouseout="this.style.background='${isRead ? 'transparent' : 'rgba(48,209,88,0.04)'}'">
                     <div style="display:flex;gap:8px;align-items:flex-start;">
                         <span style="font-size:15px;flex-shrink:0;">${icon}</span>
-                        <div style="min-width:0;">
-                            <div style="font-size:12px;font-weight:${n.is_read ? '500' : '700'};color:var(--label-1);margin-bottom:2px;">${esc(cleanTitle)}</div>
-                            ${n.body ? `<div style="font-size:11px;color:var(--label-3);white-space:normal;">${esc(n.body)}</div>` : ''}
-                            <div style="font-size:10px;color:var(--label-4);margin-top:3px;">${new Date(n.created_at).toLocaleDateString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+                        <div style="min-width:0;flex:1;">
+                            <div style="font-size:12px;font-weight:${isRead ? '500' : '700'};color:var(--label-1);margin-bottom:2px;">
+                                ${esc(n.message)}
+                            </div>
+                            <div style="font-size:10px;color:var(--label-4);margin-top:3px;">
+                                ${esc(timeStr)}
+                            </div>
                         </div>
-                        ${!n.is_read ? '<span style="width:7px;height:7px;border-radius:50%;background:#30D158;flex-shrink:0;margin-top:4px;"></span>' : ''}
+                        ${!isRead ? '<span style="width:7px;height:7px;border-radius:50%;background:#30D158;flex-shrink:0;margin-top:4px;"></span>' : ''}
                     </div>
                 </div>`;
             }).join('');
-        } catch(e) { list.innerHTML = '<p style="text-align:center;font-size:12px;color:#9ca3af;padding:16px;">Failed to load.</p>'; }
+        } catch (e) {
+            list.innerHTML = '<p style="text-align:center;font-size:12px;color:#9ca3af;padding:16px;">Failed to load notifications.</p>';
+        }
     }
 
-    window.toggleNotifPanel = function() {
-        panelOpen = !panelOpen;
-        panel.style.display = panelOpen ? 'block' : 'none';
-        if (panelOpen) fetchNotifs();
-    };
+    // ── markAsReadAndRedirect() — Phase 4 deep-link handler ───────────────
+    //
+    // 1. POSTs to /api/notifications/read.php with the notification ID.
+    // 2. Optimistically updates the badge counter immediately.
+    // 3. On POST success (or failure — we don't block navigation), redirects
+    //    the user to actionUrl via window.location.href.
+    window.markAsReadAndRedirect = async function (notificationId, actionUrl) {
+        const csrf = document.querySelector('meta[name="csrf-token"]')
+            ?.getAttribute('content') || '';
 
-    window.markRead = async function(id, el) {
-        el.style.background = 'transparent';
-        el.querySelector('span[style*="30D158"]')?.remove();
-        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-        try {
-            await fetch(BASE_URL + '/src/api/notifications.php', {
-                method: 'PUT', credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-                body: JSON.stringify({ id })
-            });
-            fetchCount();
-        } catch(e) {}
-    };
+        // Optimistic badge decrement
+        const current = parseInt(badge.textContent, 10) || 0;
+        if (current > 1) { badge.textContent = current - 1; }
+        else             { badge.style.display = 'none'; }
 
-    // Click notification → mark read THEN navigate to the relevant page
-    window.markReadAndNavigate = async function(id, url, el) {
-        el.style.background = 'transparent';
-        el.querySelector('span[style*="30D158"]')?.remove();
-        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-        try {
-            await fetch(BASE_URL + '/src/api/notifications.php', {
-                method: 'PUT', credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-                body: JSON.stringify({ id })
-            });
-            // Try to optimistically adjust the badge immediately so it looks fast
-            let currentUnread = parseInt(badge.textContent) || 0;
-            if (currentUnread > 1) { badge.textContent = currentUnread - 1; } 
-            else { badge.style.display = 'none'; }
-        } catch(e) {}
-        
-        // Close panel and navigate
+        // Close the dropdown immediately for snappy UX
         panelOpen = false;
         panel.style.display = 'none';
-        window.location.href = url;
+
+        // Fire-and-forget POST — navigation is not blocked by the result
+        fetch(BASE_URL + '/api/notifications/read.php', {
+            method      : 'POST',
+            credentials : 'same-origin',
+            headers     : {
+                'Content-Type' : 'application/json',
+                'X-CSRF-Token' : csrf,
+            },
+            body: JSON.stringify({ id: notificationId }),
+        }).catch(() => { /* silent — navigation already underway */ });
+
+        // Deep-link the user to the related content
+        window.location.href = actionUrl;
     };
 
-    window.markAllRead = async function() {
-        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    // ── markSingleRead() — for notifications without an action_url ─────────
+    window.markSingleRead = async function (notificationId, el) {
+        const csrf = document.querySelector('meta[name="csrf-token"]')
+            ?.getAttribute('content') || '';
+        // Visual feedback
+        if (el) {
+            el.style.background = 'transparent';
+            el.querySelector('span[style*="30D158"]')?.remove();
+        }
         try {
-            await fetch(BASE_URL + '/src/api/notifications.php', {
-                method: 'PUT', credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-                body: JSON.stringify({ mark_all: true })
+            await fetch(BASE_URL + '/api/notifications/read.php', {
+                method      : 'POST',
+                credentials : 'same-origin',
+                headers     : {
+                    'Content-Type' : 'application/json',
+                    'X-CSRF-Token' : csrf,
+                },
+                body: JSON.stringify({ id: notificationId }),
+            });
+            fetchCount();
+        } catch (e) { /* silent */ }
+    };
+
+    // ── markAllRead() ─────────────────────────────────────────────────────
+    window.markAllRead = async function () {
+        const csrf = document.querySelector('meta[name="csrf-token"]')
+            ?.getAttribute('content') || '';
+        try {
+            await fetch(BASE_URL + '/api/notifications/read.php', {
+                method      : 'POST',
+                credentials : 'same-origin',
+                headers     : {
+                    'Content-Type' : 'application/json',
+                    'X-CSRF-Token' : csrf,
+                },
+                body: JSON.stringify({ mark_all: true }),
             });
             badge.style.display = 'none';
-            fetchNotifs();
-        } catch(e) {}
+            fetchNotifications(); // Refresh the panel list
+        } catch (e) { /* silent */ }
+    };
+
+    // ── toggleNotifPanel() ────────────────────────────────────────────────
+    window.toggleNotifPanel = function () {
+        panelOpen = !panelOpen;
+        panel.style.display = panelOpen ? 'block' : 'none';
+        if (panelOpen) fetchNotifications();
     };
 
     // Close panel when clicking outside
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
         if (panelOpen && !document.getElementById('notifWrap').contains(e.target)) {
             panelOpen = false;
             panel.style.display = 'none';

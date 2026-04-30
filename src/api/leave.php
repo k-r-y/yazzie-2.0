@@ -12,6 +12,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/mailer.php';
+require_once __DIR__ . '/../../includes/notifications_helper.php';
 
 $currentUser = requireApiRole(['admin', 'frontdesk', 'staff']);
 requireCsrf();
@@ -190,14 +191,11 @@ if ($method === 'PUT') {
         ? "Your leave request for " . date('F j, Y', strtotime($leave['leave_date'])) . " has been approved."
         : "Your leave request for " . date('F j, Y', strtotime($leave['leave_date'])) . " was not approved.";
 
-    $pdo->prepare("
-        INSERT INTO notifications (user_id, type, title, body)
-        VALUES (:uid, :type, :title, :body)
-    ")->execute([
-        ':uid'   => $leave['staff_id'],
-        ':type'  => 'leave_' . $d['status'],
-        ':title' => $notifTitle,
-        ':body'  => $notifBody,
+    dispatchNotification($pdo, [
+        'recipient_id' => $leave['staff_id'],
+        'type'         => 'general',
+        'message'      => $notifBody,
+        'action_url'   => '/views/staff/dashboard.php',
     ]);
 
     // Email notification

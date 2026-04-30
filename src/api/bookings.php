@@ -11,6 +11,7 @@
 header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/notifications_helper.php';
 require_once __DIR__ . '/../../includes/audit.php';
 
 function readJsonBody(): array {
@@ -460,11 +461,6 @@ if ($method === 'POST') {
             WHERE booking_id = :bid AND staff_id = :sid AND status IN ('pending','accepted')
             LIMIT 1
         ");
-        $insNotif = $pdo->prepare("
-            INSERT INTO notifications (user_id, type, title, body, booking_id)
-            VALUES (:uid, 'job_assigned', 'New Job Assignment', :body, :bid)
-        ");
-
         $created = 0;
         $pdo->beginTransaction();
         try {
@@ -483,11 +479,14 @@ if ($method === 'POST') {
                 if ($dupCheck->fetch()) continue;
 
                 $insJob->execute([':bid' => $bookingId, ':sid' => $sid, ':role' => $role]);
-                $insNotif->execute([
-                    ':uid'  => $sid,
-                    ':bid'  => $bookingId,
-                    ':body' => 'You have been assigned to a booking as a ' . $role . '. Please check your schedule.',
+                
+                dispatchNotification($pdo, [
+                    'recipient_id' => $sid,
+                    'type'         => 'dispatch',
+                    'message'      => 'You have been assigned to a booking as a ' . $role . '. Please check your schedule.',
+                    'action_url'   => '/views/staff/dashboard.php',
                 ]);
+
                 $created++;
             }
             $pdo->commit();
@@ -1065,13 +1064,11 @@ if ($method === 'PUT') {
         $assignedStaff = $assignedStmt->fetchAll();
         foreach ($assignedStaff as $staff) {
             try {
-                $notif = $pdo->prepare("
-                    INSERT INTO notifications (user_id, type, title, body)
-                    VALUES (:uid, 'general', 'Booking Rescheduled', :body)
-                ");
-                $notif->execute([
-                    ':uid'  => $staff['staff_id'],
-                    ':body' => 'A booking you are assigned to has been rescheduled to ' . date('F j, Y', strtotime($newDate)) . '. Please check your assignments.',
+                dispatchNotification($pdo, [
+                    'recipient_id' => $staff['staff_id'],
+                    'type'         => 'general',
+                    'message'      => 'A booking you are assigned to has been rescheduled to ' . date('F j, Y', strtotime($newDate)) . '. Please check your assignments.',
+                    'action_url'   => '/views/staff/dashboard.php',
                 ]);
             } catch (\Exception $e) {
                 // Ignore enum restriction error if user hasn't run the migration yet, fallback works
