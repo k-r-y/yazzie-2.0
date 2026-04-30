@@ -86,6 +86,7 @@ function generateInvoicePDF($bookingId, $generatedBy = null) {
     $ratePerPax = $b['base_pax'] > 0 ? ($b['base_price'] / $b['base_pax']) : 0;
     $balance = (float)$b['total_cost'] - (float)$b['amount_paid'];
     $terms = appSetting('terms_and_conditions', "Full payment is required on or before the event date.\nThis document serves as an official statement of account.");
+    $privacy = appSetting('data_privacy_notice', "We value your privacy. Your data is handled securely.");
 
     // 5. Generate HTML
     ob_start();
@@ -324,7 +325,9 @@ function generateInvoicePDF($bookingId, $generatedBy = null) {
             <div class="terms">
                 <div class="section-label">Terms & Conditions</div>
                 <div class="terms-text"><?= nl2br(htmlspecialchars($terms)) ?></div>
-                <div class="section-label" style="margin-top: 10pt;">Payment Instructions</div>
+                <div class="section-label" style="margin-top: 8pt;">Data Privacy Notice</div>
+                <div class="terms-text"><?= nl2br(htmlspecialchars($privacy)) ?></div>
+                <div class="section-label" style="margin-top: 8pt;">Payment Instructions</div>
                 <div class="terms-text"><?= nl2br(htmlspecialchars(appSetting('payment_instructions', ''))) ?></div>
             </div>
             <div class="signature">

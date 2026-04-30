@@ -66,6 +66,7 @@ async function loadSettings() {
         'business_name': 'The official name of your catering business as it appears on invoices.',
         'business_address': 'The physical or mailing address printed on client documents.',
         'terms_and_conditions': 'The fine print and legal terms shown at the bottom of invoices and contracts.',
+        'data_privacy_notice': 'The privacy policy and data handling notice shown to clients during transactions.',
         'payment_instructions': 'Detailed instructions for clients on how to settle their payments (e.g., GCash, Bank details).'
     };
 
@@ -110,7 +111,7 @@ async function loadSettings() {
                             <option value="ssl" ${s.value === 'ssl' ? 'selected' : ''}>SSL</option>
                             <option value="none" ${s.value === 'none' ? 'selected' : ''}>None</option>
                         </select>`;
-                } else if (['terms_and_conditions', 'payment_instructions', 'business_address'].includes(s.key)) {
+                } else if (['terms_and_conditions', 'data_privacy_notice', 'payment_instructions', 'business_address'].includes(s.key)) {
                     inputHtml = `
                         <textarea class="form-control form-control-sm" style="max-width:400px; min-height:100px;" 
                                   id="set_${s.key}" title="Update ${s.key.replace(/_/g, ' ')}">${s.value}</textarea>`;

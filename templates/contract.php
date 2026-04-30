@@ -158,31 +158,54 @@ $balance = $b['total_cost'] - $b['amount_paid'];
         </div>
     </div>
 
-    <div>
-        <h4 class="print-section-title" style="padding: 0; margin: 0;">Terms and Conditions</h4>
-        <div class="clause" style="white-space: pre-line; font-size: 13px;">
-        <?= htmlspecialchars(appSetting('terms_and_conditions', "1. Booking Confirmation. This contract is binding upon signature of both parties.\n2. Downpayment Policy. A minimum downpayment is required.\n3. Final Payment. Remaining balance must be settled on or before the event date.")) ?>
-    </div>
-    </div>
-    
     <?php if ($b['notes']): ?>
-    <div class="clause"><strong>Special Instructions:</strong> <?= htmlspecialchars($b['notes']) ?></div>
+    <div style="margin: 20pt 0; padding: 12pt; background: #fafafa; border-radius: 8pt; border: 1px solid #eee;">
+        <div class="print-signature-label" style="margin-bottom: 4pt; color: #C8501E; font-weight: 800;">Special Instructions</div>
+        <div style="font-size: 13px; color: #171717; font-weight: 500;">
+            <?= htmlspecialchars($b['notes']) ?>
+        </div>
+    </div>
     <?php endif; ?>
 
-    <div class="print-signatures" style="margin-top:32pt;">
-        <div>
-            <div class="print-signature-line"></div>
-            <div class="print-signature-label">Client Signature over Printed Name</div>
-            <div class="print-signature-name"><?= htmlspecialchars($b['client_name']) ?></div>
+    <div style="width: 100%; margin: 24pt 0; padding: 20pt; background: #fafafa; border-radius: 12pt; border: 1px solid #eee; box-sizing: border-box;">
+        <div style="width: 100%;">
+            <h4 class="print-section-title" style="margin-top: 0; padding-top: 0; color: #166534; border-color: #166534;">Terms and Conditions</h4>
+            <div class="clause" style="white-space: pre-line; font-size: 11px; line-height: 1.5; color: #171717;">
+                <?= htmlspecialchars(appSetting('terms_and_conditions', "1. Booking Confirmation. This contract is binding upon signature of both parties.\n2. Downpayment Policy. A minimum downpayment is required.\n3. Final Payment. Remaining balance must be settled on or before the event date.")) ?>
+            </div>
         </div>
-        <div>
-            <div class="print-signature-line"></div>
+
+        
+    </div>
+    <div style="width: 100%; margin: 24pt 0; padding: 20pt; background: #fafafa; border-radius: 12pt; border: 1px solid #eee; box-sizing: border-box;">
+        <div style="width: 100%;">
+            <h4 class="print-section-title" style="margin-top: 0; padding-top: 0; color: #166534; border-color: #166534;">Data Privacy Notice</h4>
+            <div class="clause" style="white-space: pre-line; font-size: 11px; line-height: 1.5; color: #171717;">
+                <?= htmlspecialchars(appSetting('data_privacy_notice', "We value your privacy. Your personal data is collected solely for the purpose of managing your booking and will not be shared with third parties without your consent.")) ?>
+            </div>
+        </div>
+
+        
+    </div>
+
+    <div class="print-signatures" style="margin-top: 60pt; width: 100%;">
+        <div style="width: 200%;">
+            <div class="print-signature-line" style="border-top: 1.5px solid #171717;"></div>
+            <div class="print-signature-label">Client Signature over Printed Name</div>
+            <div class="print-signature-name" style="font-size: 11px;"><?= htmlspecialchars($b['client_name']) ?></div>
+        </div>
+       
+    </div>
+    <div class="print-signatures" style="margin-top: 60pt; width: 100%;">
+        
+        <div style="width: 200%;">
+            <div class="print-signature-line" style="border-top: 1.5px solid #171717;"></div>
             <div class="print-signature-label">Authorized Representative — <?= htmlspecialchars(appSetting('business_name', 'Yazzies Catering')) ?></div>
-            <div class="print-signature-name">&nbsp;</div>
+            <div class="print-signature-name" style="font-size: 11px;">&nbsp;</div>
         </div>
     </div>
 
-    <div class="print-footer">
+    <div class="print-footer" style="width: 200%; border-top: 2px solid #166534; margin-top: 50pt; padding-top: 15pt; color: #166534; font-weight: 700; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;">
         <?= htmlspecialchars(appSetting('business_name', 'Yazzies Catering')) ?> &bull; Contract No. YZC-<?= str_pad($bookingId, 5, '0', STR_PAD_LEFT) ?> &bull; <?= date('F j, Y') ?>
     </div>
 </div>

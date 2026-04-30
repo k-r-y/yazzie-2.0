@@ -88,6 +88,7 @@ $balance = (float)$b['total_cost'] - (float)$b['amount_paid'];
 $eventDate = date('F j, Y', strtotime($b['event_date']));
 $terms = appSetting('terms_and_conditions', "Full payment is required on or before the event date.");
 $paymentInstructions = appSetting('payment_instructions', "GCash: 09XX-XXX-XXXX");
+$privacyNotice = appSetting('data_privacy_notice', "We value your privacy. Your data is handled securely.");
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -423,7 +424,11 @@ $paymentInstructions = appSetting('payment_instructions', "GCash: 09XX-XXX-XXXX"
         <div class="terms">
             <div class="section-label">Terms & Conditions</div>
             <p><?= nl2br(htmlspecialchars($terms)) ?></p>
-            <div class="section-label" style="margin-top: 20px;">Payment Instructions</div>
+            
+            <div class="section-label" style="margin-top: 15px;">Data Privacy Notice</div>
+            <p><?= nl2br(htmlspecialchars($privacyNotice)) ?></p>
+
+            <div class="section-label" style="margin-top: 15px;">Payment Instructions</div>
             <p><?= nl2br(htmlspecialchars($paymentInstructions)) ?></p>
         </div>
             <div class="signature">

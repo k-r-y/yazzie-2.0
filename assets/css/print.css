@@ -189,8 +189,7 @@
 
 /* Signatures */
 .print-signatures {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+  
     gap: 40pt;
     margin-top: 40pt;
 }
@@ -198,6 +197,7 @@
 .print-signature-line {
     border-top: 1.5px solid #171717;
     margin-bottom: 5pt;
+    width: 60%;
 }
 
 .print-signature-label {

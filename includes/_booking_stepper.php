@@ -10,6 +10,8 @@
  * Open it: Modal.open('bookingStepperModal') or openBookingStepper()
  */
 $stepperRole = $bookingStepperRole ?? 'admin';
+$dynamicTerms = appSetting('terms_and_conditions', "Full payment is required on or before the event date.");
+$dynamicPrivacy = appSetting('data_privacy_notice', "We value your privacy. Your personal data is handled securely.");
 ?>
 
 <!-- ╔══════════════════════════════════════════════════════════════╗
@@ -471,7 +473,11 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                                     <button type="button" onclick="Modal.open('termsModal')" style="background:none; border:none; padding:0; color:#C0392B; font-size:11.5px; font-weight:600; cursor:pointer; text-decoration:underline;">View Terms</button>
                                 </div>
                                 <p style="font-size:11.5px; color:rgba(60,60,67,0.65); line-height:1.7; margin-bottom:10px;">
-                                    The client acknowledges full liability for any missing, damaged, or unreturned equipment and supplies provided by Yazzies Catering. A minimum downpayment of <strong><?= round(MIN_DP_PERCENT * 100) ?>%</strong> is required to confirm the booking. The remaining balance must be settled on or before the event date.
+                                    <?= nl2br(htmlspecialchars($dynamicTerms)) ?>
+                                </p>
+                                <div style="font-size:10px; font-weight:700; color:rgba(60,60,67,0.3); text-transform:uppercase; margin-bottom:4px;">Data Privacy Notice</div>
+                                <p style="font-size:11.5px; color:rgba(60,60,67,0.65); line-height:1.7; margin-bottom:10px;">
+                                    <?= nl2br(htmlspecialchars($dynamicPrivacy)) ?>
                                 </p>
                                 <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
                                     <input type="checkbox" id="s4_terms" onchange="onTermsChange()"
@@ -700,11 +706,11 @@ $stepperRole = $bookingStepperRole ?? 'admin';
                 <button type="button" class="btn-close" onclick="Modal.close('termsModal')" style="position:absolute; right:20px; top:20px;"></button>
             </div>
             <div class="modal-body" style="padding:24px; max-height:60vh; overflow-y:auto; font-size:13px; color:var(--label-2); line-height:1.7;">
-                <p style="margin-bottom:15px;"><strong>1. Reservation & Downpayment</strong><br>A non-refundable <?= round(MIN_DP_PERCENT * 100) ?>% downpayment is required to officially lock in the date. The remaining balance must be settled on or before the event date.</p>
-                <p style="margin-bottom:15px;"><strong>2. Cancellations</strong><br>Any cancellations made less than 7 days prior to the event will forfeit the entire downpayment to cover material preparations.</p>
-                <p style="margin-bottom:15px;"><strong>3. Time Exceedance</strong><br>Standard staffing and catering services run for a maximum of 4 hours. Extensions are subject to an hourly charge.</p>
-                <p style="margin-bottom:15px;"><strong>4. Venue Regulations</strong><br>The client is responsible for acquiring all necessary permits and clearances required by the event venue.</p>
-                <p style="margin-bottom:15px;"><strong>5. Food Safety</strong><br>Remaining food will be packed safely; however, we will not be held liable for any foodborne illnesses resulting from mishandling or delayed consumption after handover.</p>
+                <div style="font-weight:800; color:var(--label); margin-bottom:8px; text-transform:uppercase; font-size:11px;">Legal Terms & Conditions</div>
+                <div style="margin-bottom:20px; white-space: pre-line;"><?= htmlspecialchars($dynamicTerms) ?></div>
+                
+                <div style="font-weight:800; color:var(--label); margin-bottom:8px; text-transform:uppercase; font-size:11px;">Data Privacy Notice</div>
+                <div style="white-space: pre-line;"><?= htmlspecialchars($dynamicPrivacy) ?></div>
             </div>
             <div class="modal-footer" style="padding:16px;">
                 <button class="btn btn-primary btn-full" onclick="Modal.close('termsModal')">I Understand</button>
