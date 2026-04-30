@@ -686,9 +686,9 @@ async function loadRefunds() {
                                 <i class="fas fa-lock"></i>
                             </button>
                         `}
-                        ${r.refund_status !== 'reversed' ? `
-                            <button class="btn btn-warning btn-sm py-3 ms-1" onclick="uncancelBooking(${r.id})" title="Un-Cancel Booking">
-                                <i class="fas fa-undo"></i>
+                        ${r.refund_status !== 'processed' ? `
+                            <button class="btn btn-outline-danger btn-sm py-3 ms-1" onclick="waiveRefund(${r.id})" title="Waive Refund">
+                                <i class="fas fa-times"></i>
                             </button>
                         ` : ''}
                     </td>
@@ -700,22 +700,27 @@ async function loadRefunds() {
     }
 }
 
-async function uncancelBooking(id) {
-    if (!await confirmDialog('Are you sure you want to un-cancel this booking? It will be restored to confirmed status.')) return;
+async function waiveRefund(id) {
+    if (!await confirmDialog('Are you sure you want to waive this refund? No money will be returned to the client.')) return;
     try {
-        await Api.put(BASE + 'src/api/cancellations.php', { id: id, action: 'uncancel' });
-        Toast.success('Booking restored.');
+        await Api.put(BASE + 'src/api/cancellations.php', { id: id, refund_status: 'waived' });
+        Toast.success('Refund waived.');
         loadRefunds();
-        loadKPIs();
-        loadLedger();
-        refreshBookingSelector();
     } catch(e) { Toast.error(e.message); }
 }
 
 async function processRefund(id, amount) {
     let html = `
         <div style="text-align:left;">
-            <p>You are about to mark a refund of <b>${Format.peso(amount)}</b> as processed. Keep a manual record of this transaction (GCash, Bank, etc.).</p>
+            <p>You are about to mark a refund as processed. Please confirm the amount and method.</p>
+            <div class="form-group mb-3">
+                <label class="form-label">Refund Amount (₱) <span class="required">*</span></label>
+                <div class="input-group">
+                    <span class="input-prefix">₱</span>
+                    <input type="text" class="form-control" id="rf_amount" value="${amount.toFixed(2)}" placeholder="0.00" data-restrict="price">
+                </div>
+                <small class="text-muted">Must match exactly ₱${amount.toLocaleString()}</small>
+            </div>
             <div class="form-group mb-3">
                 <label class="form-label">Refund Method</label>
                 <select class="form-control" id="rf_method">
@@ -740,6 +745,12 @@ async function processRefund(id, amount) {
     });
 
     if (!result) return;
+    
+    const enteredAmt = parseFloat(result.rf_amount) || 0;
+    if (Math.abs(enteredAmt - amount) > 0.01) {
+        Toast.error(`Refund amount must be exactly ${Format.peso(amount)}.`);
+        return;
+    }
 
     try {
         const method = result.rf_method;

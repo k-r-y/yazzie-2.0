@@ -235,6 +235,7 @@ const Format = {
             confirmed: ['badge-confirmed', 'Confirmed'],
             completed: ['badge-completed', 'Completed'],
             cancelled: ['badge-cancelled', 'Cancelled'],
+            pending_cancellation: ['badge-warning', 'Pending Cancellation'],
         };
         const [cls, label] = map[status] || ['badge-pending', status];
         return `<span class="badge ${cls}">${label}</span>`;

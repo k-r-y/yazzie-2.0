@@ -15,13 +15,25 @@ include __DIR__ . '/../../includes/sidebar.php';
     <!-- LEFT: System Settings -->
     <div class="col-lg-7">
         <div class="card h-100">
-            <div class="card-header">
+            <div class="card-header border-bottom-0 pb-0">
                 <div class="card-title"><i class="fas fa-sliders me-2"></i>Global Configuration</div>
                 <div class="card-subtitle">Manage business rules and operational constraints</div>
             </div>
-            <div class="card-body">
-                <div id="settingsContainer">
-                    <div class="spinner my-4"></div>
+            <div class="card-body p-0">
+                <div class="d-flex flex-column flex-md-row">
+                    <!-- Navigation Sidebar -->
+                    <div class="settings-nav border-end" style="min-width: 200px; background: rgba(0,0,0,0.01);">
+                        <div class="nav flex-column nav-pills p-3" id="settingsTabs" role="tablist">
+                            <!-- Tabs will be injected here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Content Area -->
+                    <div class="flex-grow-1 p-4" style="max-height: 70vh; overflow-y: auto;">
+                        <div class="tab-content" id="settingsTabContent">
+                            <!-- Content will be injected here -->
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="card-footer" style="background:rgba(0,0,0,0.02);">
@@ -80,11 +92,34 @@ include __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <style>
+.settings-nav .nav-link {
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 10px 14px;
+    color: var(--label-2);
+    border-radius: 8px;
+    margin-bottom: 4px;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+.settings-nav .nav-link:hover {
+    background: rgba(0,0,0,0.03);
+    color: var(--sys-green);
+}
+.settings-nav .nav-link.active {
+    background: var(--sys-green);
+    color: white;
+}
+.settings-nav .nav-link.active .text-muted {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
 .setting-item {
     padding: 16px 0;
     border-bottom: 0.5px solid var(--glass-sep);
 }
 .setting-item:last-child { border-bottom: none; }
+.setting-item:first-child { padding-top: 0; }
 .setting-label { font-size: 13px; font-weight: 700; color: var(--label-1); margin-bottom: 2px; }
 .setting-desc { font-size: 11px; color: var(--label-3); margin-bottom: 12px; }
 .log-item {
@@ -95,7 +130,7 @@ include __DIR__ . '/../../includes/sidebar.php';
 .log-item:hover { background: rgba(0,0,0,0.02); }
 .log-meta { display: flex; justify-content: space-between; font-size: 10px; color: var(--label-4); margin-bottom: 4px; }
 .log-text { font-size: 12px; line-height: 1.4; color: var(--label-2); }
-.log-user { color: var(--sys-blue); font-weight: 600; }
+.log-user { color: var(--sys-green); font-weight: 600; }
 </style>
 
 <script>
@@ -108,140 +143,137 @@ async function runBackup(e) {
 async function loadSettings() {
     try {
         const d = await Api.get(BASE + 'src/api/settings.php');
-        const container = document.getElementById('settingsContainer');
-        const groups = {};
-
-        // Define setting metadata for better labels and help text
-        const settingMetadata = {
-            'audit_log_retention_days': {
-                label: 'Audit Log Retention Days',
-                help: 'Number of days to retain audit logs (30-3650). Logs older than this will be automatically deleted. Minimum 30 days recommended for compliance.',
-                min: 30, max: 3650, type: 'int'
-            },
-            'debug_mode': {
-                label: 'Debug Mode',
-                help: 'WARNING: Enable (1) only for troubleshooting. Disables all logins and logs out all users. Must be 0 or 1 only.',
-                type: 'select',
-                options: [{value: '0', label: '0 - Disabled (Normal Operation)'}, {value: '1', label: '1 - Enabled (All Logins Disabled)'}]
-            },
-            'max_login_attempts': {
-                label: 'Max Login Attempts',
-                help: 'Maximum failed login attempts before account lockout (1-100). Default is 5.',
-                min: 1, max: 100, type: 'int'
-            },
-            'max_admins': {
-                label: 'Max Admin Accounts',
-                help: 'Maximum number of Administrator accounts allowed (1-100). Cannot be lowered below current active admins.',
-                min: 1, max: 100, type: 'int'
-            },
-            'session_timeout_minutes': {
-                label: 'Session Timeout Minutes',
-                help: 'Session timeout duration in minutes (5-1440 / 24 hours). Users will be logged out after this time.',
-                min: 5, max: 1440, type: 'int'
-            },
-            'smtp_host': {
-                label: 'SMTP Host',
-                help: 'SMTP server hostname or IP address (e.g., smtp.gmail.com, mail.example.com).',
-                type: 'text'
-            },
-            'smtp_user': {
-                label: 'SMTP User (Email)',
-                help: 'Email address for SMTP authentication. Required for system email notifications.',
-                type: 'email'
-            },
-            'smtp_pass': {
-                label: 'SMTP Password',
-                help: 'Password or App Password for SMTP authentication. Keep this secure.',
-                type: 'password'
-            },
-            'smtp_port': {
-                label: 'SMTP Port',
-                help: 'SMTP server port (1-65535). Common: 587 (TLS), 465 (SSL), 25 (unencrypted).',
-                min: 1, max: 65535, type: 'int'
-            },
-            'smtp_secure': {
-                label: 'SMTP Security',
-                help: 'Encryption protocol for SMTP. Use TLS for port 587 and SSL for port 465.',
-                type: 'select',
-                options: [
-                    {value: 'tls', label: 'TLS (Recommended)'},
-                    {value: 'ssl', label: 'SSL'},
-                    {value: 'none', label: 'None (Insecure)'}
-                ]
-            },
-            'smtp_from': {
-                label: 'Mail From Address',
-                help: 'The email address that will appear in the "From" field of outgoing emails.',
-                type: 'email'
-            },
-            'smtp_from_name': {
-                label: 'Mail From Name',
-                help: 'The display name that will appear in the "From" field.',
-                type: 'text'
-            },
-            'mail_enabled': {
-                label: 'Email System Status',
-                help: 'Globally enable or disable all outgoing email notifications.',
-                type: 'select',
-                options: [{value: '1', label: '1 - Enabled'}, {value: '0', label: '0 - Disabled'}]
-            },
-            'sms_api_key': {
-                label: 'SMS API Key (Semaphore)',
-                help: 'API key for SMS gateway integration (optional). Required only if SMS notifications are enabled.',
-                type: 'password'
-            }
+        const tabsContainer = document.getElementById('settingsTabs');
+        const contentContainer = document.getElementById('settingsTabContent');
+        
+        const categoryMapping = {
+            'debug_mode': 'SECURITY',
+            'max_admins': 'SECURITY',
+            'max_login_attempts': 'SECURITY',
+            'session_timeout_minutes': 'SECURITY',
+            'mail_enabled': 'EMAIL',
+            'smtp_from': 'EMAIL',
+            'smtp_from_name': 'EMAIL',
+            'smtp_host': 'EMAIL',
+            'smtp_pass': 'EMAIL',
+            'smtp_port': 'EMAIL',
+            'smtp_secure': 'EMAIL',
+            'smtp_user': 'EMAIL',
+            'audit_log_retention_days': 'SYSTEM'
         };
 
+        const settingMetadata = {
+            'audit_log_retention_days': { label: 'Audit Log Retention Days', help: 'Number of days to retain audit logs (30-3650).', type: 'number', min: 30, max: 3650 },
+            'debug_mode': { 
+                label: 'Debug Mode', 
+                help: 'WARNING: Enable only for troubleshooting. Disables all logins.', 
+                type: 'select', 
+                options: [{value: '0', label: 'Disabled'}, {value: '1', label: 'Enabled'}] 
+            },
+            'mail_enabled': { 
+                label: 'Email System Status', 
+                help: 'Globally enable or disable all outgoing emails.', 
+                type: 'select', 
+                options: [{value: '1', label: 'Enabled'}, {value: '0', label: 'Disabled'}] 
+            },
+            'max_admins': { label: 'Max Admin Accounts', help: 'Maximum number of Administrator accounts allowed.', type: 'number', min: 1, max: 100 },
+            'max_login_attempts': { label: 'Max Login Attempts', help: 'Maximum failed login attempts before lockout.', type: 'number', min: 1, max: 100 },
+            'session_timeout_minutes': { label: 'Session Timeout Minutes', help: 'Users will be logged out after this time (5-1440).', type: 'number', min: 5, max: 1440 },
+            'smtp_from': { label: 'Mail From Address', help: 'Email address that appears in the "From" field.', type: 'email' },
+            'smtp_from_name': { label: 'Mail From Name', help: 'Display name that appears in the "From" field.', type: 'text' },
+            'smtp_host': { label: 'SMTP Host', help: 'SMTP server hostname or IP address.', type: 'text' },
+            'smtp_pass': { label: 'SMTP Password', help: 'Password or App Password for SMTP.', type: 'password' },
+            'smtp_port': { label: 'SMTP Port', help: 'SMTP server port (e.g., 587, 465).', type: 'number', min: 1, max: 65535 },
+            'smtp_secure': { 
+                label: 'SMTP Security', 
+                help: 'Encryption protocol (TLS or SSL).', 
+                type: 'select', 
+                options: [{value: 'tls', label: 'TLS'}, {value: 'ssl', label: 'SSL'}, {value: 'none', label: 'None'}] 
+            },
+            'smtp_user': { label: 'SMTP User (Email)', help: 'Email address for SMTP authentication.', type: 'email' }
+        };
+
+        const groups = {};
         d.settings.forEach(s => {
-            if (s.category !== 'system') return;
-            if (!groups[s.category]) groups[s.category] = [];
-            groups[s.category].push(s);
+            const cat = categoryMapping[s.key];
+            if (!cat) return;
+            if (!groups[cat]) groups[cat] = [];
+            groups[cat].push(s);
         });
 
-        let html = '';
-        for (const cat in groups) {
-            html += `<h6 class="text-uppercase text-xs fw-800 text-muted mt-4 mb-2" style="letter-spacing:0.5px;">System Configuration</h6>`;
+        const categoryInfo = {
+            'SECURITY': { icon: 'shield-alt', label: 'Security', desc: 'Login & session controls' },
+            'EMAIL': { icon: 'envelope', label: 'Email', desc: 'SMTP & notifications' },
+            'SYSTEM': { icon: 'cogs', label: 'System', desc: 'Audit logs & core rules' }
+        };
+
+        const orderedCategories = ['SECURITY', 'EMAIL', 'SYSTEM'];
+        let tabsHtml = '';
+        let contentHtml = '';
+
+        orderedCategories.forEach((cat, index) => {
+            if (!groups[cat]) return;
+            const info = categoryInfo[cat];
+            const tabId = `tab-${cat.toLowerCase()}`;
+            const isActive = index === 0;
+
+            tabsHtml += `
+                <button class="nav-link ${isActive ? 'active' : ''}" id="${tabId}-tab" data-bs-toggle="pill" 
+                        data-bs-target="#${tabId}" type="button" role="tab" style="padding: 10px 14px;">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon me-3" style="width:32px; height:32px; font-size:12px; background:rgba(0,0,0,0.05);">
+                            <i class="fas fa-${info.icon}"></i>
+                        </div>
+                        <div>
+                            <div class="fw-700" style="font-size: 11px; line-height: 1.2;">${info.label}</div>
+                            <div class="text-xs text-muted fw-400 d-none d-xl-block" style="font-size: 9px; opacity: 0.7;">${info.desc}</div>
+                        </div>
+                    </div>
+                </button>`;
+
+            let settingsHtml = '';
             groups[cat].forEach(s => {
                 const meta = settingMetadata[s.key] || {};
                 let inputHtml = '';
                 
                 if (meta.type === 'select') {
                     inputHtml = `
-                        <select class="form-control form-control-sm" style="max-width:200px;" id="set_${s.key}">
-                            ${(meta.options || []).map(opt => 
-                                `<option value="${opt.value}" ${s.value == opt.value ? 'selected' : ''}>${opt.label}</option>`
-                            ).join('')}
-                        </select>
-                    `;
-                } else if (meta.type === 'password' || s.key === 'smtp_pass' || s.key === 'sms_api_key') {
-                    inputHtml = `<input class="form-control form-control-sm" style="max-width:200px;" type="password" id="set_${s.key}" value="${s.value}">`;
-                } else if (meta.type === 'email') {
-                    inputHtml = `<input class="form-control form-control-sm" style="max-width:200px;" type="email" id="set_${s.key}" value="${s.value}" required>`;
-                } else if (meta.type === 'int' || s.type === 'int') {
-                    const extras = `min="${meta.min || 1}" max="${meta.max || 9999}"`;
-                    inputHtml = `<input class="form-control form-control-sm" style="max-width:200px;" type="number" id="set_${s.key}" value="${s.value}" ${extras} required>`;
+                        <select class="form-select form-select-sm" style="max-width:200px;" id="set_${s.key}">
+                            ${(meta.options || []).map(opt => `<option value="${opt.value}" ${s.value == opt.value ? 'selected' : ''}>${opt.label}</option>`).join('')}
+                        </select>`;
                 } else {
-                    inputHtml = `<input class="form-control form-control-sm" style="max-width:200px;" type="text" id="set_${s.key}" value="${s.value}" maxlength="2000">`;
+                    const type = meta.type || 'text';
+                    const extras = meta.type === 'number' ? `min="${meta.min}" max="${meta.max}"` : '';
+                    inputHtml = `<input class="form-control form-control-sm" style="max-width:250px;" type="${type}" id="set_${s.key}" value="${s.value}" ${extras}>`;
                 }
                 
-                const label = meta.label || s.key.replace(/_/g, ' ').toUpperCase();
-                const help = meta.help || s.description || '';
-                
-                html += `
+                settingsHtml += `
                     <div class="setting-item">
-                        <div class="setting-label">${label}</div>
-                        <div class="setting-desc">${help}</div>
-                        <div class="d-flex gap-2">
-                            ${inputHtml}
+                        <div class="setting-label">${meta.label || s.key}</div>
+                        <div class="setting-desc">${meta.help || ''}</div>
+                        <div class="d-flex gap-2 align-items-center">
+                            <div style="flex: 1; max-width: 300px;">${inputHtml}</div>
                             <button class="btn btn-primary btn-sm px-3" onclick="updateSetting('${s.key}')">
-                                <i class="fas fa-save"></i> Save
+                                <i class="fas fa-save me-1"></i> Save
                             </button>
                         </div>
-                    </div>
-                `;
+                    </div>`;
             });
-        }
-        container.innerHTML = html;
+
+            contentHtml += `
+                <div class="tab-pane fade ${isActive ? 'show active' : ''}" id="${tabId}" role="tabpanel">
+                    <div class="mb-4">
+                        <h5 class="fw-800 text-uppercase text-xs mb-1" style="letter-spacing: 1px; color: var(--sys-green);">
+                             <i class="fas fa-${info.icon} me-2"></i> ${info.label}
+                        </h5>
+                        <div class="text-xs text-muted fw-500">${info.desc}</div>
+                    </div>
+                    ${settingsHtml}
+                </div>`;
+        });
+
+        tabsContainer.innerHTML = tabsHtml;
+        contentContainer.innerHTML = contentHtml;
     } catch (e) { Toast.error(e.message); }
 }
 

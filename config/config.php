@@ -140,6 +140,16 @@ define('BUSINESS_NAME',        appSetting('business_name', 'Yazzies Catering Ser
 define('BUSINESS_ADDRESS',     appSetting('business_address', 'Poblacion, Alabel, Sarangani Province'));
 define('BUSINESS_PHONE',       appSetting('business_phone', '09XX-XXX-XXXX'));
 define('BUSINESS_EMAIL',       appSetting('business_email', 'info@yazzies.com'));
+
+// Payment Account Details
+define('GCASH_NAME',           appSetting('gcash_name', 'Yazzies Catering'));
+define('GCASH_NO',             appSetting('gcash_no', '09XX-XXX-XXXX'));
+define('MAYA_NAME',            appSetting('maya_name', 'Yazzies Catering'));
+define('MAYA_NO',              appSetting('maya_no', '09XX-XXX-XXXX'));
+define('BANK_NAME',            appSetting('bank_name', 'BPI'));
+define('BANK_ACC_NAME',        appSetting('bank_account_name', 'Yazzies Catering Services'));
+define('BANK_ACC_NO',          appSetting('bank_account_no', 'XXXX-XXXX-XX'));
+
 define('APP_NAME',             BUSINESS_NAME);
 define('MIN_LEAD_TIME_DAYS',   appSettingInt('min_lead_time_days', 1));
 define('MIN_PAX',              appSettingInt('min_pax', 50));

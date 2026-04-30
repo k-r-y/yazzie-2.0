@@ -651,15 +651,15 @@ async function openEdit(id) {
             b.booking_status === 'completed' ? 'flex' : 'none';
         
         document.getElementById('cancelReqBtn').style.display =
-            (b.booking_status !== 'completed' && b.booking_status !== 'cancelled') ? 'flex' : 'none';
-        
+            (b.booking_status === 'confirmed') ? 'flex' : 'none';
+
         document.getElementById('breakageLogBtn').style.display =
-            (b.booking_status !== 'cancelled') ? 'flex' : 'none';
+            (b.booking_status !== 'cancelled' && b.booking_status !== 'pending_cancellation') ? 'flex' : 'none';
 
         // Reminder button logic
         const hasBalance = (parseFloat(b.total_cost) - parseFloat(b.amount_paid)) > 0.01;
         const reminderBtn = document.getElementById('reminderBtn');
-        reminderBtn.style.display = (hasBalance && b.booking_status !== 'cancelled') ? 'flex' : 'none';
+        reminderBtn.style.display = (hasBalance && b.booking_status !== 'cancelled' && b.booking_status !== 'pending_cancellation') ? 'flex' : 'none';
         
         if (hasBalance) {
             const evDate = new Date(b.event_date);
@@ -725,9 +725,9 @@ async function requestCancellation() {
     const totalCost = parseFloat(b.total_cost) || 0;
     const isConfirmed = (b.booking_status === 'confirmed');
     
-    // Preview the logic
-    const forfeit = isConfirmed ? (totalCost * <?= CANCEL_FORFEIT_PCT ?>) : 0;
-    const refund  = Math.max(0, totalPaid - forfeit);
+    // Preview the logic (50% of Paid Amount)
+    const forfeit = Math.round(totalPaid * 0.5 * 100) / 100;
+    const refund  = totalPaid - forfeit;
     
     let html = `
         <div style="text-align:left;">
@@ -738,7 +738,7 @@ async function requestCancellation() {
                     <span style="font-weight:700; color:#1A7A32;">${Format.peso(totalPaid)}</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                    <span>Forfeiture Fee (<?= round(CANCEL_FORFEIT_PCT * 100) ?>%):</span>
+                    <span>Forfeiture Fee (50% of Paid):</span>
                     <span style="font-weight:700; color:#C0392B;">${Format.peso(forfeit)}</span>
                 </div>
                 <hr style="margin:10px 0;">
@@ -769,11 +769,13 @@ async function requestCancellation() {
             booking_id: id, 
             reason: reason 
         });
-        Toast.success('Booking cancelled and refund record created.');
+        Toast.success('Cancellation requested. Please go to Financials > Refunds to process the payout.');
         Modal.close('editBookingModal');
         await loadBookings();
     } catch (e) { Toast.error(e.message); }
 }
+
+
 
 
 // Wire up filters

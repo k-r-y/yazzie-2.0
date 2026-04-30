@@ -15,7 +15,7 @@ $method      = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 if ($method === 'GET') {
     if ($currentUser['role'] === 'super_admin') {
-        $where = "WHERE category = 'system'";
+        $where = ""; // Super admin sees everything
     } else {
         $where = "WHERE category NOT IN ('system', 'advanced')";
     }
@@ -139,6 +139,21 @@ if ($method === 'PUT') {
         case 'sms_api_key':
             // Optional field, if provided must be at least 10 characters
             if (!empty($value) && strlen(trim((string)$value)) < 10) jsonResponse(false, 'SMS API key must be at least 10 characters if provided.', [], 422);
+            break;
+        case 'gcash_no':
+            if (!empty($value) && !preg_match('/^09[0-9]{9}$/', (string)$value)) {
+                jsonResponse(false, 'GCash number must be exactly 11 digits and start with 09.', [], 422);
+            }
+            break;
+        case 'maya_no':
+            if (!empty($value) && !preg_match('/^09[0-9]{9}$/', (string)$value)) {
+                jsonResponse(false, 'Maya number must be exactly 11 digits and start with 09.', [], 422);
+            }
+            break;
+        case 'bank_account_no':
+            if (!empty($value) && !preg_match('/^[0-9]+$/', (string)$value)) {
+                jsonResponse(false, 'Account number must contain only digits.', [], 422);
+            }
             break;
     }
 

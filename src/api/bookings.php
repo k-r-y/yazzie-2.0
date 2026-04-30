@@ -893,7 +893,8 @@ if ($method === 'PUT') {
     $current = $cur->fetch();
     if (!$current) jsonResponse(false, 'Booking not found.', [], 404);
 
-    if ($current['booking_status'] === 'cancelled') {
+    $action = strtolower(trim((string)($data['action'] ?? '')));
+    if ($current['booking_status'] === 'cancelled' && $action !== 'uncancel') {
         jsonResponse(false, 'This booking is cancelled and cannot be modified. Use the Un-Cancel feature to restore it first.', [], 403);
     }
 
@@ -904,11 +905,8 @@ if ($method === 'PUT') {
     }
 
     // ── Optimistic Locking Check ──
-    // Detect if another user updated this booking since the current user loaded the edit modal.
     $clientUpdatedAt = $data['updated_at'] ?? '';
     $currentUpdatedAt = $current['updated_at'] ?? '';
-    
-    // Perform loose comparison to avoid microsecond/format mismatch issues common in different MySQL/PHP configs
     if (empty($clientUpdatedAt)) {
         jsonResponse(false, 'CONFLICT: Missing updated_at timestamp. Please refresh the page to get the latest data before saving.', [], 409);
     }
@@ -919,8 +917,9 @@ if ($method === 'PUT') {
         ], 409);
     }
 
-    // Validate status transition: pending can't skip to completed
     $newStatus = $data['booking_status'] ?? null;
+    if ($action === 'uncancel') $newStatus = 'confirmed';
+
     $validStatuses = ['confirmed', 'completed', 'cancelled'];
     if ($newStatus !== null && !in_array($newStatus, $validStatuses, true)) {
         jsonResponse(false, 'Invalid booking status.', [], 422);
@@ -935,56 +934,64 @@ if ($method === 'PUT') {
 
     $event_time = !empty($data['event_time']) ? validateEventTime($data['event_time']) : null;
     $event_location = !empty($data['event_location']) ? $data['event_location'] : null;
-    $booking_status = !empty($data['booking_status']) ? $data['booking_status'] : null;
+    $booking_status = !empty($newStatus) ? $newStatus : null;
 
-    // ── P1-02: Re-validate date ONLY if it's actually being changed ─────────────────────────────
+    // ── Date Change Validation ──
     $newDate = !empty($data['event_date']) ? trim($data['event_date']) : null;
-    $dateChanged = ($newDate && $current && $newDate !== $current['event_date']);
-
     $dateChanged = ($newDate && $newDate !== $current['event_date']);
     if ($dateChanged) {
-        // RESHEDULING POLICY (May 2026):
-        // 1. Only one reschedule allowed
         if ((int)($current['resched_count'] ?? 0) >= 1) {
             jsonResponse(false, 'This booking has already been rescheduled once and cannot be moved again.', [], 422);
         }
-
         $minLeadDays = MIN_LEAD_TIME_DAYS;
         $todayTs = strtotime(date('Y-m-d'));
         $origTs  = strtotime($current['event_date']);
         $newTs   = strtotime($newDate);
-
-        // 2. Original date must be at least 14 days away from today
         $daysToOrig = round(($origTs - $todayTs) / 86400);
         if ($daysToOrig < $minLeadDays) {
             jsonResponse(false, "Rescheduling must be done at least $minLeadDays days before the original event date (Current: $daysToOrig days away).", [], 422);
         }
-
-        // 3. New date must be at least 14 days in the future
         $daysToNew = round(($newTs - $todayTs) / 86400);
         if ($daysToNew < $minLeadDays) {
             jsonResponse(false, "The new event date must be at least $minLeadDays days from today (Selected: $daysToNew days away).", [], 422);
         }
-
-        // Availability check
-        $avail = $pdo->prepare("
-            SELECT COUNT(*) FROM bookings
-            WHERE event_date = :date
-              AND id != :self
-              AND booking_status NOT IN ('cancelled')
-        ");
+        $avail = $pdo->prepare("SELECT COUNT(*) FROM bookings WHERE event_date = :date AND id != :self AND booking_status NOT IN ('cancelled')");
         $avail->execute([':date' => $newDate, ':self' => $bookingId]);
         if ((int)$avail->fetchColumn() > 0) {
             jsonResponse(false, 'The chosen reschedule date is already booked by another event.', ['field' => 'event_date'], 409);
         }
     }
 
-    // Use the existing values for the update (effectively locking them)
-    // $total_cost remains what is already in the database for this booking
-
-    // Wrap in transaction just in case
     $pdo->beginTransaction();
     try {
+        // 1. Record Refund if Cancelling
+        if ($booking_status === 'cancelled' && $current['booking_status'] !== 'cancelled') {
+            $paidSoFar = (float)$current['amount_paid'];
+            if ($paidSoFar > 0) {
+                $refundPct = 1.0 - CANCEL_FORFEIT_PCT; 
+                $refundAmount = round($paidSoFar * $refundPct, 2);
+                if ($refundAmount > 0) {
+                    $pdo->prepare("INSERT INTO payments (booking_id, amount, payment_method, notes, payment_date, recorded_by)
+                                   VALUES (:bid, :amt, 'cash', 'Cancellation Refund (50%)', CURDATE(), :rec)")
+                        ->execute([':bid' => $bookingId, ':amt' => -$refundAmount, ':rec' => $_SESSION['user_id']]);
+                }
+            }
+        }
+
+        // 2. Reverse Refund if Un-cancelling
+        if ($action === 'uncancel' && $current['booking_status'] === 'cancelled') {
+            $stmt = $pdo->prepare("SELECT SUM(amount) FROM payments WHERE booking_id = :bid AND notes LIKE '%Cancellation Refund%'");
+            $stmt->execute([':bid' => $bookingId]);
+            $refundsTotal = (float)$stmt->fetchColumn();
+            if ($refundsTotal < 0) {
+                $reverseAmount = abs($refundsTotal);
+                $pdo->prepare("INSERT INTO payments (booking_id, amount, payment_method, notes, payment_date, recorded_by)
+                               VALUES (:bid, :amt, 'cash', 'Refund Reversal (Un-cancelled)', CURDATE(), :rec)")
+                    ->execute([':bid' => $bookingId, ':amt' => $reverseAmount, ':rec' => $_SESSION['user_id']]);
+            }
+        }
+
+        // 3. Update Booking Status & Details
         $pdo->prepare("
             UPDATE bookings SET
                 event_date     = COALESCE(:event_date,     event_date),
@@ -1008,38 +1015,35 @@ if ($method === 'PUT') {
             ':resched_inc'    => $dateChanged ? 1 : 0,
         ]);
 
-        // Dish selection update removed as per order
-        /*
-        if ($dishesUpdated) {
-            ...
-        }
-        */
+        // 4. Force-sync amount_paid and payment_status
+        $syncStmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE booking_id = :bid");
+        $syncStmt->execute([':bid' => $bookingId]);
+        $newPaid = (float)$syncStmt->fetchColumn();
+        
+        $costStmt = $pdo->prepare("SELECT total_cost FROM bookings WHERE id = :id");
+        $costStmt->execute([':id' => $bookingId]);
+        $totalCost = (float)$costStmt->fetchColumn();
 
-        // Custom items update (optional). If provided, replace the set.
+        $payStatus = ($newPaid >= $totalCost - 0.01) ? 'paid' : ($newPaid > 0 ? 'partial' : 'unpaid');
+
+        $pdo->prepare("UPDATE bookings SET amount_paid = :paid, payment_status = :pstat WHERE id = :id")
+            ->execute([':paid' => $newPaid, ':pstat' => $payStatus, ':id' => $bookingId]);
+
+        // Custom items update (optional)
         if (array_key_exists('custom_items', $data) && is_array($data['custom_items'])) {
-            try {
-                $pdo->prepare("DELETE FROM booking_custom_items WHERE booking_id = :bid")
-                    ->execute([':bid' => $bookingId]);
-                $insCustom = $pdo->prepare("
-                    INSERT INTO booking_custom_items (booking_id, name, category, price, notes)
-                    VALUES (:bid, :name, :cat, :price, :notes)
-                ");
-                foreach ($data['custom_items'] as $ci) {
-                    $name = trim((string)($ci['name'] ?? ''));
-                    if ($name === '') continue;
-                    $cat = (string)($ci['category'] ?? 'other');
-                    if (!in_array($cat, ['main','dessert','other'], true)) $cat = 'other';
-                    $price = max(0, (float)($ci['price'] ?? 0));
-                    $insCustom->execute([
-                        ':bid'   => $bookingId,
-                        ':name'  => $name,
-                        ':cat'   => $cat,
-                        ':price' => $price,
-                        ':notes' => !empty($ci['notes']) ? trim((string)$ci['notes']) : null,
-                    ]);
-                }
-            } catch (Throwable $e) {
-                // ignore if table not yet migrated
+            $pdo->prepare("DELETE FROM booking_custom_items WHERE booking_id = :bid")
+                ->execute([':bid' => $bookingId]);
+            $insCustom = $pdo->prepare("INSERT INTO booking_custom_items (booking_id, name, category, price, notes) VALUES (:bid, :name, :cat, :price, :notes)");
+            foreach ($data['custom_items'] as $ci) {
+                $name = trim((string)($ci['name'] ?? ''));
+                if ($name === '') continue;
+                $insCustom->execute([
+                    ':bid'   => $bookingId,
+                    ':name'  => $name,
+                    ':cat'   => in_array($ci['category'] ?? '', ['main','dessert','other']) ? $ci['category'] : 'other',
+                    ':price' => max(0, (float)($ci['price'] ?? 0)),
+                    ':notes' => !empty($ci['notes']) ? trim((string)$ci['notes']) : null,
+                ]);
             }
         }
         $pdo->commit();

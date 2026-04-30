@@ -140,7 +140,7 @@ function renderEmailTemplate(string $title, string $emoji, string $content, stri
     </head>
     <body>
         <div style='display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;'>$preheader</div>
-        <div style='padding: 50px 20px;'>
+        <div style='padding: 50px 10px;'>
             <div style='max-width: 560px; margin: 0 auto; border-radius: 28px; overflow: hidden; background-color: #ffffff; box-shadow: 0 4px 16px rgba(0,0,0,0.08), 0 0 0 0.5px rgba(60,60,67,0.08);'>
                 
                 <!-- BRAND HEADER -->
@@ -155,7 +155,7 @@ function renderEmailTemplate(string $title, string $emoji, string $content, stri
                 </div>
 
                 <!-- CONTENT -->
-                <div style='padding: 45px 40px; font-size: 15px; line-height: 1.6; color: $labelPrimary;'>
+                <div style='padding: 45px 20px; font-size: 15px; line-height: 1.6; color: $labelPrimary;'>
                     $content
                 </div>
 
@@ -484,6 +484,30 @@ function sendPaymentReminderEmail(array $booking): bool
             <div style='font-size: 36px; font-weight: 800; color: #1C1C1E; letter-spacing: -1.5px;'>₱" . number_format($balance, 2) . "</div>
         </div>
 
+        <div style='background-color: #ffffff; border: 1px solid rgba(60,60,67,0.08); border-radius: 16px; padding: 24px; margin-bottom: 30px;'>
+            <h3 style='margin: 0 0 16px; font-size: 14px; font-weight: 700; color: #1C1C1E; text-transform: uppercase; letter-spacing: 0.5px;'>How to Pay</h3>
+            
+            <div style='margin-bottom: 16px; padding-bottom: 16px; border-bottom: 0.5px solid rgba(60,60,67,0.08);'>
+                <p style='margin: 0 0 4px; font-size: 13px; font-weight: 700; color: #1C1C1E;'>💵 Cash</p>
+                <p style='margin: 0; font-size: 13px; color: rgba(60,60,67,0.6);'>Please visit our store at:<br><strong>" . BUSINESS_ADDRESS . "</strong></p>
+            </div>
+
+            <div style='margin-bottom: 16px; padding-bottom: 16px; border-bottom: 0.5px solid rgba(60,60,67,0.08);'>
+                <p style='margin: 0 0 4px; font-size: 13px; font-weight: 700; color: #1C1C1E;'>📱 GCash</p>
+                <p style='margin: 0; font-size: 13px; color: rgba(60,60,67,0.6);'>Account Name: <strong>" . GCASH_NAME . "</strong><br>Account No: <strong>" . GCASH_NO . "</strong></p>
+            </div>
+
+            <div style='margin-bottom: 16px; padding-bottom: 16px; border-bottom: 0.5px solid rgba(60,60,67,0.08);'>
+                <p style='margin: 0 0 4px; font-size: 13px; font-weight: 700; color: #1C1C1E;'>📱 Maya</p>
+                <p style='margin: 0; font-size: 13px; color: rgba(60,60,67,0.6);'>Account Name: <strong>" . MAYA_NAME . "</strong><br>Account No: <strong>" . MAYA_NO . "</strong></p>
+            </div>
+
+            <div>
+                <p style='margin: 0 0 4px; font-size: 13px; font-weight: 700; color: #1C1C1E;'>🏦 Bank Transfer (" . BANK_NAME . ")</p>
+                <p style='margin: 0; font-size: 13px; color: rgba(60,60,67,0.6);'>Account Name: <strong>" . BANK_ACC_NAME . "</strong><br>Account No: <strong>" . BANK_ACC_NO . "</strong></p>
+            </div>
+        </div>
+
         <p style='margin: 0 0 8px; font-size: 14px; color: rgba(60,60,67,0.6); line-height: 1.5;'>If you've already made this payment, please disregard this note. We look forward to serving you!</p>
         <p style='margin: 0; font-size: 15px; font-weight: 700; color: #30D158;'>Thank you! 🍽️</p>
     ";
@@ -511,7 +535,7 @@ function sendStaffAssignmentEmail(array $staff, array $booking): bool
         <h2 style='margin: 0 0 12px; font-size: 20px; font-weight: 700; color: #000000; letter-spacing: -0.4px;'>Hi, {$staff['name']}!</h2>
         <p style='margin: 0 0 30px; font-size: 15px; color: rgba(60,60,67,0.7); line-height: 1.6;'>You've been assigned to the team for an upcoming event. Please review the assignment details below:</p>
 
-        <div style='background: #F2F2F7; border-radius: 16px; padding: 24px; margin-bottom: 30px; border: 0.5px solid rgba(60,60,67,0.06);'>
+        <div style='background: #F2F2F7; border-radius: 16px; padding: 12px; margin-bottom: 30px; border: 0.5px solid rgba(60,60,67,0.06);'>
             <table style='width: 100%; border-collapse: collapse;'>
                 <tr><td style='padding: 6px 0; font-size: 13px; color: rgba(60,60,67,0.5); font-weight: 600; text-transform: uppercase;'>Your Role</td>
                     <td style='padding: 6px 0; text-align: right; font-weight: 700; color: #30D158;'>$role</td></tr>
@@ -591,7 +615,7 @@ function sendJobResponseEmailToAdmin(array $admin, array $staff, array $booking,
         <h2 style='margin: 0 0 12px; font-size: 20px; font-weight: 700; color: #000000; letter-spacing: -0.4px;'>Hi, {$admin['name']}!</h2>
         <p style='margin: 0 0 24px; font-size: 15px; color: rgba(60,60,67,0.7); line-height: 1.6;'>$message</p>
 
-        <div style='background: #F2F2F7; border-radius: 16px; padding: 24px; border: 0.5px solid rgba(60,60,67,0.06);'>
+        <div style='background: #F2F2F7; border-radius: 16px; padding: 12px; border: 0.5px solid rgba(60,60,67,0.06);'>
             <table style='width: 100%; border-collapse: collapse;'>
                 <tr><td style='padding: 6px 0; font-size: 13px; color: rgba(60,60,67,0.5); font-weight: 600; text-transform: uppercase;'>Staff Name</td>
                     <td style='padding: 6px 0; text-align: right; font-weight: 700; color: #000000;'>{$staff['name']}</td></tr>
