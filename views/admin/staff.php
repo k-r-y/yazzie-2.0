@@ -252,7 +252,7 @@ function switchTab(name, el) {
 async function loadKPIs() {
     const today = new Date().toISOString().split('T')[0];
     const [usersData, leaveData, pendingLeave, availData] = await Promise.all([
-        Api.get(BASE + 'src/api/staff.php', { role: 'staff' }),
+        Api.get(BASE + 'src/api/staff.php', { role: 'staff,frontdesk' }),
         Api.get(BASE + 'src/api/leave.php',  { date: today }),
         Api.get(BASE + 'src/api/leave.php',  { pending_only: 1 }),
         Api.get(BASE + 'src/api/staff.php',  { available_on: today }),
@@ -274,7 +274,7 @@ async function loadRoster() {
     try {
         const today = new Date().toISOString().split('T')[0];
         const [usersData, schedData] = await Promise.all([
-            Api.get(BASE + 'src/api/staff.php', { role: 'staff' }),
+            Api.get(BASE + 'src/api/staff.php', { role: 'staff,frontdesk' }),
             Api.get(BASE + 'src/api/staff.php',  { available_on: today }),
         ]);
         allStaff = usersData.users || [];

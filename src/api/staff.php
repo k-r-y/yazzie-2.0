@@ -72,8 +72,14 @@ if ($method === 'GET') {
     $params = [];
 
     if ($role) {
-        $where[]           = 'role = :role';
-        $params[':role']   = $role;
+        $roles = explode(',', $role);
+        $placeholders = [];
+        foreach ($roles as $idx => $r) {
+            $key = ":role_list_$idx";
+            $placeholders[] = $key;
+            $params[$key] = trim($r);
+        }
+        $where[] = 'role IN (' . implode(',', $placeholders) . ')';
     }
 
     // Frontdesk can only see staff list; admin sees all
