@@ -112,7 +112,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </select>
                 </div>
             </div>
-            <div class="table-wrapper" id="ledgerWrapper">
+            <div class="table-wrapper table-responsive" id="ledgerWrapper" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
                 <table class="data-table" id="ledgerTable">
                     <thead>
                         <tr>
@@ -131,7 +131,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                 </table>
             </div>
 
-            <div class="table-wrapper" id="refundsWrapper" style="display:none;">
+            <div class="table-wrapper table-responsive" id="refundsWrapper" style="display:none; overflow-x: auto; -webkit-overflow-scrolling: touch;">
                 <table class="data-table" id="refundsTable">
                     <thead>
                         <tr>
@@ -170,7 +170,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </button>
                 </div>
             </div>
-            <div class="table-wrapper">
+            <div class="table-wrapper table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
                 <table class="data-table">
                     <thead>
                         <tr>

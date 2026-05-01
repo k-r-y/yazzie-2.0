@@ -15,13 +15,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 
-// ── Rate Limiting: block brute-force attacks ──
-checkLoginRateLimit($pdo);
-
 // Parse JSON body
 $input    = json_decode(file_get_contents('php://input'), true);
 $email    = trim($input['email']    ?? '');
 $password = trim($input['password'] ?? '');
+
+// ── Rate Limiting: block brute-force attacks ──
+checkLoginRateLimit($pdo, $email);
 
 // Basic validation
 if (!$email || !$password) {
@@ -64,6 +64,7 @@ clearLoginAttempts($pdo);
 // Create session
 startSession();
 session_regenerate_id(true);
+$_SESSION['csrf_token'] = bin2hex(random_bytes(32)); // Rotate CSRF token
 
 $_SESSION['user_id'] = $user['id'];
 $_SESSION['name']    = $user['name'];

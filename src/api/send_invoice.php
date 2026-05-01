@@ -48,7 +48,7 @@ try {
         "<p>Hello <strong>" . htmlspecialchars($b['client_name']) . "</strong>,</p>
          <p>Please find attached the official invoice for your upcoming catering event scheduled on " . date('F j, Y', strtotime($b['event_date'])) . ".</p>
          <p>If you have any questions regarding the charges or payment instructions, please feel free to contact us.</p>
-         <p>Thank you for choosing Yazzies Catering!</p>",
+         <p>Thank you for choosing " . htmlspecialchars(appSetting('business_name', 'Yazzies Catering')) . "!</p>",
         '#25A244'
     );
 

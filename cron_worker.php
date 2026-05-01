@@ -94,7 +94,14 @@ function processEmailQueue(PDO $pdo, callable $log): int
             $mail->SMTPAuth   = true;
             $mail->Username   = MAIL_USERNAME;
             $mail->Password   = MAIL_PASSWORD;
-            $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+            
+            $mailSecure = defined('MAIL_SECURE') ? strtolower(MAIL_SECURE) : 'tls';
+            if ($mailSecure === 'ssl') {
+                $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+            } else {
+                $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+            }
+            
             $mail->Port       = MAIL_PORT;
 
             $mail->setFrom(MAIL_USERNAME, APP_NAME);

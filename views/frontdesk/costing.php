@@ -220,7 +220,7 @@ async function loadGroceryList() {
 
         document.getElementById('groceryContent').innerHTML = `
             ${customWarningHtml}
-            <div style="overflow-x:auto;">
+            <div class="table-responsive" style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
                 <table class="data-table">
                     <thead>
                         <tr>

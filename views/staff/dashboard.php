@@ -326,7 +326,7 @@ $user = getCurrentUser();
         </div>
         <div class="card-body">
             <form id="leaveForm" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
-                <div class="form-group" style="flex:1;min-width:160px;margin-bottom:0;">
+                <div class="form-group" style="flex:1; min-width:120px; max-width:100%; margin-bottom:0;">
                     <label class="form-label">Date <span class="required">*</span></label>
                     <input type="date" class="form-control" name="leave_date" id="leaveDate" required min="<?= date('Y-m-d', strtotime('+1 day')) ?>">
                 </div>
@@ -345,7 +345,7 @@ $user = getCurrentUser();
         <div class="card-header">
             <div class="card-title">My Leave Requests</div>
         </div>
-        <div class="table-wrapper">
+        <div class="table-wrapper table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
             <table class="data-table">
                 <thead>
                     <tr>
@@ -423,7 +423,7 @@ $user = getCurrentUser();
                     <!-- Return Panel -->
                     <div id="inv-panel-return" style="display:none;">
                         <div style="font-size:12px; color:var(--label-3); margin-bottom:12px;">Record items returned from the event. Discrepancies will be logged as breakages.</div>
-                        <div class="table-wrapper">
+                        <div class="table-wrapper table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
                             <table class="data-table">
                                 <thead>
                                     <tr>

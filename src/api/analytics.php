@@ -137,42 +137,72 @@ if ($type === 'kpis') {
 
     // Logic: "This X" where X is day/week/month/year
     $dateFilter = "";
+    $eventFilter = "";
+    $clientFilter = "";
+    
+    // Security: Use parameter binding instead of string interpolation
     if ($timeframe === 'day') {
-        $dateFilter = "AND DATE(p.payment_date) = CURDATE()";
-        $eventFilter = "AND DATE(event_date) = CURDATE()";
+        $dateFilter = "AND DATE(p.payment_date) = :date_val";
+        $eventFilter = "AND DATE(event_date) = :date_val";
+        $clientFilter = "AND DATE(created_at) = :date_val";
+        $paramVal = date('Y-m-d');
     } elseif ($timeframe === 'week') {
-        $dateFilter = "AND YEARWEEK(p.payment_date, 1) = YEARWEEK(CURDATE(), 1)";
-        $eventFilter = "AND YEARWEEK(event_date, 1) = YEARWEEK(CURDATE(), 1)";
+        $dateFilter = "AND YEARWEEK(p.payment_date, 1) = YEARWEEK(:date_val, 1)";
+        $eventFilter = "AND YEARWEEK(event_date, 1) = YEARWEEK(:date_val, 1)";
+        $clientFilter = "AND YEARWEEK(created_at, 1) = YEARWEEK(:date_val, 1)";
+        $paramVal = date('Y-m-d');
     } elseif ($timeframe === 'year') {
-        $dateFilter = "AND YEAR(p.payment_date) = YEAR(CURDATE())";
-        $eventFilter = "AND YEAR(event_date) = YEAR(CURDATE())";
+        $dateFilter = "AND YEAR(p.payment_date) = :year_val";
+        $eventFilter = "AND YEAR(event_date) = :year_val";
+        $clientFilter = "AND YEAR(created_at) = :year_val";
+        $paramVal = date('Y');
     } else {
-        $dateFilter = "AND MONTH(p.payment_date) = MONTH(CURDATE()) AND YEAR(p.payment_date) = YEAR(CURDATE())";
-        $eventFilter = "AND MONTH(event_date) = MONTH(CURDATE()) AND YEAR(event_date) = YEAR(CURDATE())";
+        $dateFilter = "AND MONTH(p.payment_date) = :month_val AND YEAR(p.payment_date) = :year_val";
+        $eventFilter = "AND MONTH(event_date) = :month_val AND YEAR(event_date) = :year_val";
+        $clientFilter = "AND MONTH(created_at) = :month_val AND YEAR(created_at) = :year_val";
+        $paramMonth = date('m');
+        $paramYear = date('Y');
     }
 
-    // 1. Revenue in Period (Count all payments, even from cancelled bookings, to account for refunds/forfeiture)
-    $revenue = $pdo->query("
+    $bindParams = function($stmt) use ($timeframe, &$paramVal, &$paramMonth, &$paramYear) {
+        if ($timeframe === 'year') {
+            $stmt->bindValue(':year_val', $paramYear ?? $paramVal);
+        } elseif ($timeframe === 'month' || !in_array($timeframe, ['day', 'week', 'year'])) {
+            $stmt->bindValue(':month_val', $paramMonth);
+            $stmt->bindValue(':year_val', $paramYear);
+        } else {
+            $stmt->bindValue(':date_val', $paramVal);
+        }
+    };
+
+    // 1. Revenue in Period
+    $stmt1 = $pdo->prepare("
         SELECT COALESCE(SUM(p.amount), 0) 
         FROM payments p
         JOIN bookings b ON b.id = p.booking_id
-        WHERE 1=1
-        $dateFilter
-    ")->fetchColumn();
+        WHERE 1=1 $dateFilter
+    ");
+    $bindParams($stmt1);
+    $stmt1->execute();
+    $revenue = $stmt1->fetchColumn();
 
     // 2. Events in Period
-    $events = $pdo->query("
+    $stmt2 = $pdo->prepare("
         SELECT COUNT(*) FROM bookings
-        WHERE booking_status NOT IN ('cancelled')
-        $eventFilter
-    ")->fetchColumn();
+        WHERE booking_status NOT IN ('cancelled') $eventFilter
+    ");
+    $bindParams($stmt2);
+    $stmt2->execute();
+    $events = $stmt2->fetchColumn();
 
     // 3. New Clients in Period
-    $clientFilter = str_replace('p.payment_date', 'created_at', $dateFilter);
-    $clients = $pdo->query("SELECT COUNT(*) FROM clients WHERE 1=1 " . str_replace('p.payment_date', 'created_at', $dateFilter))->fetchColumn();
+    $stmt3 = $pdo->prepare("SELECT COUNT(*) FROM clients WHERE 1=1 $clientFilter");
+    $bindParams($stmt3);
+    $stmt3->execute();
+    $clients = $stmt3->fetchColumn();
 
     // 4. Outstanding Balance for events in period
-    $outstanding = $pdo->query("
+    $sqlOutstanding = "
         SELECT COALESCE(SUM( (b.total_cost + COALESCE(br_sum.total, 0)) - COALESCE(p_sum.paid, 0) ), 0)
         FROM bookings b
         LEFT JOIN (
@@ -186,9 +216,13 @@ if ($type === 'kpis') {
         WHERE b.booking_status != 'cancelled'
           AND ((b.total_cost + COALESCE(br_sum.total, 0)) - COALESCE(p_sum.paid, 0)) > 0
           $eventFilter
-    ")->fetchColumn();
+    ";
+    $stmt4 = $pdo->prepare($sqlOutstanding);
+    $bindParams($stmt4);
+    $stmt4->execute();
+    $outstanding = $stmt4->fetchColumn();
 
-    $unpaidCount = $pdo->query("
+    $stmt5 = $pdo->prepare("
         SELECT COUNT(*)
         FROM bookings b
         LEFT JOIN (
@@ -202,17 +236,23 @@ if ($type === 'kpis') {
         WHERE b.booking_status != 'cancelled'
           AND ((b.total_cost + COALESCE(br_sum.total, 0)) - COALESCE(p_sum.paid, 0)) > 0
           $eventFilter
-    ")->fetchColumn();
+    ");
+    $bindParams($stmt5);
+    $stmt5->execute();
+    $unpaidCount = $stmt5->fetchColumn();
 
-    // 5. Month-To-Date (MTD) Revenue - Independent of timeframe
-    $revenue_mtd = $pdo->query("
+    // 5. Month-To-Date (MTD) Revenue
+    $stmt6 = $pdo->prepare("
         SELECT COALESCE(SUM(p.amount), 0) 
         FROM payments p
         JOIN bookings b ON b.id = p.booking_id
-        WHERE 1=1
-        AND MONTH(p.payment_date) = MONTH(CURDATE()) 
-        AND YEAR(p.payment_date) = YEAR(CURDATE())
-    ")->fetchColumn();
+        WHERE MONTH(p.payment_date) = :mtd_m 
+          AND YEAR(p.payment_date) = :mtd_y
+    ");
+    $stmt6->bindValue(':mtd_m', date('m'));
+    $stmt6->bindValue(':mtd_y', date('Y'));
+    $stmt6->execute();
+    $revenue_mtd = $stmt6->fetchColumn();
 
     $res = [
         'active_bookings'   => (int)$events,

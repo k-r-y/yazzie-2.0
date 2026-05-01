@@ -32,5 +32,7 @@
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
 </IfModule>
 
+
+
 # ── Disable directory listing ──
 Options -Indexes

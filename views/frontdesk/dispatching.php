@@ -274,7 +274,7 @@ async function loadExistingOrders() {
         `}).join('');
 
         document.getElementById('rosterContent').innerHTML = `
-            <div style="overflow-x:auto;">
+            <div class="table-responsive" style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
                 <table class="data-table">
                     <thead><tr><th>Staff</th><th>Phone</th><th>Role</th><th>Status</th><th>Responded</th><th>Cancel</th></tr></thead>
                     <tbody>${rows}</tbody>

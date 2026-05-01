@@ -68,7 +68,7 @@ if ($method === 'POST') {
 
     // ── Calculate Forfeiture & Refund Preview ─────────────────────────
     $totalPaid = (float)$booking['amount_paid'];
-    $forfeitureFee = round($totalPaid * 0.5, 2);
+    $forfeitureFee = round($totalPaid * CANCEL_FORFEIT_PCT, 2);
     $refundableAmount = $totalPaid - $forfeitureFee;
 
     $pdo->beginTransaction();
@@ -160,15 +160,20 @@ if ($method === 'PUT') {
             
             // 1. Record negative payment
             if ($cancel['refundable_amount'] > 0) {
-                $ins = $pdo->prepare("INSERT INTO payments (booking_id, amount, payment_method, reference_no, notes, payment_date, recorded_by) VALUES (:bid, :amt, :meth, :ref, 'Cancellation Refund (50%)', NOW(), :uid)");
+                $refundPct = 100 - (CANCEL_FORFEIT_PCT * 100);
+                $ins = $pdo->prepare("INSERT INTO payments (booking_id, amount, payment_method, reference_no, notes, payment_date, recorded_by) VALUES (:bid, :amt, :meth, :ref, CONCAT('Cancellation Refund (', :pct, '%)'), NOW(), :uid)");
                 $ins->execute([
                     ':bid' => $bookingId,
                     ':amt' => -abs($cancel['refundable_amount']),
                     ':meth' => $rmethod,
                     ':ref' => $ref,
+                    ':pct' => $refundPct,
                     ':uid' => (int)$_SESSION['user_id']
                 ]);
             }
+
+            // Apply strict row lock before recalculation
+            $pdo->prepare("SELECT id FROM bookings WHERE id = :bid FOR UPDATE")->execute([':bid' => $bookingId]);
 
             // 2. Recalculate and Update Booking
             $paidRow = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM payments WHERE booking_id = :bid");

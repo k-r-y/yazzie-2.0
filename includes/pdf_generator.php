@@ -299,7 +299,7 @@ function generateInvoicePDF($pdo, $bookingId) {
     try {
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
-        $options->set('isPhpEnabled', true);
+        $options->set('isPhpEnabled', false); // Security: Locked down to prevent RCE
         $options->set('defaultFont', 'DejaVu Sans');
         
         $tmp = __DIR__ . '/../temp';

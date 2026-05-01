@@ -692,6 +692,26 @@ $dynamicPrivacy = appSetting('data_privacy_notice', "We value your privacy. Your
     filter: grayscale(1);
 }
 
+.custom-item-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    background: white;
+    padding: 10px;
+    border: 0.5px solid rgba(60,60,67,0.1);
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+.custom-item-row > input[type="text"]:first-child { flex: 1 1 200px; }
+.custom-item-row > select { flex: 0 0 100px; }
+.custom-item-row > .input-group { flex: 0 0 100px; }
+.custom-item-row > button { flex: 0 0 30px; text-align: center; }
+
+@media (max-width: 480px) {
+    .custom-item-row > select, .custom-item-row > .input-group { flex: 1 1 40%; }
+}
+
 @media (max-width:768px) {
     #panel4 > div:first-child, #panel5 > div:first-child { grid-template-columns: 1fr !important; }
     .dish-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
@@ -1869,7 +1889,7 @@ $dynamicPrivacy = appSetting('data_privacy_notice', "We value your privacy. Your
 
         state.customItems.forEach(item => {
             const div = document.createElement('div');
-            div.style = 'display:grid; grid-template-columns:1fr 100px 100px 40px; gap:8px; align-items:center; background:white; padding:10px; border:0.5px solid rgba(60,60,67,0.1); border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,0.02);';
+            div.className = 'custom-item-row';
             div.innerHTML = `
                 <input type="text" class="form-control form-control-sm" placeholder="Item name (e.g. Lechon Belly)" value="${esc(item.name)}" oninput="onCustomItemChange(${item.id}, 'name', this.value)" title="Name of the off-menu item">
                 <select class="form-control form-control-sm" onchange="onCustomItemChange(${item.id}, 'category', this.value)" title="Pricing category">

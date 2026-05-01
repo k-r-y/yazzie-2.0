@@ -3,6 +3,13 @@
 // Yazzies Catering OMS — Application Configuration
 // ============================================================
 
+// Security Headers
+if (!headers_sent()) {
+    header("X-Content-Type-Options: nosniff");
+    header("X-Frame-Options: DENY");
+    header("Strict-Transport-Security: max-age=31536000; includeSubDomains");
+}
+
 // Application Constants
 define('APP_VERSION', '1.0.0');
 define('BASE_URL',    'http://localhost/test');

@@ -21,7 +21,7 @@ include __DIR__ . '/../../includes/sidebar.php';
             <i class="fas fa-plus"></i> Add Package Tier
         </button>
     </div>
-    <div class="table-wrapper">
+    <div class="table-wrapper table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
         <table class="data-table" id="packagesTable">
             <thead>
                 <tr>

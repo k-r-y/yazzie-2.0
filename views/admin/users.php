@@ -48,7 +48,7 @@ include __DIR__ . '/../../includes/sidebar.php';
 
 <div class="card">
     <div class="card-header"><div class="card-title">All User Accounts</div></div>
-    <div class="table-wrapper">
+    <div class="table-wrapper table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
         <table class="data-table" id="userTable">
             <thead>
                 <tr><th>Name</th><th>Email</th><th>Role</th><th>Phone</th><th>Status</th><th>Created</th><th class="td-actions">Actions</th></tr>

@@ -28,7 +28,7 @@ include __DIR__ . '/../../includes/sidebar.php';
         </div>
         <span class="text-muted text-sm" id="archiveCount"></span>
     </div>
-    <div class="table-wrapper">
+    <div class="table-wrapper table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
         <table class="data-table" id="archiveTable">
             <thead>
                 <tr><th>Event Date</th><th>Client</th><th>Pax</th>
@@ -56,7 +56,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="position:absolute; right:25px; top:35px;"></button>
             </div>
             <div class="modal-body" style="padding:0; background:#f8f9fa;">
-                <div style="display:grid; grid-template-columns: 350px 1fr; min-height:600px;">
+                <div class="modal-responsive-grid" style="min-height:600px;">
                     
                     <!-- SIDEBAR: KEY DETAILS -->
                     <div style="background:white; border-right:1px solid #eee; padding:30px;">

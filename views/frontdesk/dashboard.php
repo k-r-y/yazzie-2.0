@@ -94,7 +94,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                     All Bookings
                 </a>
             </div>
-            <div class="table-wrapper">
+            <div class="table-wrapper table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
                 <table class="data-table">
                     <thead>
                         <tr>

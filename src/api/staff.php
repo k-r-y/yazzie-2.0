@@ -16,19 +16,45 @@ requireCsrf();
 $method      = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
+    $role   = $_GET['role']    ?? '';
+    $where  = ['1=1'];
+    $params = [];
+
+    if ($role) {
+        $roles = explode(',', $role);
+        $placeholders = [];
+        foreach ($roles as $idx => $r) {
+            $key = ":role_list_$idx";
+            $placeholders[] = $key;
+            $params[$key] = trim($r);
+        }
+        $where[] = 'role IN (' . implode(',', $placeholders) . ')';
+    }
+
+    // Frontdesk can only see staff list; admin sees all
+    if ($currentUser['role'] === 'frontdesk') {
+        $where[]           = 'role = :role_staff';
+        $params[':role_staff'] = 'staff';
+    }
+
     // ── Availability check for a specific date ──────────────────────
     if (isset($_GET['available_on'])) {
         $date = $_GET['available_on'];
         $excludeBookingId = (int)($_GET['exclude_booking'] ?? 0);
 
-        // Get all active staff
-        $staffStmt = $pdo->query("
+        $availWhere = $where;
+        $availWhere[] = 'is_active = 1';
+        $whereClause = implode(' AND ', $availWhere);
+
+        // Get all active staff based on filters
+        $staffStmt = $pdo->prepare("
             SELECT id, name, email, phone, role, job_class,
                    DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s') AS created_at
             FROM users
-            WHERE role = 'staff' AND is_active = 1
+            WHERE $whereClause
             ORDER BY name ASC
         ");
+        $staffStmt->execute($params);
         $staff = $staffStmt->fetchAll();
 
         // Staff on approved leave that day
@@ -67,26 +93,7 @@ if ($method === 'GET') {
         jsonResponse(true, '', ['staff' => $staff, 'date' => $date]);
     }
 
-    $role   = $_GET['role']    ?? '';
-    $where  = ['1=1'];
-    $params = [];
 
-    if ($role) {
-        $roles = explode(',', $role);
-        $placeholders = [];
-        foreach ($roles as $idx => $r) {
-            $key = ":role_list_$idx";
-            $placeholders[] = $key;
-            $params[$key] = trim($r);
-        }
-        $where[] = 'role IN (' . implode(',', $placeholders) . ')';
-    }
-
-    // Frontdesk can only see staff list; admin sees all
-    if ($currentUser['role'] === 'frontdesk') {
-        $where[]           = 'role = :role_staff';
-        $params[':role_staff'] = 'staff';
-    }
 
     if (isset($_GET['status']) && $_GET['status'] !== '') {
         $where[] = 'is_active = :status';

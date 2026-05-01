@@ -68,13 +68,13 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <i class="fas fa-search"></i>
                     <input type="text" class="search-input" id="staffSearch" placeholder="Search by name, email, phone...">
                 </div>
-                <select class="form-control" id="staffFilterRole" style="width:160px;">
+                <select class="form-control" id="staffFilterRole" style="min-width:120px; max-width:100%; flex:1;">
                     <option value="staff,frontdesk">Staff & Front Desk</option>
                     <option value="staff">Staff Only</option>
                     <option value="frontdesk">Front Desk Only</option>
                     <option value="admin">Admin Only</option>
                 </select>
-                <select class="form-control" id="staffFilterJob" style="width:160px;">
+                <select class="form-control" id="staffFilterJob" style="min-width:120px; max-width:100%; flex:1;">
                     <option value="">All Classifications</option>
                     <option value="waiter">Waiter</option>
                     <option value="head_cook">Head Cook</option>
@@ -98,7 +98,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <i class="fas fa-plus"></i> Add Staff
             </button>
         </div>
-        <div class="table-wrapper">
+        <div class="table-wrapper table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
             <table class="data-table">
                 <thead>
                     <tr>
@@ -140,7 +140,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <option value="">All</option>
             </select>
         </div>
-        <div class="table-wrapper">
+        <div class="table-wrapper table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
             <table class="data-table">
                 <thead>
                     <tr>

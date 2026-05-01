@@ -89,6 +89,9 @@ if ($method === 'PUT') {
         case 'max_login_attempts':
             if ((int)$value < 1 || (int)$value > 100) jsonResponse(false, 'Max login attempts must be between 1 and 100.', [], 422);
             break;
+        case 'lockout_duration_minutes':
+            if ((int)$value < 1 || (int)$value > 1440) jsonResponse(false, 'Lockout duration must be between 1 and 1440 minutes (24h).', [], 422);
+            break;
         case 'session_timeout_minutes':
             if ((int)$value < 5 || (int)$value > 1440) jsonResponse(false, 'Session timeout must be between 5 and 1440 minutes (24h).', [], 422);
             break;
@@ -163,11 +166,14 @@ if ($method === 'PUT') {
     $oldRow = $oldStmt->fetch();
     if (!$oldRow) jsonResponse(false, 'Setting not found.', [], 404);
 
-    if ($currentUser['role'] === 'admin' && in_array(strtolower($oldRow['category']), ['system', 'advanced'])) {
-        jsonResponse(false, 'Forbidden. You cannot edit system or advanced settings.', [], 403);
-    }
-    if ($currentUser['role'] === 'super_admin' && strtolower($oldRow['category']) !== 'system') {
-        jsonResponse(false, 'Forbidden. Super Admins can only edit system-level settings.', [], 403);
+    if ($currentUser['role'] === 'super_admin') {
+        if (strtolower($oldRow['category']) !== 'system') {
+            jsonResponse(false, 'Forbidden. Super Admins can only edit system-level settings.', [], 403);
+        }
+    } else if ($currentUser['role'] === 'admin') {
+        if (in_array(strtolower($oldRow['category']), ['system', 'advanced'])) {
+            jsonResponse(false, 'Forbidden. You cannot edit system or advanced settings.', [], 403);
+        }
     }
 
     $stmt = $pdo->prepare("UPDATE settings SET value = :val WHERE `key` = :key");

@@ -116,8 +116,8 @@ usort($rows, fn($a, $b) => strcmp($a['name'], $b['name']));
 <div class="print-document">
     <div class="print-header">
         <div>
-            <div class="print-logo">Yazzies <span>Catering</span></div>
-            <div class="print-logo-sub">Barangay St. Peter, Dasmariñas City, Cavite</div>
+            <div class="print-logo"><?= htmlspecialchars(appSetting('business_name', 'Yazzies Catering')) ?></div>
+            <div class="print-logo-sub"><?= nl2br(htmlspecialchars(appSetting('business_address', 'Barangay St. Peter, Dasmariñas City, Cavite'))) ?></div>
         </div>
         <div class="print-doc-type">
             <h2>Market List</h2>
@@ -189,7 +189,7 @@ usort($rows, fn($a, $b) => strcmp($a['name'], $b['name']));
     </div>
 
     <div class="print-footer">
-        Yazzies Catering &bull; Market List — Booking #<?= str_pad($bookingId, 5, '0', STR_PAD_LEFT) ?> &bull; <?= date('F j, Y') ?>
+        <?= htmlspecialchars(appSetting('business_name', 'Yazzies Catering')) ?> &bull; Market List — Booking #<?= str_pad($bookingId, 5, '0', STR_PAD_LEFT) ?> &bull; <?= date('F j, Y') ?>
     </div>
 </div>
 

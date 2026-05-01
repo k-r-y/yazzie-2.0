@@ -241,7 +241,8 @@ function calcOvertime() {
         return;
     }
 
-    const standardMin = 4 * 60; // 4 hours
+    const shiftHours = <?= function_exists('appSettingInt') ? appSettingInt('standard_shift_hours', 4) : 4 ?>;
+    const standardMin = shiftHours * 60;
     const otMin = Math.max(0, duration - standardMin);
     const hours = Math.floor(duration / 60);
     const mins  = duration % 60;
@@ -255,10 +256,10 @@ function calcOvertime() {
                 <span style="font-size:24px;">⏱️</span>
                 <div>
                     <div style="font-size:14px; font-weight:700; color:#C0392B;">
-                        Overtime Detected: ${otHours} hour(s) beyond 4-hour standard
+                        Overtime Detected: ${otHours} hour(s) beyond ${shiftHours}-hour standard
                     </div>
                     <div style="font-size:12px; color:rgba(60,60,67,0.6);">
-                        Total duration: ${hours}h ${mins}m · Standard: 4h · Excess: ${otHours}h
+                        Total duration: ${hours}h ${mins}m · Standard: ${shiftHours}h · Excess: ${otHours}h
                     </div>
                 </div>
             </div>`;
@@ -269,7 +270,7 @@ function calcOvertime() {
                         border:1px solid rgba(48,209,88,0.25); border-radius:12px; padding:12px 16px;">
                 <span style="font-size:20px;">✅</span>
                 <div style="font-size:13px; font-weight:600; color:#1A7A32;">
-                    Within standard time — ${hours}h ${mins}m (4h limit)
+                    Within standard time — ${hours}h ${mins}m (${shiftHours}h limit)
                 </div>
             </div>`;
     }

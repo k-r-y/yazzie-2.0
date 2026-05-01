@@ -24,7 +24,7 @@ include __DIR__ . '/../../includes/sidebar.php';
     </div>
 
     <div id="recipe-builder-tab">
-        <div class="grid" style="grid-template-columns:350px 1fr; gap:24px;">
+        <div class="modal-responsive-grid" style="gap:24px;">
             
             <div class="card" style="padding:0; overflow:hidden; border:1px solid var(--border);">
                 <div style="padding:16px; border-bottom:1px solid var(--border); background:var(--surface-2);">
@@ -125,18 +125,20 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </div>
                 </div>
 
-                <table class="table" style="font-size:14px; width:100%;">
-                    <thead>
-                        <tr>
-                            <th style="color:var(--text-secondary);">Ingredient Needed</th>
-                            <th style="text-align:right; color:var(--text-secondary);">Base Qty</th>
-                            <th style="text-align:right; font-weight:700; color:var(--text-primary);">Required Scaled Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody id="resTbody">
-                        <!-- JS populated -->
-                    </tbody>
-                </table>
+                <div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                    <table class="table" style="font-size:14px; width:100%;">
+                        <thead>
+                            <tr>
+                                <th style="color:var(--text-secondary);">Ingredient Needed</th>
+                                <th style="text-align:right; color:var(--text-secondary);">Base Qty</th>
+                                <th style="text-align:right; font-weight:700; color:var(--text-primary);">Required Scaled Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resTbody">
+                            <!-- JS populated -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <div id="calcBlank" style="text-align:center; padding:60px 20px; color:var(--text-secondary);">

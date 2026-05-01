@@ -19,14 +19,14 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <i class="fas fa-search"></i>
                 <input type="text" class="search-input" id="searchInput" placeholder="Search client, location…">
             </div>
-            <select class="form-control" id="filterStatus" style="width:160px;">
+            <select class="form-control" id="filterStatus" style="min-width:120px; max-width:100%; flex:1;">
                 <option value="">All Statuses</option>
 
                 <option value="confirmed">Confirmed</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
             </select>
-            <select class="form-control" id="filterOrder" style="width:160px;">
+            <select class="form-control" id="filterOrder" style="min-width:120px; max-width:100%; flex:1;">
                 <option value="DESC">Latest First</option>
                 <option value="ASC">Upcoming First</option>
             </select>
@@ -46,7 +46,7 @@ include __DIR__ . '/../../includes/sidebar.php';
         <div class="card-title">All Bookings</div>
         <span class="text-muted text-sm" id="countLabel"></span>
     </div>
-    <div class="table-wrapper">
+    <div class="table-wrapper table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
         <table class="data-table" id="bookingTable">
             <thead>
                 <tr>
