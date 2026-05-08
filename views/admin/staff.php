@@ -3,8 +3,8 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireRole('admin');
 
-$pageTitle    = 'Staff Management';
-$pageSubtitle = 'Manage staff accounts, schedules & leave requests';
+$pageTitle    = 'User & Staff Management';
+$pageSubtitle = 'Unified control for administrators, desk officers, and event staff';
 $activePage   = 'staff';
 
 include __DIR__ . '/../../includes/header.php';
@@ -15,10 +15,19 @@ include __DIR__ . '/../../includes/sidebar.php';
 <div class="row g-3 mb-4">
     <div class="col-sm-6 col-xl-3">
         <div class="stat-card">
+            <div class="stat-icon purple"><i class="fas fa-user-shield"></i></div>
+            <div class="stat-info">
+                <div class="stat-value" id="kpi-admins">—</div>
+                <div class="stat-label">Active Admins</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="stat-card">
             <div class="stat-icon green"><i class="fas fa-users"></i></div>
             <div class="stat-info">
                 <div class="stat-value" id="kpi-total">—</div>
-                <div class="stat-label">Total Staff</div>
+                <div class="stat-label">Total Users</div>
             </div>
         </div>
     </div>
@@ -32,55 +41,37 @@ include __DIR__ . '/../../includes/sidebar.php';
         </div>
     </div>
     <div class="col-sm-6 col-xl-3">
-        <div class="stat-card">
-            <div class="stat-icon orange"><i class="fas fa-umbrella-beach"></i></div>
-            <div class="stat-info">
-                <div class="stat-value" id="kpi-on-leave">—</div>
-                <div class="stat-label">On Leave Today</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-6 col-xl-3">
         <div class="stat-card" style="cursor:pointer;" onclick="switchTab('leaves',document.getElementById('tabLeaves'))">
-            <div class="stat-icon red"><i class="fas fa-clock"></i></div>
+            <div class="stat-icon orange"><i class="fas fa-calendar-alt"></i></div>
             <div class="stat-info">
                 <div class="stat-value" id="kpi-pending-leave">—</div>
-                <div class="stat-label">Pending Leave Requests</div>
+                <div class="stat-label">Pending Leaves</div>
             </div>
         </div>
     </div>
 </div>
 
 <!-- Tabs -->
-<div style="display:flex;gap:0;border-bottom:1px solid var(--glass-sep);margin-bottom:18px;">
-    <button class="staff-tab active" id="tabRoster"  onclick="switchTab('roster',  this)"><i class="fas fa-users me-1"></i>Staff Roster</button>
-    <button class="staff-tab"        id="tabLeaves"  onclick="switchTab('leaves',  this)"><i class="fas fa-calendar-xmark me-1"></i>Leave Requests <span class="badge badge-pending ms-1" id="tabLeaveBadge"></span></button>
-    <button class="staff-tab"        id="tabSchedule" onclick="switchTab('schedule', this)"><i class="fas fa-calendar-day me-1"></i>Today's Roster</button>
+<div class="glass-tabs mb-4">
+    <button class="glass-tab active" id="tabRoster"  onclick="switchTab('roster',  this)"><i class="fas fa-users-cog me-1"></i>Unified Directory</button>
+    <button class="glass-tab"        id="tabLeaves"  onclick="switchTab('leaves',  this)"><i class="fas fa-calendar-xmark me-1"></i>Leave Requests <span class="badge badge-pending ms-1" id="tabLeaveBadge"></span></button>
+    <button class="glass-tab"        id="tabSchedule" onclick="switchTab('schedule', this)"><i class="fas fa-calendar-day me-1"></i>Today's Roster</button>
 </div>
 
-<!-- ── TAB: Roster ─────────────────────────────────────────────── -->
+<!-- ── TAB: Unified Roster ─────────────────────────────────────────────── -->
 <div id="panel-roster">
-    <!-- Filter Bar -->
     <div class="card mb-3">
-        <div class="card-body" style="padding:14px 20px;">
+        <div class="card-body p-3">
             <div class="search-bar">
                 <div class="search-input-wrap">
                     <i class="fas fa-search"></i>
-                    <input type="text" class="search-input" id="staffSearch" placeholder="Search by name, email, phone...">
+                    <input type="text" class="search-input" id="staffSearch" placeholder="Search name, email, or phone...">
                 </div>
-                <select class="form-control" id="staffFilterRole" style="min-width:120px; max-width:100%; flex:1;">
-                    <option value="staff,frontdesk">Staff & Front Desk</option>
-                    <option value="staff">Staff Only</option>
-                    <option value="frontdesk">Front Desk Only</option>
-                    <option value="admin">Admin Only</option>
-                </select>
-                <select class="form-control" id="staffFilterJob" style="min-width:120px; max-width:100%; flex:1;">
-                    <option value="">All Classifications</option>
-                    <option value="waiter">Waiter</option>
-                    <option value="head_cook">Head Cook</option>
-                    <option value="cook">Cook</option>
-                    <option value="server">Server</option>
-                    <option value="helper">Helper</option>
+                <select class="form-control" id="staffFilterRole" style="width:160px;">
+                    <option value="">All Roles</option>
+                    <option value="admin">Administrators</option>
+                    <option value="frontdesk">Front Desk</option>
+                    <option value="staff">Event Staff</option>
                 </select>
                 <select class="form-control" id="staffFilterStatus" style="width:140px;">
                     <option value="">All Status</option>
@@ -93,24 +84,29 @@ include __DIR__ . '/../../includes/sidebar.php';
 
     <div class="card">
         <div class="card-header">
-            <div><div class="card-title">Staff Roster</div> <span class="text-xs text-muted" id="staffCount"></span></div>
-            <button class="btn btn-primary btn-sm py-3" onclick="openAddModal()" title="Onboard a new staff member or administrator">
-                <i class="fas fa-plus"></i> Add Staff
+            <div>
+                <div class="card-title">Unified User Directory</div>
+                <div class="card-subtitle" id="staffCount">Loading users...</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openAddModal()">
+                <i class="fas fa-plus"></i> Onboard User
             </button>
         </div>
-        <div class="table-wrapper table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+        <div class="table-wrapper table-responsive">
             <table class="data-table">
                 <thead>
                     <tr>
                         <th>Name</th>
                         <th>Email</th>
-                        <th>Phone</th>
+                        <th>Role</th>
+                        <th>Job Class</th>
                         <th>Status</th>
-                        <th>Upcoming Events</th>
                         <th class="td-actions">Actions</th>
                     </tr>
                 </thead>
-                <tbody id="staffBody"><tr><td colspan="7"><div class="spinner"></div></td></tr></tbody>
+                <tbody id="staffBody">
+                    <tr><td colspan="6"><div class="spinner"></div></td></tr>
+                </tbody>
             </table>
         </div>
         <div class="table-pagination" id="staffPagination">
@@ -125,13 +121,13 @@ include __DIR__ . '/../../includes/sidebar.php';
     </div>
 </div>
 
-<!-- ── TAB: Leave Requests ────────────────────────────────────── -->
+<!-- ── TAB: Leave Requests (Merged) ────────────────────────────────────── -->
 <div id="panel-leaves" style="display:none;">
     <div class="card">
         <div class="card-header">
             <div>
-                <div class="card-title">Leave Requests</div>
-                <div class="card-subtitle">Review and approve or reject staff leave applications</div>
+                <div class="card-title">Leave Applications</div>
+                <div class="card-subtitle">Manage time-off requests for all staff levels</div>
             </div>
             <select class="form-control" id="leaveFilter" style="width:140px;" onchange="loadLeaves()">
                 <option value="pending">⏳ Pending</option>
@@ -140,90 +136,86 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <option value="">All</option>
             </select>
         </div>
-        <div class="table-wrapper table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+        <div class="table-wrapper table-responsive">
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Staff</th>
-                        <th>Leave Date</th>
+                        <th>Staff member</th>
+                        <th>Date</th>
                         <th>Reason</th>
                         <th>Submitted</th>
                         <th>Status</th>
                         <th class="td-actions">Action</th>
                     </tr>
                 </thead>
-                <tbody id="leavesBody"><tr><td colspan="6"><div class="spinner"></div></td></tr></tbody>
+                <tbody id="leavesBody"></tbody>
             </table>
         </div>
     </div>
 </div>
 
-<!-- ── TAB: Today's Roster ────────────────────────────────────── -->
+<!-- ── TAB: Today's Roster (Merged) ────────────────────────────────────── -->
 <div id="panel-schedule" style="display:none;">
     <div class="card">
         <div class="card-header">
-            <div>
-                <div class="card-title">Today's Event Roster</div>
-                <div class="card-subtitle">Staff assigned to today's events</div>
-            </div>
+            <div class="card-title">Event Operations Roster</div>
         </div>
-        <div class="card-body" id="todayRoster"><div class="spinner"></div></div>
+        <div class="card-body" id="todayRoster"></div>
     </div>
 </div>
 
-<!-- ── ADD / EDIT STAFF MODAL ─────────────────────────────────── -->
+<!-- ── UNIFIED ADD / EDIT MODAL ─────────────────────────────────── -->
 <div class="modal fade" id="staffModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header" style="position:relative;">
-                <h5 class="modal-title" id="staffModalTitle" style="padding-right:40px;">Add Staff Member</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" style="position:absolute; right:20px; top:20px;"></button>
+        <div class="modal-content glass-modal">
+            <div class="modal-header">
+                <h5 class="modal-title" id="staffModalTitle">Add New Account</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="staffForm">
                     <input type="hidden" name="id" id="sf-id">
                     <div class="form-grid-2">
                         <div class="form-group">
-                            <label class="form-label" for="sf-name">Full Name <span class="required">*</span></label>
-                            <input type="text" class="form-control" name="name" id="sf-name" required placeholder="e.g. Maria Santos" pattern="^[a-zA-Z\s\-\.]+$" title="Legal name of the staff member">
+                            <label class="form-label">Full Name</label>
+                            <input type="text" class="form-control" name="name" id="sf-name" required>
                         </div>
                         <div class="form-group">
-                            <label class="form-label" for="sf-phone">Phone</label>
-                            <input type="text" class="form-control" name="phone" id="sf-phone" placeholder="09XX XXX XXXX" data-restrict="phone" maxlength="11" title="11-digit mobile number for communication">
+                            <label class="form-label">Phone</label>
+                            <input type="text" class="form-control" name="phone" id="sf-phone" maxlength="11">
                         </div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="sf-email">Email <span class="required">*</span></label>
-                        <input type="email" class="form-control" name="email" id="sf-email" required placeholder="staff@email.com" maxlength="100" title="Email address for system login and notifications">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" class="form-control" name="email" id="sf-email" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="sf-role">Role</label>
-                        <select class="form-control" name="role" id="sf-role" onchange="onRoleChange()" title="Determines access level within the system">
+                        <label class="form-label">System Role</label>
+                        <select class="form-control" name="role" id="sf-role" onchange="toggleJobClassField()">
                             <option value="staff">Staff</option>
                             <option value="frontdesk">Front Desk</option>
-                            <option value="admin">Admin</option>
+                            <option value="admin">Administrator</option>
                         </select>
                     </div>
-                    <!-- Job Class: visible only for staff role -->
-                    <div class="form-group" id="jobClassGroup" style="display:none;">
-                        <label class="form-label" for="sf-job-class">Job Classification <span class="required">*</span></label>
-                        <select class="form-control" name="job_class" id="sf-job-class" title="Select the primary job function for event assignments">
+                    <!-- Dynamic Job Class Field -->
+                    <div class="form-group" id="jobClassGroup">
+                        <label class="form-label">Job Classification</label>
+                        <select class="form-control" name="job_class" id="sf-job-class">
                             <option value="waiter">🤵 Waiter</option>
                             <option value="head_cook">👨‍🍳 Head Cook</option>
                             <option value="cook">🍳 Cook</option>
-                            <option value="server">🍽️ Food Server</option>
+                            <option value="server">🍽️ Server</option>
                             <option value="helper">🙋 Helper</option>
                         </select>
-                        <div class="form-hint">Used to suggest the right staff in the dispatching tool.</div>
                     </div>
-                    <div class="form-group" id="sf-pw-group">
-                        <label class="form-label" for="sf-pw">Password <span class="required" id="sf-pw-req">*</span></label>
-                        <input type="password" class="form-control" name="password" id="sf-pw" placeholder="Min. 8 characters" title="Account login password">
-                        <div class="form-hint" id="sf-pw-hint" style="display:none;">Leave blank to keep existing password.</div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-control" name="password" id="sf-pw" placeholder="Min. 8 characters">
+                        <div class="form-hint" id="sf-pw-hint" style="display:none;">Leave blank to keep current password.</div>
                     </div>
-                    <div class="form-group" id="sf-active-group" style="display:none;">
-                        <label class="form-label" for="sf-active">Status</label>
-                        <select class="form-control" name="is_active" id="sf-active" title="Enable or disable this account">
+                    <div class="form-group" id="sf-active-group">
+                        <label class="form-label">Account Status</label>
+                        <select class="form-control" name="is_active" id="sf-active">
                             <option value="1">Active</option>
                             <option value="0">Inactive</option>
                         </select>
@@ -231,9 +223,36 @@ include __DIR__ . '/../../includes/sidebar.php';
                 </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button class="btn btn-primary" id="saveStaffBtn" onclick="saveStaff()" title="Save staff member details to the database">
-                    <i class="fas fa-save"></i> Save
+                <button class="btn btn-glass" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" id="saveStaffBtn" onclick="handleStaffSave()">
+                    <i class="fas fa-save me-1"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── MASTER KEY TRANSFER MODAL ─────────────────────────────────── -->
+<div class="modal fade" id="masterKeyTransferModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger shadow-lg">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Master Key Transfer</h5>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div class="mb-3">
+                    <i class="fas fa-key fa-3x text-danger opacity-50"></i>
+                </div>
+                <h4 class="fw-bold text-danger">Warning: Administrative Handover</h4>
+                <p class="text-muted px-3">
+                    Activating this <strong>Admin</strong> account will immediately <strong>deactivate</strong> your own account and terminate your current session.
+                </p>
+                <p class="fw-bold mb-0">Proceed with the transfer and logout?</p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button class="btn btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-danger px-4" id="confirmTransferBtn">
+                    Yes, Transfer & Logout
                 </button>
             </div>
         </div>
@@ -241,152 +260,181 @@ include __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <style>
-.staff-tab {
-    padding: 8px 18px;
+/* Glassmorphism Tabs */
+.glass-tabs {
+    display: flex;
+    gap: 8px;
+    border-bottom: 1px solid var(--glass-sep);
+    padding-bottom: 2px;
+}
+.glass-tab {
+    padding: 10px 20px;
     font-size: 13px;
     font-weight: 600;
     color: var(--label-3);
-    background: none;
-    border: none;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid transparent;
+    border-radius: 8px 8px 0 0;
     cursor: pointer;
-    transition: var(--tr);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.staff-tab:hover { color: var(--label-2); }
-.staff-tab.active { color: var(--sys-green-dark); border-bottom-color: var(--sys-green); }
+.glass-tab:hover { color: var(--label-2); background: rgba(255, 255, 255, 0.1); }
+.glass-tab.active { 
+    color: var(--sys-green-dark); 
+    background: rgba(48, 209, 88, 0.08); 
+    border-color: var(--glass-sep);
+    border-bottom-color: var(--bg-1);
+    margin-bottom: -1px;
+}
 
-.avail-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+/* Glassmorphism Badges */
+.badge-glass {
+    padding: 4px 10px;
+    border-radius: 6px;
     font-size: 11px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 99px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
-.avail-available { background: rgba(48,209,88,0.12); color: #1A7A32; }
-.avail-on_leave  { background: rgba(255,149,0,0.12);  color: #9A5400; }
-.avail-booked    { background: rgba(142,142,147,0.12);color: #636366; }
+.badge-admin { 
+    background: rgba(255, 215, 0, 0.15); 
+    color: #D4AF37; 
+    border-color: rgba(255, 215, 0, 0.3);
+}
+.badge-frontdesk { 
+    background: rgba(0, 122, 255, 0.15); 
+    color: #007AFF; 
+    border-color: rgba(0, 122, 255, 0.3);
+}
+.badge-staff { 
+    background: rgba(48, 209, 88, 0.15); 
+    color: #28A745; 
+    border-color: rgba(48, 209, 88, 0.3);
+}
+
+.btn-glass {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-sep);
+    color: var(--label-2);
+}
+.btn-glass:hover { background: rgba(255, 255, 255, 0.1); }
 </style>
 
 <script>
 const currentUserId = <?= (int)$_SESSION['user_id'] ?>;
-const currentUserRole = '<?= $_SESSION['role'] ?>';
-let staffModal, allStaff = [];
+let staffModal, transferModal, allStaff = [];
 let currentStaffPage = 1;
 let staffTotalPages = 1;
+let pendingTransferData = null;
+
+// ── UI INTERACTIVITY ───────────────────────────────────────────────
 
 function switchTab(name, el) {
     ['roster','leaves','schedule'].forEach(t => {
         document.getElementById('panel-' + t).style.display = 'none';
     });
-    document.querySelectorAll('.staff-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.glass-tab').forEach(b => b.classList.remove('active'));
     document.getElementById('panel-' + name).style.display = 'block';
     el.classList.add('active');
     if (name === 'leaves')   loadLeaves();
     if (name === 'schedule') loadTodayRoster();
 }
 
-// ── KPI ────────────────────────────────────────────────────────────
-async function loadKPIs() {
-    const today = new Date().toISOString().split('T')[0];
-    const [usersData, leaveData, pendingLeave, availData] = await Promise.all([
-        Api.get(BASE + 'src/api/staff.php', { role: 'staff,frontdesk', limit: 1000 }),
-        Api.get(BASE + 'src/api/leave.php',  { date: today }),
-        Api.get(BASE + 'src/api/leave.php',  { pending_only: 1 }),
-        Api.get(BASE + 'src/api/staff.php',  { available_on: today }),
-    ]);
-    allStaff = usersData.users || [];
-    const active = allStaff.filter(s => s.is_active == 1).length;
-    const onLeave = (leaveData.on_leave || []).length;
-    const pending = (pendingLeave.leaves || []).length;
-
-    document.getElementById('kpi-total').textContent    = allStaff.length;
-    document.getElementById('kpi-active').textContent   = active;
-    document.getElementById('kpi-on-leave').textContent = onLeave;
-    document.getElementById('kpi-pending-leave').textContent = pending;
-    document.getElementById('tabLeaveBadge').textContent = pending || '';
+/**
+ * Dynamic Fields Logic: Role-based field visibility
+ */
+function toggleJobClassField() {
+    const role = document.getElementById('sf-role').value;
+    const group = document.getElementById('jobClassGroup');
+    const select = document.getElementById('sf-job-class');
+    
+    if (role === 'staff') {
+        group.style.display = 'block';
+    } else {
+        group.style.display = 'none';
+        select.value = ''; // Nullify for non-staff
+    }
 }
 
-// ── STAFF ROSTER TABLE ─────────────────────────────────────────────
+// ── API FETCHING & RENDERING ───────────────────────────────────────
+
+async function loadKPIs() {
+    try {
+        const [usersData, leaveData] = await Promise.all([
+            Api.get(BASE + 'src/api/staff.php', { limit: 1000 }),
+            Api.get(BASE + 'src/api/leave.php',  { pending_only: 1 }),
+        ]);
+        const users = usersData.users || [];
+        document.getElementById('kpi-admins').textContent = users.filter(u => u.role === 'admin' && u.is_active == 1).length;
+        document.getElementById('kpi-total').textContent = users.length;
+        document.getElementById('kpi-active').textContent = users.filter(u => u.role === 'staff' && u.is_active == 1).length;
+        document.getElementById('kpi-pending-leave').textContent = (leaveData.leaves || []).length;
+        document.getElementById('tabLeaveBadge').textContent = (leaveData.leaves || []).length || '';
+    } catch(e) { console.error('KPI Load Failed'); }
+}
+
 async function loadRoster(page = 1) {
     currentStaffPage = page;
     const search = document.getElementById('staffSearch').value;
     const role   = document.getElementById('staffFilterRole').value;
-    const job    = document.getElementById('staffFilterJob').value;
     const status = document.getElementById('staffFilterStatus').value;
 
     try {
-        const today = new Date().toISOString().split('T')[0];
-        const params = { 
-            role, 
-            search, 
-            job_class: job, 
-            status, 
-            page: currentStaffPage, 
-            limit: 10 
-        };
+        const data = await Api.get(BASE + 'src/api/staff.php', { search, role, status, page, limit: 10 });
+        allStaff = data.users || [];
+        staffTotalPages = data.meta?.totalPages || 1;
+        document.getElementById('staffCount').textContent = `${data.meta?.totalRecords || 0} users found`;
+        renderRoster();
+        renderPagination();
+    } catch(e) { Toast.error('Failed to load roster.'); }
+}
 
-        const [usersData, schedData] = await Promise.all([
-            Api.get(BASE + 'src/api/staff.php', params),
-            Api.get(BASE + 'src/api/staff.php',  { available_on: today }),
-        ]);
-        allStaff = usersData.users || [];
-        staffTotalPages = usersData.meta?.totalPages || 1;
-        const totalRecords = usersData.meta?.totalRecords || allStaff.length;
+function renderRoster() {
+    const tbody = document.getElementById('staffBody');
+    if (!allStaff.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-muted">No records found matching filters.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = allStaff.map(u => {
+        const isSelf = parseInt(u.id) === currentUserId;
+        const roleBadge = `<span class="badge-glass badge-${u.role}">${u.role}</span>`;
+        const statusBadge = u.is_active == 1 
+            ? '<span class="badge badge-accepted">Active</span>' 
+            : '<span class="badge badge-cancelled">Inactive</span>';
         
-        document.getElementById('staffCount').textContent = `${totalRecords} member${totalRecords === 1 ? '' : 's'} found`;
-        renderStaffPagination();
+        const jobClassLabel = { head_cook: '👨‍🍳 Cook (Head)', cook: '🍳 Cook', waiter: '🤵 Waiter', server: '🍽️ Server', helper: '🙋 Helper', admin: '—', frontdesk: '—' };
+        
+        return `
+        <tr>
+            <td class="td-name">
+                <div class="fw-bold">${htmlEsc(u.name)}</div>
+                <small class="text-muted">${htmlEsc(u.phone || 'No Phone')}</small>
+            </td>
+            <td class="text-sm">${htmlEsc(u.email)}</td>
+            <td>${roleBadge}</td>
+            <td class="text-sm text-muted">${jobClassLabel[u.job_class] || u.job_class || '—'}</td>
+            <td>${statusBadge}</td>
+            <td class="td-actions">
+                <button class="btn btn-outline-primary btn-sm" onclick='openEditModal(${JSON.stringify(u)})'>
+                    <i class="fas fa-edit"></i>
+                </button>
+                ${!isSelf ? `
+                <button class="btn btn-danger btn-sm" onclick="handleStatusToggle(${u.id}, ${u.is_active}, '${u.role}')">
+                    <i class="fas fa-${u.is_active == 1 ? 'user-slash' : 'user-check'}"></i>
+                </button>
+                ` : ''}
+            </td>
+        </tr>`;
+    }).join('');
+}
 
-        const schedStaff = schedData.staff || [];
-        const availMap = {};
-        schedStaff.forEach(s => availMap[s.id] = s.availability);
-
-        const tbody = document.getElementById('staffBody');
-        if (!allStaff.length) {
-            tbody.innerHTML = `<tr><td colspan="7"><div class="table-empty"><i class="fas fa-users"></i><p>No staff found.</p></div></td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = allStaff.map(s => {
-            const av = availMap[s.id] || 'available';
-            const avLabel = { available: '🟢 Available', on_leave: '🟡 On Leave', booked: '⚫ Booked' };
-            const statusBadge = s.is_active == 1
-                ? '<span class="badge badge-accepted">Active</span>'
-                : '<span class="badge badge-cancelled">Inactive</span>';
-            const jobClassLabel = { head_cook: '👨‍🍳 Head Cook', cook: '🍳 Cook', waiter: '🤵 Waiter', server: '🍽️ Server', helper: '🙋 Helper', admin: '⚙️ Admin', super_admin: '👑 Super Admin', frontdesk: '💻 Front Desk' };
-            const jobClassText = (s.job_class && s.job_class !== 'any') 
-                ? `<br><small class="text-muted">${jobClassLabel[s.job_class] || s.job_class}</small>` 
-                : '';
-
-            const isSelf = parseInt(s.id) === currentUserId;
-            const isAdmin = ['admin', 'super_admin'].includes(s.role);
-            const canManageStatus = !isSelf && (currentUserRole === 'super_admin' || !isAdmin);
-
-            return `
-            <tr>
-                <td class="td-name">${htmlEsc(s.name)}${jobClassText}</td>
-                <td class="text-sm text-muted">${htmlEsc(s.email)}</td>
-                <td class="text-sm">${htmlEsc(s.phone || '—')}</td>
-                <td>${statusBadge}</td>
-                <td><span class="avail-chip avail-${av}">${avLabel[av]||av}</span></td>
-                <td class="td-actions">
-                    <button class="btn btn-outline-primary btn-sm" onclick='openEditModal(${JSON.stringify(s)})' title="Edit">
-                        <i class="fas fa-pencil"></i>
-                    </button>
-                    ${canManageStatus ? `
-                    <button class="btn btn-danger btn-sm" onclick="toggleActive(${s.id}, ${s.is_active})" title="${s.is_active ? 'Deactivate' : 'Reactivate'}">
-                        <i class="fas fa-${s.is_active ? 'user-slash' : 'user-check'}"></i>
-                    </button>` : ''}
-                </td>
-            </tr>`;
-        }).join('');
-    } catch(e) { Toast.error('Failed to load staff roster.'); }
+function renderPagination() {
+    document.getElementById('staffPageInfo').textContent = `Page ${currentStaffPage} of ${staffTotalPages}`;
+    document.getElementById('staffPrevBtn').disabled = currentStaffPage <= 1;
+    document.getElementById('staffNextBtn').disabled = currentStaffPage >= staffTotalPages;
 }
 
 function changeStaffPage(p) {
@@ -394,174 +442,98 @@ function changeStaffPage(p) {
     loadRoster(p);
 }
 
-function renderStaffPagination() {
-    document.getElementById('staffPageInfo').textContent = `Page ${currentStaffPage} of ${staffTotalPages}`;
-    document.getElementById('staffPrevBtn').disabled = currentStaffPage <= 1;
-    document.getElementById('staffNextBtn').disabled = currentStaffPage >= staffTotalPages;
-}
+// ── CRUD OPERATIONS & MASTER KEY HANDLER ────────────────────────────
 
-// ── LEAVE REQUESTS ─────────────────────────────────────────────────
-async function loadLeaves() {
-    const status = document.getElementById('leaveFilter').value;
-    try {
-        const d = await Api.get(BASE + 'src/api/leave.php', status ? { status } : {});
-        const leaves = d.leaves || [];
-        const tbody  = document.getElementById('leavesBody');
-        if (!leaves.length) {
-            tbody.innerHTML = `<tr><td colspan="6"><div class="table-empty"><i class="fas fa-calendar-check"></i><p>No leave requests found.</p></div></td></tr>`;
-            return;
-        }
-        tbody.innerHTML = leaves.map(l => {
-            const statusBadge = {
-                pending:  '<span class="badge badge-pending">⏳ Pending</span>',
-                approved: '<span class="badge badge-accepted">✅ Approved</span>',
-                rejected: '<span class="badge badge-cancelled">❌ Rejected</span>',
-            }[l.status] || l.status;
-            const actions = l.status === 'pending' ? `
-                <button class="btn btn-primary btn-sm" onclick="reviewLeave(${l.id},'approved')">
-                    <i class="fas fa-check"></i>
-                </button>
-                <button class="btn btn-danger btn-sm ms-1" onclick="reviewLeave(${l.id},'rejected')">
-                    <i class="fas fa-times"></i>
-                </button>` : '—';
-            return `
-            <tr>
-                <td class="td-name">${htmlEsc(l.staff_name)}<br><small class="text-muted">${htmlEsc(l.staff_phone||'')}</small></td>
-                <td>${Format.dateShort(l.leave_date)}</td>
-                <td class="text-sm text-muted">${htmlEsc(l.reason||'—')}</td>
-                <td class="text-xs text-muted">${Format.dateShort(l.created_at)}</td>
-                <td>${statusBadge}</td>
-                <td class="td-actions">${actions}</td>
-            </tr>`;
-        }).join('');
-    } catch(e) { Toast.error('Failed to load leave requests.'); }
-}
-
-async function reviewLeave(id, status) {
-    const label = status === 'approved' ? 'Approve' : 'Reject';
-    if (!await confirmDialog(`${label} this leave request? The staff member will be notified.`)) return;
-    try {
-        await Api.put(BASE + 'src/api/leave.php', { id, status });
-        Toast.success(`Leave request ${status}.`);
-        loadLeaves();
-        loadKPIs();
-    } catch(e) { Toast.error(e.message); }
-}
-
-// ── TODAY'S ROSTER ─────────────────────────────────────────────────
-async function loadTodayRoster() {
-    const today = new Date().toISOString().split('T')[0];
-    const d = document.getElementById('todayRoster');
-    d.innerHTML = '<div class="spinner"></div>';
-    try {
-        const data = await Api.get(BASE + 'src/api/staff.php', { available_on: today });
-        const staff = data.staff || [];
-        const booked   = staff.filter(s => s.availability === 'booked');
-        const onLeave  = staff.filter(s => s.availability === 'on_leave');
-        const avail    = staff.filter(s => s.availability === 'available');
-
-        const renderGroup = (list, label, icon, cls) => {
-            if (!list.length) return '';
-            return `<div style="margin-bottom:16px;">
-                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--label-3);margin-bottom:8px;">${icon} ${label} (${list.length})</div>
-                <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                    ${list.map(s => `<div class="avail-chip avail-${s.availability}" style="padding:6px 12px;font-size:12px;">
-                        <i class="fas fa-user" style="margin-right:5px;font-size:10px;"></i>${htmlEsc(s.name)}
-                    </div>`).join('')}
-                </div>
-            </div>`;
-        };
-
-        d.innerHTML = renderGroup(booked, 'Assigned Today', '⚫', 'booked')
-            + renderGroup(onLeave, 'On Leave', '🟡', 'on_leave')
-            + renderGroup(avail, 'Available', '🟢', 'available')
-            || '<div class="empty-state"><div class="empty-state-icon"><i class="fas fa-calendar"></i></div><h3>No staff data found.</h3></div>';
-    } catch(e) { d.innerHTML = '<p class="text-muted text-center p-4">Failed to load.</p>'; }
-}
-
-// ── ADD / EDIT STAFF ───────────────────────────────────────────────
 function openAddModal() {
-    document.getElementById('staffModalTitle').textContent = 'Add Staff Member';
+    document.getElementById('staffModalTitle').textContent = 'Onboard New User';
     document.getElementById('staffForm').reset();
     document.getElementById('sf-id').value = '';
     document.getElementById('sf-pw-hint').style.display = 'none';
-    document.getElementById('sf-pw-req').style.display  = 'inline';
     document.getElementById('sf-active-group').style.display = 'none';
-    onRoleChange();
+    toggleJobClassField();
     staffModal.show();
 }
 
-function onRoleChange() {
-    const role = document.getElementById('sf-role').value;
-    const jcGroup = document.getElementById('jobClassGroup');
-    if (jcGroup) jcGroup.style.display = (role === 'staff') ? '' : 'none';
-}
-
-function openEditModal(s) {
-    document.getElementById('staffModalTitle').textContent = 'Edit Staff Member';
-    document.getElementById('sf-id').value    = s.id;
-    document.getElementById('sf-name').value  = s.name;
-    document.getElementById('sf-email').value = s.email;
-    document.getElementById('sf-phone').value = s.phone || '';
-    document.getElementById('sf-role').value  = s.role;
-    document.getElementById('sf-active').value = s.is_active;
-    document.getElementById('sf-job-class').value = (s.job_class && s.job_class !== 'any') ? s.job_class : 'waiter';
-    document.getElementById('sf-pw').value    = '';
+function openEditModal(u) {
+    document.getElementById('staffModalTitle').textContent = 'Update Account';
+    document.getElementById('sf-id').value = u.id;
+    document.getElementById('sf-name').value = u.name;
+    document.getElementById('sf-email').value = u.email;
+    document.getElementById('sf-phone').value = u.phone || '';
+    document.getElementById('sf-role').value = u.role;
+    document.getElementById('sf-active').value = u.is_active;
+    document.getElementById('sf-job-class').value = u.job_class || '';
+    document.getElementById('sf-pw').value = '';
     document.getElementById('sf-pw-hint').style.display = 'block';
-    document.getElementById('sf-pw-req').style.display  = 'none';
-
-    const isSelf = parseInt(s.id) === currentUserId;
-    const isAdmin = ['admin', 'super_admin'].includes(s.role);
-    const canManageStatus = !isSelf && (currentUserRole === 'super_admin' || !isAdmin);
-    document.getElementById('sf-active-group').style.display = canManageStatus ? 'block' : 'none';
-
-    onRoleChange();
+    
+    // UI Guard for status
+    const isSelf = parseInt(u.id) === currentUserId;
+    document.getElementById('sf-active-group').style.display = isSelf ? 'none' : 'block';
+    
+    toggleJobClassField();
     staffModal.show();
 }
 
-async function saveStaff() {
-    const form = document.getElementById('staffForm');
-    const name = document.getElementById('sf-name').value.trim();
-    const email = document.getElementById('sf-email').value.trim();
-    const phone = document.getElementById('sf-phone').value.trim();
-    const password = document.getElementById('sf-pw').value;
-        const id = document.getElementById('sf-id').value;
-
-
-    // Frontend Validation
-    if (!name || !email || (!id && !password)) {
-        Toast.error('Please fill in all required fields.');
+/**
+ * Master Key Interception Logic
+ */
+async function handleStatusToggle(id, currentStatus, role) {
+    const newStatus = currentStatus == 1 ? 0 : 1;
+    
+    // If activating an admin, intercept and show warning
+    if (role === 'admin' && newStatus === 1) {
+        pendingTransferData = { id, is_active: 1 };
+        transferModal.show();
         return;
     }
-    if (name.length > 100) return Toast.error('Name too long (max 100).');
-    if (!/^[a-zA-Z\s\-.]+$/.test(name)) return Toast.error('Name contains invalid characters.');
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Toast.error('Invalid email address.');
-    if (phone && !/^(09|\+639)\d{9}$/.test(phone)) return Toast.error('Invalid PH phone number.');
-    if (password && password.length < 8) return Toast.error('Password must be at least 8 characters.');
 
+    const action = newStatus === 1 ? 'reactivate' : 'deactivate';
+    if (!await confirmDialog(`Are you sure you want to ${action} this user?`)) return;
+    
+    executePut({ id, is_active: newStatus });
+}
+
+async function handleStaffSave() {
+    const id = document.getElementById('sf-id').value;
+    const role = document.getElementById('sf-role').value;
+    const isActive = document.getElementById('sf-active').value;
+    
     const data = {
-        name,
-        email,
-        phone,
-        role:      document.getElementById('sf-role').value,
+        id: id || undefined,
+        name: document.getElementById('sf-name').value,
+        email: document.getElementById('sf-email').value,
+        phone: document.getElementById('sf-phone').value,
+        role: role,
         job_class: document.getElementById('sf-job-class').value,
-        password,
+        password: document.getElementById('sf-pw').value,
+        is_active: id ? parseInt(isActive) : undefined
     };
-    if (id) {
-        data.id        = parseInt(id);
-        data.is_active = parseInt(document.getElementById('sf-active').value);
+
+    // Master Key Interception for Modal Update
+    if (id && role === 'admin' && isActive == 1) {
+        // We need to check if it was previously inactive. 
+        // For simplicity, we can fetch from allStaff or just trigger the modal always if role=admin+active
+        const prev = allStaff.find(u => u.id == id);
+        if (prev && prev.is_active == 0) {
+            pendingTransferData = data;
+            staffModal.hide();
+            transferModal.show();
+            return;
+        }
     }
 
+    executeSave(data);
+}
+
+async function executeSave(data) {
     const btn = document.getElementById('saveStaffBtn');
     Form.setLoading(btn, true);
     try {
-        if (id) {
-            await Api.put(BASE + 'src/api/staff.php', data);
-            Toast.success('Staff member updated.');
-        } else {
-            await Api.post(BASE + 'src/api/staff.php', data);
-            Toast.success('Staff member added.');
-        }
+        const res = data.id 
+            ? await Api.put(BASE + 'src/api/staff.php', data)
+            : await Api.post(BASE + 'src/api/staff.php', data);
+        
+        Toast.success(res.message || 'Operation successful');
         staffModal.hide();
         loadRoster();
         loadKPIs();
@@ -569,15 +541,59 @@ async function saveStaff() {
     Form.setLoading(btn, false);
 }
 
-async function toggleActive(id, current) {
-    const action = current == 1 ? 'Deactivate' : 'Reactivate';
-    if (!await confirmDialog(`${action} this staff member?`)) return;
+async function executePut(data) {
     try {
-        await Api.put(BASE + 'src/api/staff.php', { id, is_active: current == 1 ? 0 : 1 });
-        Toast.success(`Staff member ${action.toLowerCase()}d.`);
+        const res = await Api.put(BASE + 'src/api/staff.php', data);
+        
+        // Logout Redirection Logic
+        if (res.admin_transferred) {
+            Toast.success('Master Key Transferred. Logging out...');
+            setTimeout(() => window.location.href = 'logout.php', 1500);
+            return;
+        }
+
+        Toast.success(res.message);
         loadRoster();
         loadKPIs();
     } catch(e) { Toast.error(e.message); }
+}
+
+// ── LEAVE & ROSTER HELPERS ──────────────────────────────────────────
+
+async function loadLeaves() {
+    const status = document.getElementById('leaveFilter').value;
+    try {
+        const d = await Api.get(BASE + 'src/api/leave.php', status ? { status } : {});
+        const leaves = d.leaves || [];
+        const tbody  = document.getElementById('leavesBody');
+        tbody.innerHTML = leaves.map(l => `
+            <tr>
+                <td class="td-name">${htmlEsc(l.staff_name)}</td>
+                <td>${Format.dateShort(l.leave_date)}</td>
+                <td class="text-sm text-muted">${htmlEsc(l.reason)}</td>
+                <td class="text-xs text-muted">${Format.dateShort(l.created_at)}</td>
+                <td><span class="badge badge-${l.status}">${l.status}</span></td>
+                <td class="td-actions">
+                    ${l.status === 'pending' ? `
+                        <button class="btn btn-primary btn-sm" onclick="reviewLeave(${l.id},'approved')"><i class="fas fa-check"></i></button>
+                    ` : '—'}
+                </td>
+            </tr>`).join('');
+    } catch(e) { }
+}
+
+async function loadTodayRoster() {
+    const today = new Date().toISOString().split('T')[0];
+    const d = document.getElementById('todayRoster');
+    try {
+        const data = await Api.get(BASE + 'src/api/staff.php', { available_on: today });
+        const staff = data.staff || [];
+        d.innerHTML = staff.map(s => `
+            <div class="badge-glass badge-staff m-1 d-inline-block">
+                ${htmlEsc(s.name)} (${s.availability})
+            </div>
+        `).join('') || 'No staff assigned today.';
+    } catch(e) { }
 }
 
 function htmlEsc(str) {
@@ -585,16 +601,29 @@ function htmlEsc(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── INIT ───────────────────────────────────────────────────────────
-staffModal = new bootstrap.Modal(document.getElementById('staffModal'));
-loadKPIs();
-loadRoster();
+// ── INITIALIZATION ────────────────────────────────────────────────
 
-// Event listeners for filters
-['staffFilterRole', 'staffFilterJob', 'staffFilterStatus'].forEach(id => {
-    document.getElementById(id).addEventListener('change', () => loadRoster(1));
+document.addEventListener('DOMContentLoaded', () => {
+    staffModal = new bootstrap.Modal(document.getElementById('staffModal'));
+    transferModal = new bootstrap.Modal(document.getElementById('masterKeyTransferModal'));
+
+    loadKPIs();
+    loadRoster();
+
+    // Filter Listeners
+    ['staffFilterRole', 'staffFilterStatus'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => loadRoster(1));
+    });
+    document.getElementById('staffSearch').addEventListener('input', debounce(() => loadRoster(1), 400));
+
+    // Transfer Confirmation
+    document.getElementById('confirmTransferBtn').addEventListener('click', () => {
+        if (pendingTransferData) {
+            transferModal.hide();
+            executePut(pendingTransferData);
+        }
+    });
 });
-document.getElementById('staffSearch').addEventListener('input', debounce(() => loadRoster(1), 400));
 </script>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

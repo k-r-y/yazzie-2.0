@@ -19,7 +19,7 @@
 
 define('MIGRATE_VERSION', '1.0.0');
 
-// ── Guard: Restrict browser access to Super Admins only ──────
+// ── Guard: Restrict browser access to Admins only ──────
 $isCli = (php_sapi_name() === 'cli');
 
 if (!$isCli) {
@@ -27,9 +27,9 @@ if (!$isCli) {
     require_once __DIR__ . '/../config/config.php';
     require_once __DIR__ . '/../includes/auth.php';
     $currentUser = getCurrentUser();
-    if (!$currentUser || $currentUser['role'] !== 'super_admin') {
+    if (!$currentUser || $currentUser['role'] !== 'admin') {
         http_response_code(403);
-        die('<pre style="font-family:monospace; padding:20px; color:#C0392B;">403 Forbidden — Super Admin access required.</pre>');
+        die('<pre style="font-family:monospace; padding:20px; color:#C0392B;">403 Forbidden — Admin access required.</pre>');
     }
 } else {
     require_once __DIR__ . '/../config/config.php';

@@ -294,10 +294,104 @@ $privacyNotice = appSetting('data_privacy_notice', "We value your privacy. Your 
         }
         .print-btn:hover { transform: translateY(-2pt); }
 
+        /* ── PayNow Banner ──────────────────────────────────────────── */
+        .paynow-banner {
+            margin: 28px 0 0;
+            padding: 24px 28px;
+            background: linear-gradient(135deg, rgba(48,209,88,0.07) 0%, rgba(37,162,68,0.05) 100%);
+            border: 1px solid rgba(48,209,88,0.20);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .paynow-info { flex: 1; min-width: 0; }
+        .paynow-info h4 {
+            margin: 0 0 4px;
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--label);
+            letter-spacing: -0.3px;
+        }
+        .paynow-info p {
+            margin: 0;
+            font-size: 12px;
+            color: var(--label-3);
+            line-height: 1.5;
+        }
+        .paynow-amount {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--sys-green-dark);
+            letter-spacing: -1px;
+            white-space: nowrap;
+        }
+
+        .btn-paynow {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 28px;
+            background: linear-gradient(180deg, #3ADA63 0%, var(--sys-green-dark) 100%);
+            color: #fff;
+            border: none;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 800;
+            font-family: inherit;
+            letter-spacing: -0.2px;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(48,209,88,0.30), inset 0 1px 0 rgba(255,255,255,0.20);
+            transition: all 0.18s cubic-bezier(0.4,0,0.2,1);
+            white-space: nowrap;
+            flex-shrink: 0;
+            text-decoration: none;
+        }
+        .btn-paynow:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(48,209,88,0.38), inset 0 1px 0 rgba(255,255,255,0.20);
+        }
+        .btn-paynow:active:not(:disabled) { transform: scale(0.98); }
+        .btn-paynow:disabled {
+            opacity: 0.7;
+            cursor: default;
+            transform: none;
+        }
+        .btn-paynow .spin {
+            display: inline-block;
+            width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.4);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .paynow-methods {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .method-chip {
+            padding: 3px 10px;
+            background: rgba(48,209,88,0.10);
+            border: 1px solid rgba(48,209,88,0.20);
+            border-radius: 99px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--sys-green-dark);
+            letter-spacing: 0.2px;
+        }
+
         @media print {
             body { background: white; padding: 0; }
             .invoice-wrapper { box-shadow: none; border: none; padding: 0; margin: 0; }
             .print-btn-container { display: none; }
+            .paynow-banner { display: none; }
             .print-footer { margin-left: 0; margin-right: 0; }
         }
     </style>
@@ -428,6 +522,16 @@ $privacyNotice = appSetting('data_privacy_notice', "We value your privacy. Your 
         </div>
     </div>
 
+    <?php
+    // Show the Pay Now banner only when there is an outstanding balance
+    // and the booking has not been cancelled.
+    $showPayNow = ($balance > 0.01)
+               && ($b['booking_status'] !== 'cancelled')
+               && ($b['booking_status'] !== 'completed');
+    ?>
+
+    <?php /* Payment Banner Removed per Request */ ?>
+
     <?php if (!empty($payments)): ?>
     <div class="history-section">
         <div class="section-label">Payment Registry</div>
@@ -494,11 +598,206 @@ $privacyNotice = appSetting('data_privacy_notice', "We value your privacy. Your 
     </div>
 </div>
 
-<div class="no-print print-btn-container">
+<div class="no-print print-btn-container" style="display:flex;flex-direction:column;gap:10pt;">
     <button class="print-btn" onclick="window.print()">
         <span>🖨️</span> Print Invoice
     </button>
 </div>
+
+<?php if ($showPayNow ?? false): ?>
+<style>
+    /* Payment Overlay Styles */
+    #paymentOverlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(255,255,255,0.95);
+        z-index: 9999;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 20px;
+    }
+    .po-spinner {
+        width: 48px; height: 48px;
+        border: 4px solid var(--sys-gray-5);
+        border-top-color: var(--sys-green-dark);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 24px;
+    }
+    .po-title {
+        font-size: 24px; font-weight: 700; color: var(--text-color); margin-bottom: 12px;
+    }
+    .po-subtitle {
+        font-size: 15px; color: var(--label-2); max-width: 400px; line-height: 1.5;
+    }
+    .po-success-icon {
+        width: 64px; height: 64px; background: var(--sys-green-dark); color: white;
+        border-radius: 50%; display: none; align-items: center; justify-content: center;
+        font-size: 32px; margin-bottom: 24px;
+    }
+
+</style>
+
+<div id="paymentOverlay">
+    <div class="po-spinner" id="poSpinner"></div>
+    <div class="po-success-icon" id="poSuccess"><i class="fas fa-check"></i></div>
+    <div class="po-title" id="poTitle">Payment in Progress</div>
+    <div class="po-subtitle" id="poSubtitle">Waiting for payment... Please complete the transaction in the new tab. This page will refresh automatically once payment is received.</div>
+
+    <?php if (isset($_GET['mock_paymongo'])): ?>
+    <div id="mockSimulateBtn" style="margin-top: 30px; padding: 15px; border: 2px dashed #E67E22; border-radius: 12px; background: #FFF3E0; width: 100%; max-width: 320px;">
+        <p style="font-size: 13px; color: #E67E22; font-weight: 700; margin-bottom: 10px;">[DEV MOCK MODE ACTIVE]</p>
+        <button onclick="simulatePaymentSuccess(event)" style="background: #E67E22; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s; width: 100%;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+            Simulate Payment Success
+        </button>
+        <p style="font-size: 11px; color: #666; margin-top: 8px;">Clicking this will trigger the "Paid" state in the database to test the auto-refresh logic.</p>
+    </div>
+    <script>
+    async function simulatePaymentSuccess(event) {
+        const btn = event.target;
+        btn.disabled = true;
+        btn.innerText = 'Simulating...';
+        try {
+            const res = await fetch('<?= BASE_URL ?>/src/api/mock_paymongo_complete.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ booking_id: <?= (int)$bookingId ?> })
+            });
+            const data = await res.json();
+            if (data.success) {
+                btn.innerText = 'Success! Updating DB...';
+                btn.style.background = '#27AE60';
+            } else {
+                alert('Mock failed: ' + data.error);
+                btn.disabled = false;
+                btn.innerText = 'Simulate Payment Success';
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+            btn.disabled = false;
+            btn.innerText = 'Simulate Payment Success';
+        }
+    }
+    </script>
+    <?php endif; ?>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    const btn      = document.getElementById('payNowBtn');
+    if (!btn) return;
+
+    const bookingId = btn.dataset.bookingId;
+    const token     = btn.dataset.token;
+
+    // Build the API endpoint — works for both admin-session and public-token access
+    const apiBase   = '<?= BASE_URL ?>';
+    const endpoint  = apiBase + '/src/api/paymongo_checkout.php';
+
+    // Read CSRF token from the meta tag if an admin session is active;
+    // the endpoint accepts the invoice token as a fallback identifier.
+    const csrfMeta  = document.querySelector('meta[name="csrf_token"]');
+    const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+    const pollerFn = async (bId, bToken) => {
+        const overlay = document.getElementById('paymentOverlay');
+        if (!overlay) return;
+        overlay.style.display = 'flex';
+        
+        const pollEndpoint = apiBase + '/src/api/payment_status.php?booking_id=' + bId + '&token=' + encodeURIComponent(bToken);
+        let pollCount = 0;
+
+        const poller = setInterval(async () => {
+            try {
+                pollCount++;
+                if (pollCount > 300) {
+                    clearInterval(poller);
+                    document.getElementById('poTitle').textContent = 'Session Expired';
+                    document.getElementById('poSubtitle').textContent = 'The payment window has timed out. Please refresh the page to try again.';
+                    document.getElementById('poSpinner').style.display = 'none';
+                    return;
+                }
+
+                const statusRes = await fetch(pollEndpoint);
+                const statusData = await statusRes.json();
+
+                if (statusData.success && (statusData.payment_status === 'paid' || statusData.amount_paid > 0)) {
+                    clearInterval(poller);
+                    document.getElementById('poSpinner').style.display = 'none';
+                    document.getElementById('poSuccess').style.display = 'flex';
+                    document.getElementById('poTitle').textContent = 'Payment Received!';
+                    
+                    const returnTo = urlParams.get('return_to');
+                    if (returnTo === 'financial') {
+                        document.getElementById('poSubtitle').innerHTML = 
+                            'We have successfully recorded the payment.<br><br>' +
+                            '<a href="' + apiBase + '/views/admin/financial.php" class="btn btn-success" style="text-decoration:none; display:inline-block; margin-top:10px; padding:10px 20px; border-radius:8px; background:#27AE60; color:white; font-weight:700;">' +
+                            '<i class="fas fa-arrow-left"></i> Back to Financial Module</a>';
+                    } else {
+                        document.getElementById('poSubtitle').textContent = 'We have successfully recorded your payment. Refreshing your invoice...';
+                        setTimeout(() => {
+                            const url = new URL(window.location.href);
+                            url.searchParams.delete('paid');
+                            window.location.href = url.toString();
+                        }, 2000);
+                    }
+                }
+            } catch (e) { console.error('[Poller] Error:', e); }
+        }, 3000);
+    };
+
+    // ── Auto-start poller if redirected back from PayMongo ─────────────────
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('paid')) {
+        pollerFn(bookingId, token);
+    }
+
+    btn.addEventListener('click', async function handlePayNow() {
+        const originalHTML = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spin"></span> Opening secure checkout…';
+
+        try {
+            const headers = { 'Content-Type': 'application/json' };
+            if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
+            const response = await fetch(endpoint, {
+                method:      'POST',
+                credentials: 'same-origin',
+                headers,
+                body: JSON.stringify({
+                    booking_id:    parseInt(bookingId, 10),
+                    invoice_token: token,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (data.success && data.checkout_url) {
+                window.open(data.checkout_url, '_blank');
+                pollerFn(bookingId, token);
+                return;
+            }
+
+            const message = data.message || 'Could not create a payment session. Please try again.';
+            alert('⚠️ ' + message);
+
+        } catch (networkErr) {
+            console.error('[PayNow] Network error:', networkErr);
+            alert('⚠️ A network error occurred. Please check your connection and try again.');
+        }
+
+        btn.innerHTML = originalHTML;
+        btn.disabled  = false;
+    });
+}());
+</script>
+<?php endif; ?>
 
 </body>
 </html>

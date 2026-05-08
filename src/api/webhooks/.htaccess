@@ -1,0 +1,8 @@
+# Deny all direct browser access to this directory.
+# Only the web server should route PayMongo POST requests here.
+Options -Indexes
+
+# Block all origins except PayMongo's documented IP ranges.
+# (Uncomment and adjust when your host supports mod_authz_host)
+# Require ip 136.143.0.0/16
+# Require ip 54.169.0.0/16

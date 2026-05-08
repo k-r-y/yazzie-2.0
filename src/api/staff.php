@@ -1,19 +1,21 @@
 <?php
 /**
- * Staff (User) API
- * GET    — list staff / all users
+ * Unified User & Staff Management API
+ * GET    — list all users/staff
  * POST   — create user (admin only)
- * PUT    — update user (admin only)
- * DELETE — deactivate user (admin only)
+ * PUT    — update user / Master Key Transfer
+ * DELETE — deactivate user
  */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/audit.php';
 
-$currentUser = requireApiRole(['admin', 'frontdesk']);
+// Authorization: admin role is required for all management operations
+$currentUser = requireApiRole(['admin']);
 requireCsrf();
-$method      = $_SERVER['REQUEST_METHOD'];
+
+$method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     $role   = $_GET['role']    ?? '';
@@ -31,13 +33,7 @@ if ($method === 'GET') {
         $where[] = 'role IN (' . implode(',', $placeholders) . ')';
     }
 
-    // Frontdesk can only see staff list; admin sees all
-    if ($currentUser['role'] === 'frontdesk') {
-        $where[]           = 'role = :role_staff';
-        $params[':role_staff'] = 'staff';
-    }
-
-    // ── Availability check for a specific date ──────────────────────
+    // Availability check for dispatching
     if (isset($_GET['available_on'])) {
         $date = $_GET['available_on'];
         $excludeBookingId = (int)($_GET['exclude_booking'] ?? 0);
@@ -46,7 +42,6 @@ if ($method === 'GET') {
         $availWhere[] = 'is_active = 1';
         $whereClause = implode(' AND ', $availWhere);
 
-        // Get all active staff based on filters
         $staffStmt = $pdo->prepare("
             SELECT id, name, email, phone, role, job_class,
                    DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s') AS created_at
@@ -57,7 +52,6 @@ if ($method === 'GET') {
         $staffStmt->execute($params);
         $staff = $staffStmt->fetchAll();
 
-        // Staff on approved leave that day
         $onLeaveStmt = $pdo->prepare("
             SELECT staff_id FROM leave_requests
             WHERE leave_date = :d AND status = 'approved'
@@ -65,7 +59,6 @@ if ($method === 'GET') {
         $onLeaveStmt->execute([':d' => $date]);
         $onLeave = array_column($onLeaveStmt->fetchAll(), 'staff_id');
 
-        // Staff already accepted for a different booking that day (via job_orders)
         $bookedStmt = $pdo->prepare("
             SELECT DISTINCT jo.staff_id
             FROM job_orders jo
@@ -78,7 +71,6 @@ if ($method === 'GET') {
         $bookedStmt->execute([':d' => $date, ':excl' => $excludeBookingId, ':excl2' => $excludeBookingId]);
         $alreadyBooked = array_column($bookedStmt->fetchAll(), 'staff_id');
 
-        // Annotate each staff member
         foreach ($staff as &$s) {
             if (in_array($s['id'], $onLeave)) {
                 $s['availability'] = 'on_leave';
@@ -92,8 +84,6 @@ if ($method === 'GET') {
 
         jsonResponse(true, '', ['staff' => $staff, 'date' => $date]);
     }
-
-
 
     if (isset($_GET['status']) && $_GET['status'] !== '') {
         $where[] = 'is_active = :status';
@@ -114,7 +104,6 @@ if ($method === 'GET') {
 
     $page  = max(1, (int)($_GET['page'] ?? 1));
     $limit = (int)($_GET['limit'] ?? 10);
-    if ($limit < 1) $limit = 10;
     $offset = ($page - 1) * $limit;
 
     $countStmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE $whereClause");
@@ -127,12 +116,10 @@ if ($method === 'GET') {
                DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s') AS created_at
         FROM users
         WHERE $whereClause
-        ORDER BY role ASC, name ASC
+        ORDER BY FIELD(role, 'admin', 'frontdesk', 'staff'), name ASC
         LIMIT :limit OFFSET :offset
     ");
-    foreach ($params as $key => $value) {
-        $stmt->bindValue($key, $value);
-    }
+    foreach ($params as $key => $value) $stmt->bindValue($key, $value);
     $stmt->bindValue(':limit',  $limit,  PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
     $stmt->execute();
@@ -148,89 +135,52 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
-    requireApiRole('admin');
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
 
     foreach (['name', 'email', 'password', 'role'] as $f) {
         if (empty($d[$f])) jsonResponse(false, "Field '$f' is required.", [], 422);
     }
 
-    if (strlen($d['name']) > 100) jsonResponse(false, 'Name too long.', [], 422);
-    if (!preg_match('/^[a-zA-Z\s\-\.]+$/', trim($d['name']))) {
-        jsonResponse(false, 'Invalid name format. Only letters, spaces, hyphens, and periods are allowed.', [], 422);
+    // Role Validation
+    $requestedRole = $d['role'];
+    $allowedRoles  = ['admin', 'frontdesk', 'staff'];
+    if (!in_array($requestedRole, $allowedRoles, true)) {
+        jsonResponse(false, 'Invalid role specified.', [], 403);
     }
 
-    if (strlen($d['email']) > 100) jsonResponse(false, 'Email too long.', [], 422);
-    if (!filter_var($d['email'], FILTER_VALIDATE_EMAIL)) {
-        jsonResponse(false, 'Invalid email address.', [], 422);
-    }
+    // CREATION GUARD: Force admin to be inactive by default
+    $isActive = ($requestedRole === 'admin') ? 0 : 1;
 
-    $requestedRole  = $d['role'];
-    $callerRole     = $currentUser['role'] ?? '';
-
-    // ── PREVENT SUPER_ADMIN CREATION ────────────────────────────
-    // Only 1 superadmin can exist in the system; it cannot be created, only assigned
-    if ($requestedRole === 'super_admin') {
-        jsonResponse(false, 'Super Admin accounts cannot be created. Only a system administrator can promote an existing admin.', [], 403);
-    }
-
-    // ── ADMIN QUOTA ENFORCEMENT ────────────────────────────
-    if ($requestedRole === 'admin') {
-        $maxAdmins = appSettingInt('max_admins', 5);
+    // Admin Quota Enforcement (for active admins)
+    if ($requestedRole === 'admin' && $isActive === 1) {
+        $maxAdmins    = appSettingInt('max_admins', 5);
         $activeAdmins = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1")->fetchColumn();
         if ((int)$activeAdmins >= $maxAdmins) {
-            jsonResponse(false, "Maximum number of administrators ($maxAdmins) reached. Deactivate an admin account before creating a new one.", [], 409);
+            jsonResponse(false, "Maximum number of active administrators ($maxAdmins) reached.", [], 409);
         }
     }
 
-    // Role creation rules:
-    // - super_admin  → can create admin, frontdesk, staff (not super_admin)
-    // - admin        → can only create 'staff' or 'frontdesk'
-    // - frontdesk    → cannot reach this endpoint (requireApiRole blocks them)
-    if ($callerRole === 'super_admin') {
-        $allowedRoles = ['admin', 'frontdesk', 'staff'];
-    } else {
-        // Regular admin: cannot create admin or super_admin
-        $allowedRoles = ['frontdesk', 'staff'];
-    }
-
-    if (!in_array($requestedRole, $allowedRoles, true)) {
-        jsonResponse(false,
-            $callerRole === 'admin'
-                ? 'Administrators can only create Staff or Front Desk accounts. Contact the Super Admin to create admin-level accounts.'
-                : 'Invalid role specified.',
-            [], 403
-        );
-    }
-
-    // Password policy enforcement
+    // Password Policy
     $pwError = validatePasswordPolicy($d['password']);
     if ($pwError) jsonResponse(false, $pwError, [], 422);
 
-    // Phone validation — 11 digits only, no letters
-    if (!empty($d['phone'])) {
-        $phone = preg_replace('/[^\d]/', '', (string)$d['phone']); // Strip all non-digits
-        if (strlen($phone) !== 11) {
-            jsonResponse(false, 'Phone number must be exactly 11 digits.', [], 422);
-        }
-    }
-
-    // Check duplicate email
+    // Duplicate Email Check
     $dup = $pdo->prepare("SELECT id FROM users WHERE email = :e");
-    $dup->execute([':e' => $d['email']]);
+    $dup->execute([':e' => trim($d['email'])]);
     if ($dup->fetch()) jsonResponse(false, 'Email address is already in use.', [], 409);
 
-    $stmt = $pdo->prepare("
-        INSERT INTO users (name, email, password, role, phone, job_class)
-        VALUES (:name, :email, :password, :role, :phone, :job_class)
-    ");
-
-    if (in_array($requestedRole, ['admin', 'super_admin', 'frontdesk'], true)) {
+    // Prepare Job Class
+    if (in_array($requestedRole, ['admin', 'frontdesk'], true)) {
         $jobClass = $requestedRole;
     } else {
         $validJobClasses = ['head_cook','cook','waiter','server','helper'];
         $jobClass = in_array($d['job_class'] ?? '', $validJobClasses, true) ? $d['job_class'] : 'waiter';
     }
+
+    $stmt = $pdo->prepare("
+        INSERT INTO users (name, email, password, role, phone, job_class, is_active)
+        VALUES (:name, :email, :password, :role, :phone, :job_class, :is_active)
+    ");
 
     $stmt->execute([
         ':name'      => trim($d['name']),
@@ -239,161 +189,127 @@ if ($method === 'POST') {
         ':role'      => $requestedRole,
         ':phone'     => !empty($d['phone']) ? trim($d['phone']) : null,
         ':job_class' => $jobClass,
+        ':is_active' => $isActive
     ]);
+    
     $newId = $pdo->lastInsertId();
-
-    // Audit: user created
-    auditLog($pdo, 'user_created', 'user', (int)$newId,
-        null,
-        ['name' => trim($d['name']), 'role' => $requestedRole, 'email' => trim($d['email'])]
-    );
+    auditLog($pdo, 'user_created', 'user', (int)$newId, null, ['name' => $d['name'], 'role' => $requestedRole]);
 
     jsonResponse(true, 'User account created.', ['id' => $newId], 201);
 }
 
 if ($method === 'PUT') {
-    requireApiRole('admin');
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
-    if (empty($d['id'])) jsonResponse(false, 'User ID required.', [], 422);
+    $target_id = (int)($d['id'] ?? 0);
+    if (!$target_id) jsonResponse(false, 'User ID required.', [], 422);
 
-    // Update password only if supplied
-    $pwSql = "";
-    // Role updates: only super_admin may assign super_admin
-    $newRole = $d['role'] ?? null;
-    if ($newRole === 'super_admin' && ($currentUser['role'] ?? '') !== 'super_admin') {
-        jsonResponse(false, 'Only Super Admin can assign the Super Admin role.', [], 403);
-    }
+    $current_admin_id = (int)$_SESSION['user_id'];
 
-    // If changing to super_admin, verify quota
-    if ($newRole === 'super_admin') {
-        $checkStmt = $pdo->prepare("SELECT id FROM users WHERE role = 'super_admin' AND is_active = 1 LIMIT 1");
-        $checkStmt->execute();
-        $existing = $checkStmt->fetch();
-        if ($existing && (int)$existing['id'] !== (int)$d['id']) {
-            jsonResponse(false, 'Cannot promote to Super Admin. Only one Super Admin account is permitted.', [], 409);
+    // SELF-LOCKOUT GUARD: Block current admin from deactivating or changing their own role
+    if ($target_id === $current_admin_id) {
+        if (isset($d['is_active']) && (int)$d['is_active'] === 0) {
+            jsonResponse(false, 'Self-lockout guard: You cannot deactivate your own account.', [], 403);
+        }
+        if (isset($d['role']) && $d['role'] !== 'admin') {
+             jsonResponse(false, 'Self-lockout guard: You cannot demote yourself.', [], 403);
         }
     }
 
-    $params = [
-        ':id'        => (int)$d['id'],
-        ':name'      => $d['name']      ?? null,
-        ':email'     => $d['email']     ?? null,
-        ':role'      => $newRole,
-        ':phone'     => $d['phone']     ?? null,
-        ':is_active' => isset($d['is_active']) ? (int)$d['is_active'] : null,
-    ];
+    // Fetch target user current state
+    $stmt = $pdo->prepare("SELECT role, is_active FROM users WHERE id = ?");
+    $stmt->execute([$target_id]);
+    $targetUser = $stmt->fetch();
+    if (!$targetUser) jsonResponse(false, 'User not found.', [], 404);
 
-    // ── DEACTIVATION SECURITY CHECK ──
-    if (isset($d['is_active']) && (int)$d['is_active'] === 0) {
-        $targetId = (int)$d['id'];
-        $currentId = (int)$_SESSION['user_id'];
-        $currentRole = $currentUser['role'];
+    $adminTransferred = false;
 
-        if ($targetId === $currentId) {
-            jsonResponse(false, 'You cannot deactivate your own account.', [], 403);
+    // MASTER KEY TRANSFER LOGIC
+    // If activating another admin, transfer authority (deactivate current session)
+    if ($targetUser['role'] === 'admin' && isset($d['is_active']) && (int)$d['is_active'] === 1 && (int)$targetUser['is_active'] === 0) {
+        try {
+            $pdo->beginTransaction();
+
+            // 1. Activate the target admin
+            $pdo->prepare("UPDATE users SET is_active = 1 WHERE id = ?")->execute([$target_id]);
+
+            // 2. Deactivate the current admin
+            $pdo->prepare("UPDATE users SET is_active = 0 WHERE id = ?")->execute([$current_admin_id]);
+
+            $pdo->commit();
+            $adminTransferred = true;
+            
+            auditLog($pdo, 'admin_master_transfer', 'user', $target_id, ['from' => $current_admin_id]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            jsonResponse(false, 'Failed to transfer admin authority.', [], 500);
+        }
+    }
+
+    // Proceed with regular updates if not transferred or if additional fields exist
+    if (!$adminTransferred) {
+        $updates = [];
+        $params  = [':id' => $target_id];
+
+        if (isset($d['name'])) {
+            $updates[] = "name = :name";
+            $params[':name'] = trim($d['name']);
+        }
+        if (isset($d['email'])) {
+            $updates[] = "email = :email";
+            $params[':email'] = trim($d['email']);
+        }
+        if (isset($d['role'])) {
+            $updates[] = "role = :role";
+            $params[':role'] = $d['role'];
+            
+            // Sync job class for admin/frontdesk
+            if (in_array($d['role'], ['admin', 'frontdesk'])) {
+                $updates[] = "job_class = :jc";
+                $params[':jc'] = $d['role'];
+            }
+        }
+        if (isset($d['phone'])) {
+            $updates[] = "phone = :phone";
+            $params[':phone'] = trim($d['phone']);
+        }
+        if (isset($d['is_active']) && $target_id !== $current_admin_id) {
+            $updates[] = "is_active = :active";
+            $params[':active'] = (int)$d['is_active'];
+        }
+        if (!empty($d['password'])) {
+            $pwError = validatePasswordPolicy($d['password']);
+            if ($pwError) jsonResponse(false, $pwError, [], 422);
+            $updates[] = "password = :pw";
+            $params[':pw'] = password_hash($d['password'], PASSWORD_BCRYPT);
+        }
+        if (isset($d['job_class']) && (!isset($d['role']) || $d['role'] === 'staff')) {
+             $updates[] = "job_class = :jc_manual";
+             $params[':jc_manual'] = $d['job_class'];
         }
 
-        $tStmt = $pdo->prepare("SELECT role FROM users WHERE id = :id");
-        $tStmt->execute([':id' => $targetId]);
-        $targetRole = $tStmt->fetchColumn();
-
-        if (in_array($targetRole, ['admin', 'super_admin']) && $currentRole !== 'super_admin') {
-            jsonResponse(false, 'Administrators can only be deactivated by the Super Admin.', [], 403);
+        if ($updates) {
+            $sql = "UPDATE users SET " . implode(', ', $updates) . " WHERE id = :id";
+            $pdo->prepare($sql)->execute($params);
+            auditLog($pdo, 'user_updated', 'user', $target_id);
         }
     }
 
-    if (!empty($d['password'])) {
-        $pwError = validatePasswordPolicy($d['password']);
-        if ($pwError) jsonResponse(false, $pwError, [], 422);
-        $pwSql = ", password = :pw";
-        $params[':pw'] = password_hash($d['password'], PASSWORD_BCRYPT);
-    }
-
-    // Name validation
-    if (isset($d['name']) && !preg_match('/^[a-zA-Z\s\-\.]+$/', trim($d['name']))) {
-        jsonResponse(false, 'Invalid name format. Only letters, spaces, hyphens, and periods are allowed.', [], 422);
-    }
-
-    // Phone validation on update — 11 digits only, no letters
-    if (!empty($d['phone'])) {
-        $phone = preg_replace('/[^\d]/', '', (string)$d['phone']); // Strip all non-digits
-        if (strlen($phone) !== 11) {
-            jsonResponse(false, 'Phone number must be exactly 11 digits.', [], 422);
-        }
-        $params[':phone'] = $phone;
-    }
-
-    // job_class update
-    $jobClassSql = '';
-    
-    // Always sync job class with the new or existing role based on context
-    // If role is being changed to admin/frontdesk, or if it already is one and being updated.
-    // For simplicity, we just look at the $newRole if provided.
-    // However, PUT doesn't strictly provide $newRole if not changed, but in our UI it always does.
-    if ($newRole && in_array($newRole, ['admin', 'super_admin', 'frontdesk'], true)) {
-        $jobClassSql = ', job_class = :job_class';
-        $params[':job_class'] = $newRole;
-    } elseif ($newRole === 'staff' || (!$newRole && isset($d['job_class']))) {
-        $validJobClasses = ['head_cook','cook','waiter','server','helper'];
-        $jc = in_array($d['job_class'] ?? '', $validJobClasses, true) ? $d['job_class'] : 'waiter';
-        $jobClassSql = ', job_class = :job_class';
-        $params[':job_class'] = $jc;
-    }
-
-    $stmt = $pdo->prepare("
-        UPDATE users SET
-            name      = COALESCE(:name, name),
-            email     = COALESCE(:email, email),
-            role      = COALESCE(:role, role),
-            phone     = :phone,
-            is_active = COALESCE(:is_active, is_active)
-            $pwSql
-            $jobClassSql
-        WHERE id = :id
-    ");
-    $stmt->execute($params);
-
-    // Audit: user updated
-    auditLog($pdo, 'user_updated', 'user', (int)$d['id'],
-        null,
-        array_filter([
-            'name' => $d['name'] ?? null,
-            'role' => $newRole,
-            'is_active' => $d['is_active'] ?? null,
-        ], fn($v) => $v !== null)
-    );
-
-    jsonResponse(true, 'User updated.');
+    jsonResponse(true, 'User updated.', ['admin_transferred' => $adminTransferred]);
 }
 
 if ($method === 'DELETE') {
-    requireApiRole('admin');
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
-    if (empty($d['id'])) jsonResponse(false, 'User ID required.', [], 422);
-    // Prevent self-deletion
-    $targetId = (int)$d['id'];
-    $currentId = (int)$_SESSION['user_id'];
-    $currentRole = $currentUser['role'];
+    $id = (int)($d['id'] ?? 0);
+    if (!$id) jsonResponse(false, 'User ID required.', [], 422);
 
-    if ($targetId === $currentId) {
-        jsonResponse(false, 'You cannot deactivate your own account.', [], 403);
+    // SELF-LOCKOUT GUARD
+    if ($id === (int)$_SESSION['user_id']) {
+        jsonResponse(false, 'Self-lockout guard: You cannot delete your own account.', [], 403);
     }
 
-    $tStmt = $pdo->prepare("SELECT role FROM users WHERE id = :id");
-    $tStmt->execute([':id' => $targetId]);
-    $targetRole = $tStmt->fetchColumn();
-
-    if (in_array($targetRole, ['admin', 'super_admin']) && $currentRole !== 'super_admin') {
-        jsonResponse(false, 'Administrators can only be deactivated by the Super Admin.', [], 403);
-    }
-    // Soft delete (deactivate)
-    $pdo->prepare("UPDATE users SET is_active = 0 WHERE id = :id")->execute([':id' => (int)$d['id']]);
-
-    // Audit: user deactivated
-    auditLog($pdo, 'user_deactivated', 'user', (int)$d['id'],
-        ['is_active' => 1],
-        ['is_active' => 0]
-    );
+    // Soft delete
+    $pdo->prepare("UPDATE users SET is_active = 0 WHERE id = ?")->execute([$id]);
+    auditLog($pdo, 'user_deactivated', 'user', $id);
 
     jsonResponse(true, 'User deactivated.');
 }

@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
-requireRole('super_admin');
+requireRole('admin');
 
 $pageTitle    = 'User Accounts';
 $pageSubtitle = 'Manage system users and their roles';
@@ -176,8 +176,8 @@ async function loadUsers(page = null) {
     
     renderUserPagination();
     const tbody = document.getElementById('userBody');
-    const roleLabel = { super_admin: '⭐ Super Admin', admin: 'Administrator', frontdesk: 'Front Desk', staff: 'On-Call Staff' };
-    const roleBadge = { super_admin: 'badge-admin', admin: 'badge-admin', frontdesk: 'badge-frontdesk', staff: 'badge-staff' };
+    const roleLabel = { admin: 'Administrator', frontdesk: 'Front Desk', staff: 'On-Call Staff' };
+    const roleBadge = { admin: 'badge-admin', frontdesk: 'badge-frontdesk', staff: 'badge-staff' };
     const jobClassLabel = { head_cook: '👨‍🍳 Head Cook', cook: '🍳 Cook', waiter: '🤵 Waiter', server: '🍽️ Server', helper: '🙋 Helper', any: '—' };
 
     if (!users.length) {

@@ -17,7 +17,7 @@ The **Yazzies Catering Operational Management System (OMS)** is a purpose-built,
 | Feature | Description |
 |---|---|
 | **100% Dynamic Business Rules** | All financial constants (min PAX, downpayment %, overtime rate, extra PAX rate, staff ratios, session timeout, lockout duration) are stored in the `settings` database table and loaded at runtime via `appSetting()`. No redeployment is needed to change a business rule. |
-| **Zero-Trust Role Architecture** | Every page and every API endpoint independently calls `requireRole()` or `requireApiRole()`. `super_admin` inherits all permissions. There is no implicit trust between layers. |
+| **Unified Role Architecture** | Every page and every API endpoint independently calls `requireRole()` or `requireApiRole()`. The `admin` role is the highest tier with universal access. |
 | **Strict Separation of Duties** | Four distinct roles with non-overlapping authority. Frontdesk cannot access financial reports. Staff cannot access bookings. Only Admin/SuperAdmin can record payments or cancel bookings. |
 | **CSRF Protection on All Mutations** | Every state-changing API call requires a valid CSRF token verified server-side via `requireCsrf()`. Tokens are rotated on every login via `session_regenerate_id()`. |
 | **Transactional Data Integrity** | All multi-step financial operations (booking creation, payment recording, cancellation, inventory dispatch) are wrapped in `PDO::beginTransaction()` / `commit()` / `rollBack()` blocks with row-level `FOR UPDATE` locks to prevent race conditions. |
@@ -252,11 +252,11 @@ The single authentication and authorization table for all internal system users.
 | `name` | varchar(100) | | Full name. Must match pattern `[a-zA-Z\s\-\.]+` |
 | `email` | varchar(150) | UNIQUE | Login email. Used as username |
 | `password` | varchar(255) | | Bcrypt hash (PASSWORD_BCRYPT). Never stored in plain text |
-| `role` | enum | | `super_admin`, `admin`, `frontdesk`, `staff` |
+| `role` | enum | | `admin`, `frontdesk`, `staff` |
 | `phone` | varchar(20) | | Optional 11-digit PH mobile number |
 | `is_active` | tinyint(1) | | `1`=active, `0`=deactivated (soft delete) |
 | `created_at` | timestamp | | Account creation timestamp |
-| `job_class` | enum | | `head_cook`, `cook`, `waiter`, `server`, `helper`, `any`, `admin`, `super_admin`, `frontdesk` — mirrors role for non-admin users |
+| `job_class` | enum | | `head_cook`, `cook`, `waiter`, `server`, `helper`, `any`, `admin`, `frontdesk` — mirrors role for non-admin users |
 
 ---
 
@@ -568,7 +568,7 @@ Key-value store for all dynamic business rules. Loaded at runtime by `appSetting
 | `waiter_ratio_birthday` | 20 | staffing | Pax per waiter for other events |
 | `staff_hourly_rate` | 75 | financial | PHP per staff hour |
 | `cancel_forfeiture_percent` | 0.50 | finance | % of paid amount forfeited on cancel |
-| `max_super_admins` | 1 | system | Maximum super admin accounts allowed |
+| `max_admins` | 5 | system | Maximum admin accounts allowed |
 | `session_timeout_minutes` | 30 | system | Inactivity timeout (minimum 5 min) |
 | `max_login_attempts` | 5 | system | Failed attempts before lockout |
 | `lockout_duration_minutes` | 15 | system | Duration of IP/email lockout |
@@ -739,33 +739,12 @@ Stores feedback and ratings collected after a taste test is completed.
 
 # 4. User Roles & Capabilities
 
-The system enforces four roles defined in `users.role`. Role checks are performed independently on every page load (`requireRole()`) and every API call (`requireApiRole()`). `super_admin` inherits all permissions universally — it bypasses every role check in `requireApiRole()`.
+The system enforces three roles defined in `users.role`. Role checks are performed independently on every page load (`requireRole()`) and every API call (`requireApiRole()`). `admin` inherits all permissions universally.
 
 ---
 
-## 4.1 Super Admin (`super_admin`)
-**Primary Responsibility:** IT & System Governance
-
-| Module | Access | Notes |
-|---|---|---|
-| System Settings | **Full CRUD** | `views/admin/superadmin.php` — manages all `settings` table rows |
-| User Accounts | **Full CRUD** | `views/admin/users.php` — can create/edit/deactivate any role including Admin |
-| All Admin Modules | **Full Inherited Access** | Bypasses all role checks via `requireApiRole()` |
-| Maintenance Mode | **Toggle** | Activates system-wide lockout for non-super_admin users |
-| Debug Mode | **Toggle** | Forces logout of all non-super_admin sessions |
-| Login Lockout Settings | **Configure** | `max_login_attempts` and `lockout_duration_minutes` |
-| Session Timeout | **Configure** | `session_timeout_minutes` setting |
-| SMTP Configuration | **Configure** | `smtp_host`, `smtp_port`, `smtp_user`, `smtp_pass` |
-| Super Admin Quota | **Enforced** | Only 1 super_admin may exist (enforced by `max_super_admins` setting) |
-
-**What Super Admin CANNOT do (by design):**
-- Cannot create a second super_admin account (quota enforced)
-- Cannot delete the `audit_log` table data via the UI (read-only display only)
-
----
-
-## 4.2 Admin (`admin`)
-**Primary Responsibility:** Business Operations & Financial Management
+## 4.1 Admin (`admin`)
+**Primary Responsibility:** System Governance, Business Operations & Financial Management
 
 | Module | Access | Notes |
 |---|---|---|
@@ -778,20 +757,21 @@ The system enforces four roles defined in `users.role`. Role checks are performe
 | Inventory Items | **Full CRUD** | Add/edit equipment master list and stock levels |
 | Financials | **Full CRUD** | Record payments, view ledger, process cancellation refunds |
 | Staff Dispatching | **Full CRUD** | Create job orders, broadcast to staff, view responses |
-| Staff Management | **Full CRUD** | Create `staff` and `frontdesk` accounts (not admin or super_admin) |
+| Staff Management | **Full CRUD** | Create any account role (admin, frontdesk, staff) subject to quota |
+| System Settings | **Full CRUD** | SMTP, session timeout, lockout, maintenance mode |
 | Business Settings | **Full CRUD** | Edit operational settings (PAX limits, rates, operating hours) |
 | Archive | **Read + Archive** | Archive completed bookings; view archive history |
 | Audit Log | **Read** | View all system audit events |
 | Cancellations | **Full CRUD** | Request cancellation, process refund via PUT endpoint |
+| Backup | **Full access** | Generate and download SQL database dumps |
 
 **What Admin CANNOT do (by design):**
-- Cannot create or edit `admin` or `super_admin` accounts (blocked in `src/api/staff.php`)
-- Cannot deactivate another `admin` account (only super_admin can)
-- Cannot modify system-level settings (SMTP, session timeout, lockout) — those are in SuperAdmin panel
+- Cannot deactivate their own account.
+- Cannot delete the `audit_log` table data via the UI (read-only display only)
 
 ---
 
-## 4.3 Frontdesk (`frontdesk`)
+## 4.2 Frontdesk (`frontdesk`)
 **Primary Responsibility:** Client Logistics & Day-to-Day Operations
 
 | Module | Access | Notes |

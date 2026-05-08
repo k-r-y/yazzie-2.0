@@ -443,7 +443,88 @@ $successMessages = ['logged_out' => "You've been signed out."];
             .brand { margin-bottom: 0; }
             .right { width: 100%; padding: 14px 20px 36px; }
         }
+        /* Forgot password link */
+        .forgot-link {
+            display: block;
+            text-align: right;
+            margin-top: -8px;
+            margin-bottom: 18px;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--label-3);
+            text-decoration: none;
+            transition: color 0.15s;
+        }
+        .forgot-link:hover { color: var(--green-dk); }
+
+        /* ── MODAL ── */
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.25);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: none; align-items: center; justify-content: center;
+            z-index: 1000;
+            opacity: 0; transition: opacity 0.3s ease;
+        }
+        .modal-overlay.active { display: flex; opacity: 1; }
+
+        .modal-card {
+            width: 100%; max-width: 420px;
+            background: rgba(255, 255, 255, 0.80);
+            backdrop-filter: blur(54px) saturate(200%);
+            -webkit-backdrop-filter: blur(54px) saturate(200%);
+            border: 0.5px solid rgba(255, 255, 255, 0.7);
+            border-radius: 28px;
+            padding: 36px;
+            box-shadow: var(--shadow-xl), 0 0 0 0.5px rgba(60,60,67,0.15);
+            transform: scale(0.9) translateY(20px);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .modal-overlay.active .modal-card { transform: scale(1) translateY(0); }
+
+        .modal-head { margin-bottom: 24px; text-align: center; }
+        .modal-head h3 { font-size: 20px; font-weight: 800; color: var(--label); letter-spacing: -0.5px; }
+        .modal-head p { font-size: 13px; color: var(--label-2); margin-top: 4px; }
+
+        /* OTP Inputs */
+        .otp-group {
+            display: flex; gap: 10px; justify-content: center; margin-bottom: 24px;
+        }
+        .otp-input {
+            width: 46px; height: 58px;
+            background: rgba(118,118,128,0.06);
+            border: 0.5px solid rgba(60,60,67,0.12);
+            border-radius: 12px;
+            text-align: center;
+            font-size: 24px; font-weight: 700;
+            color: var(--green-dk);
+            outline: none; transition: all 0.2s;
+        }
+        .otp-input:focus {
+            background: #fff; border-color: var(--green);
+            box-shadow: 0 0 0 4px rgba(48,209,88,0.15);
+            transform: translateY(-2px);
+        }
+
+        .modal-close {
+            position: absolute; top: 20px; right: 20px;
+            width: 32px; height: 32px;
+            border-radius: 50%; background: var(--fill-4);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; border: none; color: var(--label-2);
+            transition: all 0.2s;
+        }
+        .modal-close:hover { background: var(--fill-2); color: var(--label); }
+
+        /* Step progress dots */
+        .step-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--fill-2); transition: all 0.3s ease;
+        }
+        .step-dot.active { background: var(--green); width: 24px; border-radius: 4px; }
     </style>
+
 </head>
 <body>
 
@@ -556,6 +637,8 @@ $successMessages = ['logged_out' => "You've been signed out."];
                     </div>
                 </div>
 
+                <a href="#" class="forgot-link" id="forgotBtn">Forgot Password?</a>
+
                 <button type="submit" class="btn-signin" id="submitBtn">
                     <i class="fas fa-right-to-bracket" id="submitIcon"></i>
                     <span id="submitTxt">Sign In</span>
@@ -570,6 +653,91 @@ $successMessages = ['logged_out' => "You've been signed out."];
         </div>
     </div>
 
+</div>
+
+<!-- ── FORGOT PASSWORD MODAL ── -->
+<div class="modal-overlay" id="forgotModal">
+    <div class="modal-card" style="position:relative;">
+        <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+
+        <!-- Step progress dots -->
+        <div style="display:flex;gap:6px;justify-content:center;margin-bottom:24px;">
+            <div class="step-dot active" id="dot1"></div>
+            <div class="step-dot" id="dot2"></div>
+            <div class="step-dot" id="dot3"></div>
+        </div>
+
+        <!-- STEP 1: Email -->
+        <div id="stepEmail">
+            <div class="modal-head">
+                <h3>Forgot Password</h3>
+                <p>Enter your email to receive a 6-digit code</p>
+            </div>
+            <div class="msg err" id="forgotErr" style="display:none;"><i class="fas fa-exclamation-circle"></i><span id="forgotErrMsg"></span></div>
+            <div class="field">
+                <label>Email Address</label>
+                <div class="field-inner">
+                    <input type="email" id="fEmail" placeholder="you@yazzies.com" autocomplete="email">
+                    <i class="fas fa-envelope fi"></i>
+                </div>
+            </div>
+            <button class="btn-signin" id="sendOtpBtn">
+                <i class="fas fa-paper-plane" id="sendOtpIcon"></i>
+                <span id="sendOtpTxt">Send Reset Code</span>
+            </button>
+        </div>
+
+        <!-- STEP 2: OTP Code -->
+        <div id="stepOtp" style="display:none;">
+            <div class="modal-head">
+                <h3>Enter Code</h3>
+                <p>Check your email for the 6-digit code</p>
+            </div>
+            <div class="msg err" id="otpErr" style="display:none;"><i class="fas fa-exclamation-circle"></i><span id="otpErrMsg"></span></div>
+            <div class="otp-group">
+                <input type="text" inputmode="numeric" maxlength="1" class="otp-input" data-index="0">
+                <input type="text" inputmode="numeric" maxlength="1" class="otp-input" data-index="1">
+                <input type="text" inputmode="numeric" maxlength="1" class="otp-input" data-index="2">
+                <input type="text" inputmode="numeric" maxlength="1" class="otp-input" data-index="3">
+                <input type="text" inputmode="numeric" maxlength="1" class="otp-input" data-index="4">
+                <input type="text" inputmode="numeric" maxlength="1" class="otp-input" data-index="5">
+            </div>
+            <button class="btn-signin" id="verifyOtpBtn">
+                <i class="fas fa-check-circle" id="verifyOtpIcon"></i>
+                <span id="verifyOtpTxt">Verify Code</span>
+            </button>
+        </div>
+
+        <!-- STEP 3: New Password + Confirm -->
+        <div id="stepNewPass" style="display:none;">
+            <div class="modal-head">
+                <h3>New Password</h3>
+                <p>Choose a strong password for your account</p>
+            </div>
+            <div class="msg err" id="resetErr" style="display:none;"><i class="fas fa-exclamation-circle"></i><span id="resetErrMsg"></span></div>
+            <div class="field">
+                <label>New Password</label>
+                <div class="field-inner">
+                    <input type="password" id="newPw" placeholder="Min. 8 chars, mixed case + symbol">
+                    <i class="fas fa-lock fi"></i>
+                    <button type="button" class="pw-btn" onclick="togglePw('newPw','newPwIcon')"><i class="fas fa-eye" id="newPwIcon"></i></button>
+                </div>
+            </div>
+            <div class="field">
+                <label>Confirm New Password</label>
+                <div class="field-inner">
+                    <input type="password" id="confirmPw" placeholder="Re-enter your new password">
+                    <i class="fas fa-lock fi"></i>
+                    <button type="button" class="pw-btn" onclick="togglePw('confirmPw','confirmPwIcon')"><i class="fas fa-eye" id="confirmPwIcon"></i></button>
+                </div>
+            </div>
+            <button class="btn-signin" id="resetPwBtn">
+                <i class="fas fa-shield-halved" id="resetPwIcon"></i>
+                <span id="resetPwTxt">Update Password</span>
+            </button>
+        </div>
+
+    </div>
 </div>
 
 <script>
@@ -621,6 +789,164 @@ document.getElementById('loginForm').addEventListener('submit', async e => {
         txt.textContent = 'Sign In';
     }
 });
+
+// ── FORGOT PASSWORD — 3-STEP FLOW ──
+const forgotModal = document.getElementById('forgotModal');
+const fEmailInput = document.getElementById('fEmail');
+let verifiedOtp = '';
+
+const setStep = (n) => {
+    document.getElementById('stepEmail').style.display   = n === 1 ? 'block' : 'none';
+    document.getElementById('stepOtp').style.display     = n === 2 ? 'block' : 'none';
+    document.getElementById('stepNewPass').style.display = n === 3 ? 'block' : 'none';
+    [1,2,3].forEach(i => {
+        const d = document.getElementById('dot'+i);
+        d.classList.toggle('active', i === n);
+    });
+};
+
+const openModal = () => {
+    forgotModal.classList.add('active');
+    setStep(1);
+    setTimeout(() => fEmailInput.focus(), 50);
+};
+
+const closeModal = () => {
+    forgotModal.classList.remove('active');
+    fEmailInput.value = '';
+    document.getElementById('newPw').value = '';
+    document.getElementById('confirmPw').value = '';
+    document.querySelectorAll('.otp-input').forEach(i => i.value = '');
+    ['forgotErr','otpErr','resetErr'].forEach(id => document.getElementById(id).style.display = 'none');
+    verifiedOtp = '';
+};
+
+const togglePw = (inputId, iconId) => {
+    const el = document.getElementById(inputId);
+    const ic = document.getElementById(iconId);
+    el.type = el.type === 'password' ? 'text' : 'password';
+    ic.className = el.type === 'text' ? 'fas fa-eye-slash' : 'fas fa-eye';
+};
+
+document.getElementById('forgotBtn').onclick = e => { e.preventDefault(); openModal(); };
+forgotModal.addEventListener('click', e => { if (e.target === forgotModal) closeModal(); });
+
+// Step 1 — Send OTP
+document.getElementById('sendOtpBtn').onclick = async () => {
+    const btn = document.getElementById('sendOtpBtn');
+    const txt = document.getElementById('sendOtpTxt');
+    const icon = document.getElementById('sendOtpIcon');
+    const errD = document.getElementById('forgotErr');
+    const errM = document.getElementById('forgotErrMsg');
+    const email = fEmailInput.value.trim();
+    if (!email) { errM.textContent = 'Please enter your email.'; errD.style.display = 'flex'; return; }
+    btn.disabled = true; icon.className = 'fas fa-circle-notch fa-spin'; txt.textContent = 'Sending…';
+    errD.style.display = 'none';
+    try {
+        const r = await fetch('<?= BASE_URL ?>/src/api/forgot_password.php', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({email})
+        });
+        const d = await r.json();
+        if (d.success) { setStep(2); document.querySelector('.otp-input').focus(); }
+        else { errM.textContent = d.message; errD.style.display = 'flex'; }
+    } catch { errM.textContent = 'Network error.'; errD.style.display = 'flex'; }
+    finally { btn.disabled = false; icon.className = 'fas fa-paper-plane'; txt.textContent = 'Send Reset Code'; }
+};
+
+// OTP auto-focus
+const otpInputs = document.querySelectorAll('.otp-input');
+otpInputs.forEach((inp, idx) => {
+    inp.addEventListener('input', e => {
+        e.target.value = e.target.value.replace(/\D/g, '');
+        if (e.target.value && idx < otpInputs.length - 1) otpInputs[idx+1].focus();
+    });
+    inp.addEventListener('keydown', e => {
+        if (e.key === 'Backspace' && !e.target.value && idx > 0) otpInputs[idx-1].focus();
+    });
+    inp.addEventListener('paste', e => {
+        e.preventDefault();
+        const digits = (e.clipboardData.getData('text').replace(/\D/g,'')).slice(0,6).split('');
+        otpInputs.forEach((box, i) => box.value = digits[i] || '');
+        otpInputs[Math.min(digits.length, 5)].focus();
+    });
+});
+
+// Step 2 — Verify OTP against the server before advancing
+document.getElementById('verifyOtpBtn').onclick = async () => {
+    const btn  = document.getElementById('verifyOtpBtn');
+    const txt  = document.getElementById('verifyOtpTxt');
+    const icon = document.getElementById('verifyOtpIcon');
+    const errD = document.getElementById('otpErr');
+    const errM = document.getElementById('otpErrMsg');
+    const otp  = Array.from(otpInputs).map(i => i.value).join('');
+    const email = fEmailInput.value.trim();
+
+    if (otp.length < 6) {
+        errM.textContent = 'Please enter all 6 digits.';
+        errD.style.display = 'flex';
+        return;
+    }
+
+    btn.disabled = true;
+    icon.className = 'fas fa-circle-notch fa-spin';
+    txt.textContent = 'Verifying…';
+    errD.style.display = 'none';
+
+    try {
+        const r = await fetch('<?= BASE_URL ?>/src/api/verify_otp.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, otp })
+        });
+        const d = await r.json();
+        if (d.success) {
+            verifiedOtp = otp;
+            setStep(3);
+            document.getElementById('newPw').focus();
+        } else {
+            errM.textContent = d.message;
+            errD.style.display = 'flex';
+        }
+    } catch {
+        errM.textContent = 'Network error. Please try again.';
+        errD.style.display = 'flex';
+    } finally {
+        btn.disabled = false;
+        icon.className = 'fas fa-check-circle';
+        txt.textContent = 'Verify Code';
+    }
+};
+
+// Step 3 — Update Password
+document.getElementById('resetPwBtn').onclick = async () => {
+    const btn  = document.getElementById('resetPwBtn');
+    const txt  = document.getElementById('resetPwTxt');
+    const icon = document.getElementById('resetPwIcon');
+    const errD = document.getElementById('resetErr');
+    const errM = document.getElementById('resetErrMsg');
+    const newPw = document.getElementById('newPw').value;
+    const confirmPw = document.getElementById('confirmPw').value;
+    const email = fEmailInput.value.trim();
+    if (!newPw || !confirmPw) { errM.textContent = 'Please fill in both fields.'; errD.style.display = 'flex'; return; }
+    if (newPw !== confirmPw) { errM.textContent = 'Passwords do not match.'; errD.style.display = 'flex'; return; }
+    btn.disabled = true; icon.className = 'fas fa-circle-notch fa-spin'; txt.textContent = 'Updating…';
+    errD.style.display = 'none';
+    try {
+        const r = await fetch('<?= BASE_URL ?>/src/api/reset_password.php', {
+            method: 'PUT', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({email, otp: verifiedOtp, new_password: newPw, confirm_password: confirmPw})
+        });
+        const d = await r.json();
+        if (d.success) {
+            closeModal();
+            const jsErr = document.getElementById('jsErr');
+            jsErr.className = 'msg ok';
+            document.getElementById('jsErrMsg').textContent = d.message;
+            jsErr.style.display = 'flex';
+        } else { errM.textContent = d.message; errD.style.display = 'flex'; }
+    } catch { errM.textContent = 'Network error.'; errD.style.display = 'flex'; }
+    finally { btn.disabled = false; icon.className = 'fas fa-shield-halved'; txt.textContent = 'Update Password'; }
+};
 
 // Decorative active bookings count
 (async () => {

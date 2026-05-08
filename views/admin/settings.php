@@ -28,7 +28,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </div>
                     
                     <!-- Content Area -->
-                    <div class="flex-grow-1 p-4" style="max-height: 70vh; overflow-y: auto;">
+                    <div class="flex-grow-1 p-4" style="max-height: 80vh; overflow-y: auto;">
                         <div class="tab-content" id="settingsTabContent">
                             <!-- Content will be injected here -->
                         </div>

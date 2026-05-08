@@ -2,13 +2,13 @@
 /**
  * Database Backup Utility
  * Generates and downloads a SQL dump of the entire database.
- * Strictly Super Admin only.
+ * Strictly Admin only.
  */
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/audit.php';
 
-requireApiRole('super_admin');
+requireApiRole('admin');
 
 $dbHost = DB_HOST;
 $dbName = DB_NAME;

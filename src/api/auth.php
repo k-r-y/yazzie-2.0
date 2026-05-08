@@ -53,8 +53,8 @@ if (!$user['is_active']) {
     jsonResponse(false, 'Your account has been deactivated. Please contact the Administrator.', [], 403);
 }
 
-// ── Check if debug mode is enabled (block non-superadmin logins) ──
-if (defined('DEBUG_MODE') && (int)DEBUG_MODE === 1 && $user['role'] !== 'super_admin') {
+// ── Check if debug mode is enabled (block non-admin logins) ──
+if (defined('DEBUG_MODE') && (int)DEBUG_MODE === 1 && $user['role'] !== 'admin') {
     jsonResponse(false, 'System is currently in debug mode. Login is temporarily unavailable. Please try again later.', [], 503);
 }
 
@@ -74,7 +74,6 @@ $_SESSION['phone']   = $user['phone'];
 
 // Determine redirect URL
 $redirectMap = [
-    'super_admin' => BASE_URL . '/views/admin/dashboard.php',
     'admin'       => BASE_URL . '/views/admin/dashboard.php',
     'frontdesk'   => BASE_URL . '/views/frontdesk/dashboard.php',
     'staff'       => BASE_URL . '/views/staff/dashboard.php',

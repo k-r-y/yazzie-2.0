@@ -195,86 +195,152 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <div class="card-title"><i class="fas fa-plus-circle me-2" style="color:var(--sys-green)"></i>Record Payment</div>
             </div>
             <div class="card-body">
-                <form id="paymentForm">
 
-                    <div class="form-group">
-                        <label class="form-label" for="bookingSelect">Booking <span class="required">*</span></label>
-                        <select class="form-control" name="booking_id" id="bookingSelect" required onchange="onBookingChange()" title="Select the booking to record payment for">
-                            <option value="">Select booking…</option>
-                        </select>
+                <!-- ── Payment Mode Toggle ── -->
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label class="form-label" style="margin-bottom:8px;">Payment Mode <span class="required">*</span></label>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                        <button type="button" id="modeCashBtn" onclick="setPayMode('cash')"
+                            style="padding:12px 8px; border-radius:12px; border:1.5px solid var(--sys-green);
+                                   background:rgba(48,209,88,0.08); color:var(--sys-green-dark);
+                                   font-weight:700; font-size:13px; cursor:pointer; transition:all .18s;
+                                   display:flex; align-items:center; justify-content:center; gap:7px;">
+                            <i class="fas fa-money-bill-wave"></i> Cash / Manual
+                        </button>
+                        <button type="button" id="modeOnlineBtn" onclick="setPayMode('online')"
+                            style="padding:12px 8px; border-radius:12px; border:1.5px solid rgba(60,60,67,0.15);
+                                   background:transparent; color:rgba(60,60,67,0.45);
+                                   font-weight:700; font-size:13px; cursor:pointer; transition:all .18s;
+                                   display:flex; align-items:center; justify-content:center; gap:7px;">
+                            <i class="fas fa-link"></i> PayMongo Online
+                        </button>
                     </div>
+                    <div style="font-size:11px; color:rgba(60,60,67,0.4); text-align:center; margin-top:6px;" id="payModeHint">
+                        Manually record cash, GCash, Maya, or bank transfer.
+                    </div>
+                </div>
 
-                    <!-- Balance Info Box -->
-                    <div id="balanceBox" style="display:none; margin-bottom:14px;">
-                        <div style="background:rgba(48,209,88,0.05); border:0.5px solid rgba(48,209,88,0.2); border-radius:12px; overflow:hidden;">
-                            <div style="padding:12px 14px; border-bottom:0.5px solid rgba(48,209,88,0.12);">
-                                <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:rgba(60,60,67,0.4); margin-bottom:8px;">Balance Summary</div>
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                                    <span style="font-size:13px; color:rgba(60,60,67,0.6);">Total Cost</span>
-                                    <span style="font-size:13px; font-weight:600;" id="bi-total">—</span>
-                                </div>
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                                    <span style="font-size:13px; color:rgba(60,60,67,0.6);">Amount Paid</span>
-                                    <span style="font-size:13px; font-weight:600; color:#1A7A32;" id="bi-paid">—</span>
-                                </div>
-                                <div style="display:flex; justify-content:space-between; align-items:center; padding-top:6px; border-top:0.5px solid rgba(48,209,88,0.15);">
-                                    <span style="font-size:13px; font-weight:700;">Balance Due</span>
-                                    <span style="font-size:15px; font-weight:800; color:#C0392B;" id="bi-remaining">—</span>
-                                </div>
+                <!-- Booking Selector — shared by both modes -->
+                <div class="form-group">
+                    <label class="form-label" for="bookingSelect">Booking <span class="required">*</span></label>
+                    <select class="form-control" name="booking_id" id="bookingSelect" required onchange="onBookingChange()" title="Select the booking to record payment for">
+                        <option value="">Select booking…</option>
+                    </select>
+                </div>
+
+                <!-- Balance Info Box — shared by both modes -->
+                <div id="balanceBox" style="display:none; margin-bottom:14px;">
+                    <div style="background:rgba(48,209,88,0.05); border:0.5px solid rgba(48,209,88,0.2); border-radius:12px; overflow:hidden;">
+                        <div style="padding:12px 14px; border-bottom:0.5px solid rgba(48,209,88,0.12);">
+                            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:rgba(60,60,67,0.4); margin-bottom:8px;">Balance Summary</div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                <span style="font-size:13px; color:rgba(60,60,67,0.6);">Total Cost</span>
+                                <span style="font-size:13px; font-weight:600;" id="bi-total">—</span>
                             </div>
-                            <!-- Quick fill button -->
-                            <button type="button" id="fillFullBtn" onclick="fillFullBalance()"
-                                style="display:block; width:100%; padding:9px; background:none; border:none; font-size:12px; font-weight:600; color:#1A7A32; cursor:pointer; transition:background 0.15s;"
-                                onmouseover="this.style.background='rgba(48,209,88,0.06)'"
-                                onmouseout="this.style.background='none'">
-                                <i class="fas fa-bolt" style="margin-right:5px;"></i>Fill Full Balance
-                            </button>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                <span style="font-size:13px; color:rgba(60,60,67,0.6);">Amount Paid</span>
+                                <span style="font-size:13px; font-weight:600; color:#1A7A32;" id="bi-paid">—</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding-top:6px; border-top:0.5px solid rgba(48,209,88,0.15);">
+                                <span style="font-size:13px; font-weight:700;">Balance Due</span>
+                                <span style="font-size:15px; font-weight:800; color:#C0392B;" id="bi-remaining">—</span>
+                            </div>
                         </div>
-                        <!-- Payment status badge -->
-                        <div style="text-align:center; margin-top:8px;" id="bi-status-wrap"></div>
+                        <!-- Quick fill — only relevant in cash mode -->
+                        <button type="button" id="fillFullBtn" onclick="fillFullBalance()"
+                            style="display:block; width:100%; padding:9px; background:none; border:none; font-size:12px; font-weight:600; color:#1A7A32; cursor:pointer; transition:background 0.15s;"
+                            onmouseover="this.style.background='rgba(48,209,88,0.06)'"
+                            onmouseout="this.style.background='none'">
+                            <i class="fas fa-bolt" style="margin-right:5px;"></i>Fill Full Balance
+                        </button>
                     </div>
+                    <div style="text-align:center; margin-top:8px;" id="bi-status-wrap"></div>
+                </div>
 
-                    <div class="form-group">
-                        <label class="form-label" for="amountInput">Payment Amount (₱) <span class="required">*</span></label>
+                <!-- ── CASH / MANUAL FIELDS ── -->
+                <div id="cashFields">
+                    <form id="paymentForm">
+                        <div class="form-group">
+                            <label class="form-label" for="amountInput">Payment Amount (&#8369;) <span class="required">*</span></label>
+                            <div class="input-group">
+                                <span class="input-prefix">&#8369;</span>
+                                <input type="text" class="form-control" name="amount" id="amountInput"
+                                       required placeholder="0.00" data-restrict="price"
+                                       title="Enter the amount to be recorded (numbers and decimal only)"
+                                       oninput="validateAmount()">
+                            </div>
+                            <div id="amountError" style="font-size:11.5px; color:#C0392B; margin-top:4px; display:none;"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Payment Method <span class="required">*</span></label>
+                            <select class="form-control" name="payment_method" id="paymentMethodSel" required>
+                                <option value="cash">&#x1F4B5; Cash</option>
+                                <option value="gcash">&#x1F4F1; GCash</option>
+                                <option value="maya">&#x1F4F1; Maya</option>
+                                <option value="bank_transfer">&#x1F3E6; Bank Transfer</option>
+                            </select>
+                        </div>
+
+                        <div class="form-grid-2">
+                            <div class="form-group">
+                                <label class="form-label">Payment Date <span class="required">*</span></label>
+                                <input type="date" class="form-control" name="payment_date" required value="<?= date('Y-m-d') ?>">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Reference No.</label>
+                                <input type="text" class="form-control" name="reference_no" id="refNoInput" placeholder="GCash ref, trace no…" title="GCash Ref ID or Bank Transaction Trace ID">
+                            </div>
+                        </div>
+
+                        <!-- booking_id is submitted via the form's select above (name=booking_id on bookingSelect) -->
+                        <button type="submit" class="btn btn-primary btn-full" id="recordPayBtn">
+                            <i class="fas fa-check-circle"></i> Record Payment
+                        </button>
+                    </form>
+                </div>
+
+                <!-- ── PAYMONGO ONLINE PANEL ── -->
+                <div id="onlineFields" style="display:none;">
+                    <div style="background:linear-gradient(135deg,rgba(48,209,88,0.07),rgba(37,162,68,0.04));
+                                border:1px solid rgba(48,209,88,0.20); border-radius:14px; padding:20px;
+                                text-align:center; margin-bottom:16px;">
+                        <div style="font-size:28px; margin-bottom:10px;">&#x1F517;</div>
+                        <div style="font-weight:800; font-size:15px; color:#1C1C1E; margin-bottom:6px;">Send PayMongo Payment Link</div>
+                        <div style="font-size:12px; color:rgba(60,60,67,0.55); line-height:1.55;">
+                            Generates a secure checkout link for the outstanding balance.
+                            The client pays via <strong>GCash</strong>, <strong>Maya</strong>, or <strong>Card</strong>.
+                            The ledger updates automatically on payment.
+                        </div>
+                        <div style="display:flex; gap:6px; justify-content:center; margin-top:12px; flex-wrap:wrap;">
+                            <span style="padding:3px 10px; background:rgba(48,209,88,0.12); border:1px solid rgba(48,209,88,0.25); border-radius:99px; font-size:11px; font-weight:700; color:#25A244;">GCash</span>
+                            <span style="padding:3px 10px; background:rgba(48,209,88,0.12); border:1px solid rgba(48,209,88,0.25); border-radius:99px; font-size:11px; font-weight:700; color:#25A244;">Maya</span>
+                            <span style="padding:3px 10px; background:rgba(48,209,88,0.12); border:1px solid rgba(48,209,88,0.25); border-radius:99px; font-size:11px; font-weight:700; color:#25A244;">Credit / Debit Card</span>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:14px; text-align:left;">
+                        <label class="form-label" for="onlineAmountInput">Payment Amount (&#8369;) <span class="required">*</span></label>
                         <div class="input-group">
-                            <span class="input-prefix">₱</span>
-                            <input type="text" class="form-control" name="amount" id="amountInput"
+                            <span class="input-prefix">&#8369;</span>
+                            <input type="text" class="form-control" id="onlineAmountInput"
                                    required placeholder="0.00" data-restrict="price"
-                                   title="Enter the amount to be recorded (numbers and decimal only)"
-                                   oninput="validateAmount()">
+                                   title="Enter the amount to charge via PayMongo"
+                                   oninput="validateOnlineAmount()">
                         </div>
-                        <div id="amountError" style="font-size:11.5px; color:#C0392B; margin-top:4px; display:none;"></div>
+                        <div id="onlineAmountError" style="font-size:11.5px; color:#C0392B; margin-top:4px; display:none;"></div>
                     </div>
 
-
-                    <div class="form-group">
-                        <label class="form-label">Payment Method <span class="required">*</span></label>
-                        <select class="form-control" name="payment_method" required>
-                            <option value="cash">💵 Cash</option>
-                            <option value="gcash">📱 GCash</option>
-                            <option value="maya">📱 Maya</option>
-                            <option value="bank_transfer">🏦 Bank Transfer</option>
-                        </select>
-                    </div>
-
-                    <div class="form-grid-2">
-                        <div class="form-group">
-                            <label class="form-label">Payment Date <span class="required">*</span></label>
-                            <input type="date" class="form-control" name="payment_date" required value="<?= date('Y-m-d') ?>">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Reference No.</label>
-                            <input type="text" class="form-control" name="reference_no" placeholder="GCash ref, trace no…" title="GCash Ref ID or Bank Transaction Trace ID">
-                        </div>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary btn-full" id="recordPayBtn">
-                        <i class="fas fa-check-circle"></i> Record Payment
+                    <button type="button" class="btn btn-success btn-full" id="sendPayLinkBtn"
+                            onclick="sendOnlinePaymentLink()" disabled>
+                        <i class="fas fa-link"></i> Generate &amp; Copy Payment Link
                     </button>
-                </form>
+                    <div style="font-size:11px; color:rgba(60,60,67,0.4); text-align:center; margin-top:8px;" id="onlineHint">
+                        Select a booking above to enable.
+                    </div>
+                </div>
+
             </div>
         </div>
-
     </div>
 </div>
 
@@ -382,7 +448,28 @@ async function onBookingChange() {
         // Status badge — derive from live data
         const liveStatus = livePaid >= grandTotal - 0.01 ? 'paid'
                          : livePaid > 0                  ? 'partial' : 'unpaid';
-        document.getElementById('bi-status-wrap').innerHTML = Format.paymentBadge(liveStatus);
+        const wrap = document.getElementById('bi-status-wrap');
+        if (currentBalance <= 0) {
+            wrap.innerHTML = `<span class="badge bg-success-subtle text-success-emphasis" style="font-size:12px; padding:6px 12px;"><i class="fas fa-check-circle me-1"></i> Fully Paid</span>`;
+            document.getElementById('cashFields').style.opacity = '0.5';
+            document.getElementById('amountInput').disabled = true;
+            document.getElementById('recordPayBtn').disabled = true;
+            
+            document.getElementById('onlineFields').style.opacity = '0.5';
+            document.getElementById('onlineAmountInput').disabled = true;
+            document.getElementById('sendPayLinkBtn').disabled = true;
+        } else {
+            wrap.innerHTML = Format.paymentBadge(liveStatus);
+            document.getElementById('cashFields').style.opacity = '1';
+            document.getElementById('amountInput').disabled = false;
+            document.getElementById('recordPayBtn').disabled = false;
+            document.getElementById('amountInput').value = currentBalance.toFixed(2);
+            
+            document.getElementById('onlineFields').style.opacity = '1';
+            document.getElementById('onlineAmountInput').disabled = false;
+            document.getElementById('sendPayLinkBtn').disabled = false;
+            document.getElementById('onlineAmountInput').value = currentBalance.toFixed(2);
+        }
 
         // Hide fill button if fully paid
         document.getElementById('fillFullBtn').style.display = remaining > 0.005 ? 'block' : 'none';
@@ -390,9 +477,7 @@ async function onBookingChange() {
         // Set max on amount input
         const amtInput = document.getElementById('amountInput');
         amtInput.max   = remaining.toFixed(2);
-        amtInput.value = '';
         document.getElementById('amountError').style.display = 'none';
-        document.getElementById('recordPayBtn').disabled = false;
 
         box.style.display = 'block';
 
@@ -480,9 +565,17 @@ async function loadLedger() {
                 <td>${Format.paymentBadge(b.payment_status)}<br>${Format.bookingBadge(b.booking_status)}</td>
                 <td class="td-actions">
                     ${balance > 0 && !isCancelled ? `
-                    <button class="btn btn-primary btn-sm py-3" onclick="quickPay(${b.id})" title="Add Payment">
-                        <i class="fas fa-plus"></i>
-                    </button>` : ''}
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-primary btn-sm py-3" onclick="quickPay(${b.id})" title="Record Cash / Manual Payment">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="btn btn-success btn-sm py-3" onclick="quickPayOnline(${b.id})" title="Send PayMongo Payment Link">
+                            <i class="fas fa-link"></i>
+                        </button>
+                        <button class="btn btn-dark btn-sm py-3" onclick="quickPayQR(${b.id})" title="Show QR Code for Payment">
+                            <i class="fas fa-qrcode"></i>
+                        </button>
+                    </div>` : ''}
                     <button class="btn btn-outline-secondary btn-sm py-3" onclick="viewHistory(${b.id})" title="View Payments">
                         <i class="fas fa-list"></i>
                     </button>
@@ -531,7 +624,7 @@ async function loadPaymentHistory(bookingId, bookingInfo) {
     try {
         const d = await Api.get(BASE + 'src/api/payments.php', { booking_id: bookingId });
         const payments = d.payments || [];
-        const methodLabel = { cash:'💵 Cash', gcash:'📱 GCash', maya:'📱 Maya', bank_transfer:'🏦 Bank' };
+        const methodLabel = { cash:'💵 Cash', gcash:'📱 GCash', maya:'📱 Maya', bank_transfer:'🏦 Bank', paymongo:'🔗 PayMongo' };
 
         if (payments.length === 0) {
             tbody.innerHTML = `<tr><td colspan="6"><div class="table-empty">
@@ -588,12 +681,22 @@ async function sendInvoice(bookingId) {
     }
 }
 
-// ── QUICK PAY: select booking in the right panel and scroll ────────────
+// ── QUICK PAY: Cash mode — select booking and switch to Cash tab ───────
 async function quickPay(bookingId) {
+    setPayMode('cash');
     const sel = document.getElementById('bookingSelect');
     sel.value = bookingId;
     await onBookingChange();
-    document.getElementById('paymentForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('cashFields').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── QUICK PAY ONLINE: switch to PayMongo mode and pre-select booking ────
+async function quickPayOnline(bookingId) {
+    setPayMode('online');
+    const sel = document.getElementById('bookingSelect');
+    sel.value = bookingId;
+    await onBookingChange();
+    document.getElementById('onlineFields').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── DELETE PAYMENT ─────────────────────────────────────────────────────
@@ -625,7 +728,10 @@ document.getElementById('paymentForm').addEventListener('submit', async function
     const btn = document.getElementById('recordPayBtn');
     Form.setLoading(btn, true);
     try {
-        const res  = await Api.post(BASE + 'src/api/payments.php', Form.serialize(this));
+        const payload = Form.serialize(this);
+        payload.booking_id = bid; // Inject booking_id (select is outside the form)
+        
+        const res  = await Api.post(BASE + 'src/api/payments.php', payload);
 
         // Show success with updated balance from API response
         const newBalance = res.balance ?? 0;
@@ -801,7 +907,186 @@ async function processRefund(id, amount) {
 }
 
 
+// ── PAYMENT MODE TOGGLE ────────────────────────────────────────────────
+let currentPayMode = 'cash';
+
+function setPayMode(mode) {
+    currentPayMode = mode;
+    const cashBtn    = document.getElementById('modeCashBtn');
+    const onlineBtn  = document.getElementById('modeOnlineBtn');
+    const cashFields = document.getElementById('cashFields');
+    const onlineFields = document.getElementById('onlineFields');
+    const hint       = document.getElementById('payModeHint');
+
+    if (mode === 'cash') {
+        // Active style for Cash button
+        cashBtn.style.border     = '1.5px solid var(--sys-green)';
+        cashBtn.style.background = 'rgba(48,209,88,0.08)';
+        cashBtn.style.color      = 'var(--sys-green-dark)';
+        // Inactive style for Online button
+        onlineBtn.style.border     = '1.5px solid rgba(60,60,67,0.15)';
+        onlineBtn.style.background = 'transparent';
+        onlineBtn.style.color      = 'rgba(60,60,67,0.45)';
+        // Show/hide panels
+        cashFields.style.display   = 'block';
+        onlineFields.style.display = 'none';
+        hint.textContent = 'Manually record cash, GCash, Maya, or bank transfer.';
+        // Show fill-full button (only relevant for manual entry)
+        const ffb = document.getElementById('fillFullBtn');
+        if (ffb) ffb.style.display = currentBalance > 0.005 ? 'block' : 'none';
+    } else {
+        // Active style for Online button
+        onlineBtn.style.border     = '1.5px solid #25A244';
+        onlineBtn.style.background = 'rgba(48,209,88,0.08)';
+        onlineBtn.style.color      = '#25A244';
+        // Inactive style for Cash button
+        cashBtn.style.border     = '1.5px solid rgba(60,60,67,0.15)';
+        cashBtn.style.background = 'transparent';
+        cashBtn.style.color      = 'rgba(60,60,67,0.45)';
+        // Show/hide panels
+        cashFields.style.display   = 'none';
+        onlineFields.style.display = 'block';
+        hint.textContent = 'Generate a secure PayMongo link and share it with the client.';
+        // Hide fill-full in online mode (no manual amount entry)
+        const ffb = document.getElementById('fillFullBtn');
+        if (ffb) ffb.style.display = 'none';
+        // Enable/disable the send button based on whether a booking is selected
+        const bid = document.getElementById('bookingSelect').value;
+        const linkBtn = document.getElementById('sendPayLinkBtn');
+        linkBtn.disabled = !bid || currentBalance <= 0.01;
+    }
+}
+
+// ── PAYMONGO ONLINE: Generate & Copy link ─────────────────────────────
+async function sendOnlinePaymentLink() {
+    const bid     = document.getElementById('bookingSelect').value;
+    const linkBtn = document.getElementById('sendPayLinkBtn');
+    const amtStr  = document.getElementById('onlineAmountInput').value;
+    const amt     = parseFloat(amtStr) || 0;
+    
+    if (!bid) { Toast.error('Please select a booking first.'); return; }
+    if (amt <= 0) { Toast.error('Please enter a valid payment amount.'); return; }
+    if (currentBalance > 0.005 && amt > currentBalance + 0.01) {
+        Toast.error(`Amount cannot exceed the remaining balance of ${Format.peso(currentBalance)}.`);
+        return;
+    }
+
+    const originalHTML = linkBtn.innerHTML;
+    linkBtn.disabled = true;
+    linkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating link…';
+
+    try {
+        const res = await Api.post(BASE + 'src/api/paymongo_checkout.php', {
+            booking_id: parseInt(bid, 10),
+            override_amount: Math.round(amt * 100), // Backend expects centavos
+            origin: 'financial'
+        });
+
+        if (!res.checkout_url) throw new Error('No checkout URL returned from PayMongo.');
+
+        Toast.success(
+            '🔗 Payment Gateway opened in a new tab! ' +
+            'Amount: ' + Format.peso(res.amount)
+        );
+        window.open(res.checkout_url, '_blank');
+
+        document.getElementById('onlineHint').textContent =
+            '✓ Session: ' + res.checkout_session_id.slice(-12) +
+            ' | Amt: ' + Format.peso(res.amount);
+
+    } catch (e) {
+        Toast.error(e.message || 'Failed to generate payment link.');
+    } finally {
+        linkBtn.innerHTML = originalHTML;
+        linkBtn.disabled  = currentBalance <= 0.01;
+    }
+}
+
+// Patch onBookingChange to also toggle the online send-button state
+const _origOnBookingChange = onBookingChange;
+onBookingChange = async function() {
+    await _origOnBookingChange();
+    const bid     = document.getElementById('bookingSelect').value;
+    const linkBtn = document.getElementById('sendPayLinkBtn');
+    if (linkBtn) {
+        linkBtn.disabled = !bid || currentBalance <= 0.01;
+        document.getElementById('onlineHint').textContent =
+            bid && currentBalance > 0.01
+                ? 'Ready — click above to generate the link.'
+                : 'Select a booking above to enable.';
+    }
+};
+
+
+/**
+ * QR Code Generation logic
+ */
+async function quickPayQR(bid) {
+    const btn = event.currentTarget;
+    const origHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+    try {
+        const res = await Api.post(BASE + 'src/api/paymongo_checkout.php', {
+            booking_id: parseInt(bid, 10),
+            origin: 'financial'
+        });
+
+        if (!res.checkout_url) throw new Error('No checkout URL returned.');
+        
+        showQRModal(res.checkout_url, res.amount);
+    } catch (e) {
+        Toast.error(e.message || 'Failed to generate QR code.');
+    } finally {
+        btn.innerHTML = origHTML;
+        btn.disabled = false;
+    }
+}
+
+function showQRModal(url, amount) {
+    const modalEl = document.getElementById('qrModal');
+    const imgEl   = document.getElementById('qrImage');
+    const amtEl   = document.getElementById('qrAmount');
+    
+    // Use goqr.me API for instant QR generation
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
+    
+    imgEl.src = qrUrl;
+    amtEl.textContent = Format.peso(amount);
+    
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+}
+
 initFinancial();
 </script>
+
+<!-- QR Code Modal -->
+<div class="modal fade" id="qrModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold">Scan to Pay</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center pt-2 pb-4">
+                <p class="text-muted small mb-4">Customer can scan this with GCash, Maya, or any QRPh app to complete the payment.</p>
+                
+                <div class="p-3 bg-white d-inline-block rounded shadow-sm mb-3">
+                    <img id="qrImage" src="" alt="QR Code" style="width: 250px; height: 250px;">
+                </div>
+                
+                <div class="mt-2">
+                    <span class="text-muted d-block small">Amount to Pay</span>
+                    <h3 class="fw-bold text-success mb-0" id="qrAmount">₱0.00</h3>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0 justify-content-center">
+                <button type="button" class="btn btn-light w-100" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

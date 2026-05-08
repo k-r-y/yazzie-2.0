@@ -250,7 +250,7 @@ if ($method === 'PUT') {
             // 2. Email Notifications
             if (MAIL_ENABLED) {
                 require_once __DIR__ . '/../../includes/mailer.php';
-                $admins = $pdo->query("SELECT name, email FROM users WHERE role IN ('admin', 'super_admin', 'frontdesk') AND is_active = 1")->fetchAll();
+                $admins = $pdo->query("SELECT name, email FROM users WHERE role IN ('admin', 'frontdesk') AND is_active = 1")->fetchAll();
                 foreach ($admins as $admin) {
                     if (!empty($admin['email'])) {
                         sendJobResponseEmailToAdmin(

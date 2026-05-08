@@ -1,14 +1,14 @@
 <?php
 /**
  * Audit Logs API
- * GET — Retrieve system logs (Super Admin Only)
+ * GET — Retrieve system logs (Admin Only)
  */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 
-// Strictly Super Admin
-$currentUser = requireApiRole('super_admin');
+// Strictly Admin
+$currentUser = requireApiRole('admin');
 
 $page  = max(1, (int)($_GET['page'] ?? 1));
 $limit = (int)($_GET['limit'] ?? 10);

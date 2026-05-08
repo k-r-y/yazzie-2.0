@@ -18,7 +18,7 @@ $timeframe = $_GET['timeframe'] ?? 'month'; // day, week, month, year
 // REVENUE CHART — grouped by timeframe
 // ----------------------------------------------------------------
 if ($type === 'revenue_chart') {
-    if ($currentUser['role'] !== 'admin' && $currentUser['role'] !== 'super_admin') {
+    if ($currentUser['role'] !== 'admin') {
         jsonResponse(false, 'Unauthorized access to financial charts.', [], 403);
     }
     $labels = [];
@@ -260,7 +260,7 @@ if ($type === 'kpis') {
         'period_label'      => $label,
     ];
 
-    if ($currentUser['role'] === 'admin' || $currentUser['role'] === 'super_admin') {
+    if ($currentUser['role'] === 'admin') {
         $res['total_revenue'] = (float)$revenue;
         $res['revenue_mtd']   = (float)$revenue_mtd;
         $res['outstanding']   = (float)$outstanding;

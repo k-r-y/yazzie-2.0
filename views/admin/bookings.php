@@ -284,7 +284,14 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                 </div>
             </div>
             <div class="modal-footer" style="padding:20px 30px; background:white; border-top:1px solid #eee;">
-                <div style="flex:1;"></div>
+                <!-- Payment Link button — shown only when balance > 0 and booking is active -->
+                <button class="btn btn-success px-4 me-auto" id="payLinkBtn"
+                        onclick="generatePaymentLink()"
+                        style="display:none; gap:8px; align-items:center;"
+                        title="Create a PayMongo checkout link and copy it to share with the client">
+                    <i class="fas fa-link"></i>
+                    Generate Payment Link
+                </button>
                 <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
                 <button class="btn btn-primary px-4" id="viewToEditBtn" onclick="openEditFromView()">
                     <i class="fas fa-edit me-2"></i>Edit Booking
@@ -609,8 +616,61 @@ async function openViewBooking(id) {
 
         // Store ID for Edit transition
         window.currentViewingId = id;
+        window.currentViewingBooking = b;
+
+        // Show "Generate Payment Link" button only when there is an outstanding balance
+        // and the booking is not cancelled or completed
+        const payLinkBtn = document.getElementById('payLinkBtn');
+        const isPayable  = balance > 0.01
+                        && b.booking_status !== 'cancelled'
+                        && b.booking_status !== 'completed'
+                        && b.booking_status !== 'pending_cancellation';
+        payLinkBtn.style.display = isPayable ? 'inline-flex' : 'none';
+
         Modal.open('viewBookingModal');
     } catch (e) { Toast.error(e.message); }
+}
+
+// ── PAYMONGO: Generate & Copy Payment Link ────────────────────────────────────
+async function generatePaymentLink() {
+    const b   = window.currentViewingBooking;
+    const btn = document.getElementById('payLinkBtn');
+    if (!b || !btn) return;
+
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating link…';
+
+    try {
+        const res = await Api.post(BASE + 'src/api/paymongo_checkout.php', {
+            booking_id: parseInt(b.id, 10)
+        });
+
+        if (!res.checkout_url) throw new Error('No checkout URL returned.');
+
+        // Build a shareable invoice URL that will show the Pay Now button to the client
+        const invoiceUrl = BASE + 'templates/invoice.php?booking_id=' + b.id
+                         + '&token=' + encodeURIComponent(b.invoice_token || '');
+
+        // Copy the checkout URL directly to the clipboard for quick sharing
+        try {
+            await navigator.clipboard.writeText(res.checkout_url);
+            Toast.success(
+                '\u2713 Payment link copied! ' +
+                'Balance: ' + Format.peso(res.amount) +
+                ' | Session: ' + res.checkout_session_id.slice(-8)
+            );
+        } catch {
+            // Clipboard permission denied — show the URL in a confirm dialog
+            window.prompt('Copy this payment link to share with the client:', res.checkout_url);
+        }
+
+    } catch (e) {
+        Toast.error(e.message || 'Failed to generate payment link.');
+    } finally {
+        btn.innerHTML = originalHTML;
+        btn.disabled  = false;
+    }
 }
 
 function openEditFromView() {

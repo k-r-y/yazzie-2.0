@@ -6,13 +6,13 @@
 
 /**
  * Check if the system is in maintenance mode.
- * Only Super Admins can bypass this.
+ * Only Admins (the highest role tier) can bypass this.
  */
 function checkMaintenanceMode(): void
 {
     if (defined('MAINTENANCE_MODE') && MAINTENANCE_MODE) {
         $user = getCurrentUser();
-        if (!$user || $user['role'] !== 'super_admin') {
+        if (!$user || $user['role'] !== 'admin') {
             $isApi = str_contains($_SERVER['REQUEST_URI'], '/src/api/');
             if ($isApi) {
                 jsonResponse(false, 'System is currently under maintenance. Please try again later.', [], 503);
@@ -47,10 +47,11 @@ function checkSessionTimeout(): void
         return; // Not logged in, nothing to timeout
     }
     
-    // ── Check if debug mode is enabled; if so, force logout non-superadmins ──
+    // ── Check if debug mode is enabled; if so, force logout non-admins ──
+    // The admin role is now the highest tier and retains debug-mode access.
     if (defined('DEBUG_MODE') && (int)DEBUG_MODE === 1) {
         $role = $_SESSION['role'] ?? '';
-        if ($role !== 'super_admin') {
+        if ($role !== 'admin') {
             session_destroy();
             $_SESSION = [];
             $isApi = str_contains($_SERVER['REQUEST_URI'], '/src/api/');
@@ -166,11 +167,11 @@ function getCurrentUser(): ?array
  */
 function redirectByRole(string $role): void
 {
+    // super_admin has been retired; admin is now the top-tier role.
     $redirectMap = [
-        'super_admin' => BASE_URL . '/views/admin/superadmin.php',
-        'admin'       => BASE_URL . '/views/admin/dashboard.php',
-        'frontdesk'   => BASE_URL . '/views/frontdesk/dashboard.php',
-        'staff'       => BASE_URL . '/views/staff/dashboard.php',
+        'admin'     => BASE_URL . '/views/admin/dashboard.php',
+        'frontdesk' => BASE_URL . '/views/frontdesk/dashboard.php',
+        'staff'     => BASE_URL . '/views/staff/dashboard.php',
     ];
 
     $url = $redirectMap[$role] ?? BASE_URL . '/index.php';
@@ -183,12 +184,12 @@ function redirectByRole(string $role): void
  */
 function getRoleLabel(string $role): string
 {
+    // super_admin label removed — admin is now the singular top-tier role.
     return match($role) {
-        'super_admin' => '⭐ Super Admin',
-        'admin'       => 'Administrator',
-        'frontdesk'   => 'Front Desk',
-        'staff'       => 'On-Call Staff',
-        default       => ucfirst($role),
+        'admin'     => 'Administrator',
+        'frontdesk' => 'Front Desk',
+        'staff'     => 'On-Call Staff',
+        default     => ucfirst($role),
     };
 }
 
@@ -251,12 +252,10 @@ function requireApiRole(string|array $roles): array
 
     $roles = (array) $roles;
 
-    // super_admin inherits all role permissions
+    // No legacy super_admin bypass — every role is validated explicitly.
+    // The admin role must be included in $roles wherever admin-level
+    // access is required.
     $userRole = $_SESSION['role'] ?? '';
-    if ($userRole === 'super_admin') {
-        return getCurrentUser(); // super_admin bypasses all role checks
-    }
-
     if (!in_array($userRole, $roles, true)) {
         jsonResponse(false, 'Forbidden. You do not have access to this resource.', [], 403);
     }

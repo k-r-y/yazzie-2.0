@@ -12,7 +12,8 @@ $active     = $activePage ?? '';
 $base       = BASE_URL;
 
 // ── Passive Cron: Check for upcoming unpaid bookings ────────────────
-if (in_array($role, ['admin', 'super_admin', 'frontdesk'])) {
+// super_admin has been retired; admin is now the top-tier role.
+if (in_array($role, ['admin', 'frontdesk'])) {
     if (!isset($_SESSION['last_payment_check']) || (time() - $_SESSION['last_payment_check'] > 1800)) { // Every 30 mins
         try {
             require_once __DIR__ . '/notifications_helper.php';
@@ -41,11 +42,14 @@ $nav = [
         ['inventory',   'Inventory Items',   'fa-boxes-stacked',  '/views/admin/inventory.php'],
         ['financial',   'Financials',   'fa-coins',        '/views/admin/financial.php'],
         ['section' => 'Human Resources'],
-        ['dispatching', 'Staff Dispatching', 'fa-bullhorn',  '/views/frontdesk/dispatching.php'],
-        ['staff',       'Staff',        'fa-id-badge',     '/views/admin/staff.php'],
+        ['dispatching', 'Staff Dispatching',      'fa-bullhorn',     '/views/frontdesk/dispatching.php'],
+        // Renamed: User & Staff Management — admin now owns all user accounts
+        ['users',       'User & Staff Management', 'fa-id-badge',     '/views/admin/users.php'],
         ['section' => 'Business Rules'],
-        ['settings',    'Business Settings', 'fa-sliders',      '/views/admin/settings.php'],
-        ['archive',     'Archive',      'fa-box-archive',  '/views/admin/archive.php'],
+        ['settings',    'Business Settings',       'fa-sliders',      '/views/admin/settings.php'],
+        // System Settings transferred from super_admin to admin
+        ['superadmin',  'System Settings',         'fa-shield-halved','/views/admin/superadmin.php'],
+        ['archive',     'Archive',                 'fa-box-archive',  '/views/admin/archive.php'],
     ],
     'frontdesk' => [
         ['section' => 'Overview'],
@@ -63,17 +67,10 @@ $nav = [
     ],
 ];
 
+// Resolve nav items for the current role.
+// super_admin has been retired — admin is the highest tier and its
+// nav items are defined directly in the $nav array above.
 $items = $nav[$role] ?? $nav['staff'];
-
-// ── Superadmin specific additions ───────────────────────────
-if ($role === 'super_admin') {
-    $items = [
-        ['section' => 'Super Admin Control'],
-        ['superadmin', 'System Settings', 'fa-shield-halved', '/views/admin/superadmin.php'],
-        ['section' => 'Security & Access'],
-        ['users', 'User Accounts', 'fa-users', '/views/admin/users.php']
-    ];
-}
 ?>
 
 <!-- Sidebar Overlay (mobile) -->

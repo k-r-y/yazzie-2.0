@@ -124,3 +124,85 @@ function clearLoginAttempts(PDO $pdo): void
         error_log('[RateLimiter] Clear failed: ' . $e->getMessage());
     }
 }
+
+// ============================================================
+// OTP Rate Limiter — separate table, separate thresholds
+// Tracks failed OTP verification attempts per email + IP.
+//
+// Thresholds (hardcoded, not configurable via admin settings):
+//   Max attempts : 5  per email OR IP
+//   Window       : 10 minutes
+//
+// Usage:
+//   checkOtpRateLimit($pdo, $email);    // Before verifying OTP
+//   recordOtpAttempt($pdo, $email);     // After a failed attempt
+//   clearOtpAttempts($pdo, $email);     // After a successful verify
+// ============================================================
+
+define('OTP_MAX_ATTEMPTS',    5);
+define('OTP_WINDOW_MINUTES', 10);
+
+/**
+ * Block the request if the email or IP has exceeded OTP attempt limits.
+ * Returns HTTP 429 on violation.
+ */
+function checkOtpRateLimit(PDO $pdo, string $email): void
+{
+    $ip          = getClientIp();
+    $windowStart = date('Y-m-d H:i:s', strtotime('-' . OTP_WINDOW_MINUTES . ' minutes'));
+
+    try {
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) AS attempts
+            FROM otp_attempts
+            WHERE (email = :email OR ip_address = :ip)
+              AND attempted_at >= :window
+        ");
+        $stmt->execute([':email' => $email, ':ip' => $ip, ':window' => $windowStart]);
+        $row = $stmt->fetch();
+
+        if ($row && (int)$row['attempts'] >= OTP_MAX_ATTEMPTS) {
+            header('Content-Type: application/json');
+            http_response_code(429);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Too many incorrect code attempts. Please wait ' . OTP_WINDOW_MINUTES . ' minutes before trying again.',
+            ]);
+            exit;
+        }
+    } catch (\Throwable $e) {
+        error_log('[OTP RateLimiter] Check failed: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Record a failed OTP attempt for the current email + IP.
+ */
+function recordOtpAttempt(PDO $pdo, string $email): void
+{
+    $ip = getClientIp();
+    try {
+        $pdo->prepare("
+            INSERT INTO otp_attempts (email, ip_address, attempted_at)
+            VALUES (:email, :ip, NOW())
+        ")->execute([':email' => $email, ':ip' => $ip]);
+    } catch (\Throwable $e) {
+        error_log('[OTP RateLimiter] Record failed: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Clear OTP attempts for this email after a successful verification.
+ */
+function clearOtpAttempts(PDO $pdo, string $email): void
+{
+    $ip = getClientIp();
+    try {
+        $pdo->prepare("
+            DELETE FROM otp_attempts
+            WHERE email = :email OR ip_address = :ip
+        ")->execute([':email' => $email, ':ip' => $ip]);
+    } catch (\Throwable $e) {
+        error_log('[OTP RateLimiter] Clear failed: ' . $e->getMessage());
+    }
+}

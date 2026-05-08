@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
-requireRole('super_admin');
+requireRole('admin');
 
 $pageTitle    = 'Superadmin Console';
 $pageSubtitle = 'System Infrastructure & Configuration';

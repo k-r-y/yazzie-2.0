@@ -1,25 +1,26 @@
 <?php
 /**
  * Settings API
- * GET — Retrieve all settings
- * PUT — Update a setting (Super Admin Only)
+ * GET — Retrieve all settings (Admin: full access to all categories)
+ * PUT — Update a setting (Admin: full read/write including system category)
+ *
+ * super_admin role has been retired. The admin role is the highest tier
+ * and inherits all former super_admin capabilities over system settings.
  */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/audit.php';
 
-$currentUser = requireApiRole(['super_admin', 'admin']);
+// admin is the sole top-tier role; super_admin has been retired.
+$currentUser = requireApiRole(['admin']);
 requireCsrf();
 $method      = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 if ($method === 'GET') {
-    if ($currentUser['role'] === 'super_admin') {
-        $where = ""; // Super admin sees everything
-    } else {
-        $where = "WHERE category NOT IN ('system', 'advanced')";
-    }
-    $stmt = $pdo->query("SELECT * FROM settings $where ORDER BY category, `key` ASC");
+    // admin has full visibility across all setting categories,
+    // including system and advanced — no category filter applied.
+    $stmt = $pdo->query("SELECT * FROM settings ORDER BY category, `key` ASC");
     jsonResponse(true, '', ['settings' => $stmt->fetchAll()]);
 }
 
@@ -166,15 +167,9 @@ if ($method === 'PUT') {
     $oldRow = $oldStmt->fetch();
     if (!$oldRow) jsonResponse(false, 'Setting not found.', [], 404);
 
-    if ($currentUser['role'] === 'super_admin') {
-        if (strtolower($oldRow['category']) !== 'system') {
-            jsonResponse(false, 'Forbidden. Super Admins can only edit system-level settings.', [], 403);
-        }
-    } else if ($currentUser['role'] === 'admin') {
-        if (in_array(strtolower($oldRow['category']), ['system', 'advanced'])) {
-            jsonResponse(false, 'Forbidden. You cannot edit system or advanced settings.', [], 403);
-        }
-    }
+    // admin is the top-tier role and has full write access to all categories.
+    // No category-level restriction is applied. Any future role-based
+    // category gating should be re-introduced here via an explicit check.
 
     $stmt = $pdo->prepare("UPDATE settings SET value = :val WHERE `key` = :key");
     $stmt->execute([':val' => trim(substr((string)$value, 0, 5000)), ':key' => $key]);

@@ -7,9 +7,8 @@
  *
  * Role-based strict filtering — prevents cross-contamination between roles:
  *
- *  super_admin  →  target_role = 'superadmin'  AND type = 'user_management'
- *  admin        →  target_role IN ('admin','global')
- *                  AND type IN ('booking','finance','dispatch','system')
+ *  admin        →  target_role IN ('admin','global','superadmin')
+ *                  AND type IN ('booking','finance','dispatch','system','user_management')
  *  frontdesk    →  target_role IN ('frontdesk','global')
  *                  AND type IN ('booking','finance','dispatch')
  *  staff        →  recipient_id = :current_user_id  (direct messages only)
@@ -30,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 // ── Authenticate — all roles may call this endpoint ────────────────────────
-$currentUser = requireApiRole(['super_admin', 'admin', 'frontdesk', 'staff']);
+$currentUser = requireApiRole(['admin', 'frontdesk', 'staff']);
 $uid         = (int)$currentUser['id'];
 $role        = $currentUser['role'];
 
@@ -43,20 +42,11 @@ $params = [];
 
 switch ($role) {
 
-    // ── Super Admin: strictly user_management notifications only ───────────
-    case 'super_admin':
-        $whereClause = "
-            WHERE n.target_role = 'superadmin'
-              AND n.type        = 'user_management'
-        ";
-        // No dynamic params needed for the WHERE; uid used only for mark-read ops
-        break;
-
-    // ── Admin: business notifications broadcast to admin or global ─────────
+    // ── Admin: business + system + user management notifications ───────────
     case 'admin':
         $whereClause = "
-            WHERE n.target_role IN ('admin', 'global')
-              AND n.type        IN ('booking', 'finance', 'dispatch', 'system')
+            WHERE n.target_role IN ('admin', 'global', 'superadmin')
+              AND n.type        IN ('booking', 'finance', 'dispatch', 'system', 'user_management')
         ";
         break;
 

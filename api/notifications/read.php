@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 requireCsrf();
 
-$currentUser = requireApiRole(['super_admin', 'admin', 'frontdesk', 'staff']);
+$currentUser = requireApiRole(['admin', 'frontdesk', 'staff']);
 $uid         = (int)$currentUser['id'];
 $role        = $currentUser['role'];
 
@@ -36,11 +36,8 @@ $input = json_decode(file_get_contents('php://input'), true) ?? [];
 // This ensures a staff member cannot mark an admin notification as read.
 $params = [];
 switch ($role) {
-    case 'super_admin':
-        $ownershipWhere = "target_role = 'superadmin' AND type = 'user_management'";
-        break;
     case 'admin':
-        $ownershipWhere = "target_role IN ('admin', 'global') AND type IN ('booking', 'finance', 'dispatch', 'system')";
+        $ownershipWhere = "target_role IN ('admin', 'global', 'superadmin') AND type IN ('booking', 'finance', 'dispatch', 'system', 'user_management')";
         break;
     case 'frontdesk':
         $ownershipWhere = "target_role IN ('frontdesk', 'global') AND type IN ('booking', 'finance', 'dispatch')";

@@ -1,0 +1,40 @@
+{
+    "error": "SQLSTATE[01000]: Warning: 1265 Data truncated for column 'booking_status' at row 1",
+    "status_being_sent": "pending",
+    "data_received": {
+        "client_id": "30",
+        "nc_name": "Mark James Cristobal",
+        "nc_phone": "09218139812",
+        "nc_email": "mjcristobal@kld.edu.ph",
+        "nc_address": "blk 45 lot 45 Brgy. langkaan Dasmari\u00f1as City, Cavite",
+        "nc_messenger": "mark.cristobal",
+        "package_id": 1,
+        "event_date": "2026-05-14",
+        "event_time": "12:56",
+        "event_type": "Debut",
+        "event_location": "Orchard Golf and Country Club, Dasmari\u00f1as",
+        "transport_fee": 0,
+        "pax_count": 67,
+        "booking_status": "confirmed",
+        "notes": "Red Theme",
+        "dietary_notes": null,
+        "selected_dishes": [
+            1,
+            3,
+            27,
+            28,
+            23,
+            18,
+            55,
+            66,
+            62,
+            68,
+            67
+        ],
+        "custom_items": [],
+        "pay_mode": "online",
+        "downpayment": null,
+        "downpayment_method": null,
+        "downpayment_ref": null
+    }
+}

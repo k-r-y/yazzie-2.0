@@ -412,7 +412,17 @@ $dynamicPrivacy = appSetting('data_privacy_notice', "We value your privacy. Your
 
                         <!-- Right: Downpayment + T&C -->
                         <div>
-                            <h6 style="font-size:15px; font-weight:700; margin-bottom:16px;">💳 Downpayment</h6>
+                            <div id="rushIndicator" style="display:none; background:rgba(255,59,48,0.1); border:1px solid rgba(255,59,48,0.3); border-radius:14px; padding:12px; margin-bottom:14px; color:#C0392B;">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <i class="fas fa-triangle-exclamation"></i>
+                                    <strong style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">Rush Booking detected</strong>
+                                </div>
+                                <div id="rushText" style="font-size:11.5px; line-height:1.4; margin-top:4px; opacity:0.8;">
+                                    This event is scheduled within the next <?= RUSH_THRESHOLD_HOURS / 24 ?> days. <strong>Full payment (100%)</strong> is required to confirm.
+                                </div>
+                            </div>
+
+                            <h6 style="font-size:15px; font-weight:700; margin-bottom:16px;" id="paymentSectionTitle">💳 Downpayment</h6>
 
                             <!-- Balance card -->
                             <div style="background:rgba(48,209,88,0.05); border:0.5px solid rgba(48,209,88,0.2); border-radius:14px; padding:16px; margin-bottom:14px;">
@@ -431,38 +441,98 @@ $dynamicPrivacy = appSetting('data_privacy_notice', "We value your privacy. Your
                                 </div>
                             </div>
 
-                            <div class="form-group">
-                                <label class="form-label" id="dpLabel" for="s4_dp">
-                                    Downpayment Amount (₱)
-                                    <span style="font-size:11px; font-weight:400; color:rgba(60,60,67,0.4);"> — minimum <?= round(MIN_DP_PERCENT * 100) ?>% required (<?= round(RUSH_DP_PERCENT * 100) ?>% within <?= round(RUSH_THRESHOLD_HOURS / 24) ?> days)</span>
-                                </label>
-                                <div class="input-group">
-                                    <span class="input-prefix">₱</span>
-                                    <input type="text" class="form-control" id="s4_dp"
-                                           placeholder="0.00" data-restrict="price"
-                                           oninput="onDPInput()"
-                                           title="Amount to be paid initially to confirm the booking">
+                            <!-- ── Downpayment Mode Toggle ── -->
+                            <div style="margin-bottom:14px;">
+                                <label class="form-label" style="margin-bottom:8px;">Payment Mode <span class="required">*</span></label>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                                    <button type="button" id="s4_modeCashBtn" onclick="setStepPayMode('cash')"
+                                        style="padding:11px 6px; border-radius:12px; border:1.5px solid var(--sys-green);
+                                               background:rgba(48,209,88,0.08); color:var(--sys-green-dark);
+                                               font-weight:700; font-size:12px; cursor:pointer; transition:all .18s;
+                                               display:flex; align-items:center; justify-content:center; gap:6px;">
+                                        <i class="fas fa-money-bill-wave"></i> Cash / Manual
+                                    </button>
+                                    <button type="button" id="s4_modeOnlineBtn" onclick="setStepPayMode('online')"
+                                        style="padding:11px 6px; border-radius:12px; border:1.5px solid rgba(60,60,67,0.15);
+                                               background:transparent; color:rgba(60,60,67,0.45);
+                                               font-weight:700; font-size:12px; cursor:pointer; transition:all .18s;
+                                               display:flex; align-items:center; justify-content:center; gap:6px;">
+                                        <i class="fas fa-link"></i> PayMongo Online
+                                    </button>
                                 </div>
-                                <div id="s4_dpError" style="font-size:11.5px; color:#C0392B; margin-top:4px; display:none;"></div>
+                                <div style="font-size:11px; color:rgba(60,60,67,0.4); text-align:center; margin-top:5px;" id="s4_modeHint">
+                                    Record the downpayment manually.
+                                </div>
                             </div>
 
-                            <div class="form-grid-2" style="gap:10px;">
+                            <!-- ── CASH / MANUAL FIELDS ── -->
+                            <div id="s4_cashFields">
                                 <div class="form-group">
-                                    <label class="form-label">Payment Method</label>
-                                    <select class="form-control" id="s4_dpMethod" onchange="onDPMethodChange()">
-                                        <option value="cash">💵 Cash</option>
-                                        <option value="gcash">📱 GCash</option>
-                                        <option value="maya">📱 Maya</option>
-                                        <option value="bank_transfer">🏦 Bank Transfer</option>
-                                    </select>
+                                    <label class="form-label" id="dpLabel" for="s4_dp">
+                                        Downpayment Amount (&#8369;)
+                                        <span style="font-size:11px; font-weight:400; color:rgba(60,60,67,0.4);"> — min <?= round(MIN_DP_PERCENT * 100) ?>% (<?= round(RUSH_DP_PERCENT * 100) ?>% within <?= round(RUSH_THRESHOLD_HOURS / 24) ?> days)</span>
+                                    </label>
+                                    <div class="input-group">
+                                        <span class="input-prefix">&#8369;</span>
+                                        <input type="text" class="form-control" id="s4_dp"
+                                               placeholder="0.00" data-restrict="price"
+                                               oninput="onDPInput()"
+                                               title="Amount to be paid initially to confirm the booking">
+                                    </div>
+                                    <div id="s4_dpError" style="font-size:11.5px; color:#C0392B; margin-top:4px; display:none;"></div>
                                 </div>
-                                <div class="form-group">
-                                    <label class="form-label" id="s4_dpRefLabel">Reference No.</label>
-                                    <input type="text" class="form-control" id="s4_dpRef"
-                                           placeholder="e.g. GC-2026041412345"
-                                           maxlength="40"
-                                           oninput="this.value=this.value.replace(/[^a-zA-Z0-9\-_]/g,'')"
-                                           title="Alphanumeric reference (GCash, Maya, bank trace no.)">
+
+                                <div class="form-grid-2" style="gap:10px;">
+                                    <div class="form-group">
+                                        <label class="form-label">Payment Method</label>
+                                        <select class="form-control" id="s4_dpMethod" onchange="onDPMethodChange()">
+                                            <option value="cash">&#x1F4B5; Cash</option>
+                                            <option value="gcash">&#x1F4F1; GCash</option>
+                                            <option value="maya">&#x1F4F1; Maya</option>
+                                            <option value="bank_transfer">&#x1F3E6; Bank Transfer</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" id="s4_dpRefLabel">Reference No.</label>
+                                        <input type="text" class="form-control" id="s4_dpRef"
+                                               placeholder="e.g. GC-2026041412345"
+                                               maxlength="40"
+                                               oninput="this.value=this.value.replace(/[^a-zA-Z0-9\-_]/g,'')"
+                                               title="Alphanumeric reference (GCash, Maya, bank trace no.)">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ── PAYMONGO ONLINE PANEL ── -->
+                            <div id="s4_onlineFields" style="display:none;">
+                                <div style="background:linear-gradient(135deg,rgba(48,209,88,0.07),rgba(37,162,68,0.04));
+                                            border:1px solid rgba(48,209,88,0.20); border-radius:13px; padding:16px; text-align:center;">
+                                    <div style="font-size:24px; margin-bottom:8px;">&#x1F517;</div>
+                                    <div style="font-weight:800; font-size:14px; color:#1C1C1E; margin-bottom:5px;">Pay via PayMongo</div>
+                                    <div style="font-size:11.5px; color:rgba(60,60,67,0.55); line-height:1.55;">
+                                        Confirming the booking will generate a secure checkout link
+                                        for the <strong id="s4_online_dp_text">downpayment amount</strong>. You can copy and send
+                                        it to the client via GCash, Maya, or Credit/Debit Card.
+                                    </div>
+                                    <div style="display:flex; gap:5px; justify-content:center; margin-top:10px; flex-wrap:wrap;">
+                                        <span style="padding:2px 9px; background:rgba(48,209,88,0.12); border:1px solid rgba(48,209,88,0.25); border-radius:99px; font-size:10px; font-weight:700; color:#25A244;">GCash</span>
+                                        <span style="padding:2px 9px; background:rgba(48,209,88,0.12); border:1px solid rgba(48,209,88,0.25); border-radius:99px; font-size:10px; font-weight:700; color:#25A244;">Maya</span>
+                                        <span style="padding:2px 9px; background:rgba(48,209,88,0.12); border:1px solid rgba(48,209,88,0.25); border-radius:99px; font-size:10px; font-weight:700; color:#25A244;">Credit / Debit Card</span>
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-top:12px;">
+                                    <label class="form-label" for="s4_dp_online">
+                                        Downpayment Amount (&#8369;)
+                                        <span style="font-size:11px; font-weight:400; color:rgba(60,60,67,0.4);"> — min <?= round(MIN_DP_PERCENT * 100) ?>%</span>
+                                    </label>
+                                    <div class="input-group">
+                                        <span class="input-prefix">&#8369;</span>
+                                        <input type="text" class="form-control" id="s4_dp_online"
+                                               placeholder="0.00" data-restrict="price"
+                                               oninput="onDPOnlineInput()"
+                                               title="Downpayment to charge via PayMongo checkout">
+                                    </div>
+                                    <div id="s4_dpOnlineError" style="font-size:11.5px; color:#C0392B; margin-top:4px; display:none;"></div>
                                 </div>
                             </div>
 
@@ -1683,26 +1753,69 @@ $dynamicPrivacy = appSetting('data_privacy_notice', "We value your privacy. Your
 
     function updateSummaryBalances() {
         const total  = state.totalCost;
-        const dp     = parseFloat(document.getElementById('s4_dp').value) || 0;
+        const isOnline = state.dpPayMode === 'online';
         
-        const eventDate = new Date(state.date);
-        const now       = new Date();
-        const diffHours = (eventDate - now) / (1000 * 60 * 60);
+        // Use the correct input field and error element based on the selected payment mode
+        const dpFieldId = isOnline ? 's4_dp_online' : 's4_dp';
+        const errElId   = isOnline ? 's4_dpOnlineError' : 's4_dpError';
+        
+        const dpVal = document.getElementById(dpFieldId).value;
+        const dp    = parseFloat(dpVal) || 0;
+        
+        const eventDate = new Date(state.date + ' ' + (state.time || '12:00'));
+        const serverNow = new Date('<?= date('Y-m-d H:i:s') ?>');
+        const diffHours = (eventDate - serverNow) / (1000 * 60 * 60);
+        
+        console.log('[DEBUG RUSH] Event:', eventDate);
+        console.log('[DEBUG RUSH] Now:', serverNow);
+        console.log('[DEBUG RUSH] Diff (Hrs):', diffHours.toFixed(2));
+        console.log('[DEBUG RUSH] Threshold:', rushThresholdHours);
+
         const isLastMinute = diffHours < rushThresholdHours;
         const dpPct        = isLastMinute ? rushDpPct : minDpPct;
 
         const minDP  = Math.ceil(total * dpPct * 100) / 100;
         const balance = Math.max(0, total - dp);
-        const errEl  = document.getElementById('s4_dpError');
+        const errEl  = document.getElementById(errElId);
         const subBtn = document.getElementById('stepSubmitBtn');
+
+        // Hide both error fields initially
+        document.getElementById('s4_dpError').style.display = 'none';
+        document.getElementById('s4_dpOnlineError').style.display = 'none';
 
         document.getElementById('s4_total').textContent   = Format.peso(total);
         document.getElementById('s4_minDP').textContent   = Format.peso(minDP);
         document.getElementById('s4_balance').textContent = Format.peso(balance);
         
-        const minLabel = isLastMinute ? `${Math.round(rushDpPct * 100)}% Payment Required` : `Minimum Downpayment (${Math.round(minDpPct * 100)}%)`;
-        document.querySelector('#s4_minDP').previousElementSibling.textContent = minLabel;
-        document.getElementById('dpLabel').querySelector('span').textContent = isLastMinute ? ` — minimum ${Math.round(rushDpPct * 100)}% required` : ` — minimum ${Math.round(minDpPct * 100)}% required`;
+        const isFullPay = (dpPct >= 0.99);
+        const minLabel = isFullPay ? `Full Payment Required (100%)` : `Minimum Downpayment (${Math.round(minDpPct * 100)}%)`;
+        const sectionTitle = isFullPay ? `💳 Full Payment` : `💳 Downpayment`;
+        
+        document.getElementById('paymentSectionTitle').textContent = sectionTitle;
+        document.getElementById('rushIndicator').style.display = isLastMinute ? 'block' : 'none';
+
+        const minDPEl = document.getElementById('s4_minDP');
+        if (minDPEl && minDPEl.previousElementSibling) {
+            minDPEl.previousElementSibling.textContent = minLabel;
+        }
+
+        const dpLabelEl = document.getElementById('dpLabel');
+        const onlineTextEl = document.getElementById('s4_online_dp_text');
+
+        if (onlineTextEl) {
+            onlineTextEl.textContent = isFullPay ? 'full payment amount' : 'downpayment amount';
+        }
+
+        if (dpLabelEl && dpLabelEl.querySelector('span')) {
+            const minPctLabel = Math.round(dpPct * 100);
+            dpLabelEl.querySelector('span').textContent = ` — ${minPctLabel}% required`;
+            // Also update the main text of the label if it's full pay
+            if (isFullPay) {
+                dpLabelEl.firstChild.textContent = 'Full Payment Amount (₱) ';
+            } else {
+                dpLabelEl.firstChild.textContent = 'Downpayment Amount (₱) ';
+            }
+        }
 
         state.dpAmount = dp;
 
@@ -1713,30 +1826,19 @@ $dynamicPrivacy = appSetting('data_privacy_notice', "We value your privacy. Your
                 : `Minimum downpayment is ${dpLabel}% of total (${Format.peso(minDP)}).`;
             errEl.style.display = 'block';
             subBtn.disabled     = true;
-            console.log(`${dpLabel}`);
         } else if (dp > total + 0.01) {
             errEl.textContent   = `Cannot exceed total cost of ${Format.peso(total)}.`;
             errEl.style.display = 'block';
             subBtn.disabled     = true;
         } else {
-            errEl.style.display = 'none';
+            // Amount is valid, now check terms
             subBtn.disabled     = !state.termsOk;
         }
     }
 
     window.onTermsChange = function () {
-        const total  = state.totalCost;
-        const eventDate = new Date(state.date);
-        const now       = new Date();
-        const diffHours = (eventDate - now) / (1000 * 60 * 60);
-        const isLastMinute = diffHours < rushThresholdHours;
-        const dpPct        = isLastMinute ? rushDpPct : minDpPct;
-
-        state.termsOk     = document.getElementById('s4_terms').checked;
-        const dp          = parseFloat(document.getElementById('s4_dp').value) || 0;
-        const minDP       = Math.ceil(total * dpPct * 100) / 100;
-        const dpOk        = (dp >= minDP - 0.01 && dp <= total + 0.01);
-        document.getElementById('stepSubmitBtn').disabled = !(state.termsOk && dpOk);
+        state.termsOk = document.getElementById('s4_terms').checked;
+        updateSummaryBalances();
     };
 
     /* ── SUMMARY CARD ───────────────────────────────────────────── */
@@ -1836,9 +1938,9 @@ $dynamicPrivacy = appSetting('data_privacy_notice', "We value your privacy. Your
             </div>
         `;
 
-        const eventDate = new Date(state.date);
-        const now       = new Date();
-        const diffHours = (eventDate - now) / (1000 * 60 * 60);
+        const eventDate = new Date(state.date + ' ' + (state.time || '12:00'));
+        const serverNow = new Date('<?= date('Y-m-d H:i:s') ?>');
+        const diffHours = (eventDate - serverNow) / (1000 * 60 * 60);
         const isLastMinute = diffHours < rushThresholdHours;
         const dpPct        = isLastMinute ? rushDpPct : minDpPct;
 
@@ -1910,23 +2012,104 @@ $dynamicPrivacy = appSetting('data_privacy_notice', "We value your privacy. Your
     }
 
     /* ── SUBMIT ─────────────────────────────────────────────── */
+    // ── STEP 5 PAYMENT MODE TOGGLE ──────────────────────────────────────
+    window.setStepPayMode = function(mode) {
+        const cashBtn     = document.getElementById('s4_modeCashBtn');
+        const onlineBtn   = document.getElementById('s4_modeOnlineBtn');
+        const cashFields  = document.getElementById('s4_cashFields');
+        const onlineFlds  = document.getElementById('s4_onlineFields');
+        const hint        = document.getElementById('s4_modeHint');
+        const submitBtn   = document.getElementById('stepSubmitBtn');
+
+        state.dpPayMode = mode;
+
+        if (mode === 'cash') {
+            cashBtn.style.border     = '1.5px solid var(--sys-green)';
+            cashBtn.style.background = 'rgba(48,209,88,0.08)';
+            cashBtn.style.color      = 'var(--sys-green-dark)';
+            onlineBtn.style.border     = '1.5px solid rgba(60,60,67,0.15)';
+            onlineBtn.style.background = 'transparent';
+            onlineBtn.style.color      = 'rgba(60,60,67,0.45)';
+            cashFields.style.display  = 'block';
+            onlineFlds.style.display  = 'none';
+            hint.textContent = 'Record the downpayment manually.';
+            submitBtn.innerHTML = 'Confirm Booking <i class="fas fa-check-circle ms-2"></i>';
+        } else {
+            onlineBtn.style.border     = '1.5px solid #25A244';
+            onlineBtn.style.background = 'rgba(48,209,88,0.08)';
+            onlineBtn.style.color      = '#25A244';
+            cashBtn.style.border     = '1.5px solid rgba(60,60,67,0.15)';
+            cashBtn.style.background = 'transparent';
+            cashBtn.style.color      = 'rgba(60,60,67,0.45)';
+            cashFields.style.display  = 'none';
+            onlineFlds.style.display  = 'block';
+            hint.textContent = 'A PayMongo checkout link will be created after confirming.';
+            submitBtn.innerHTML = 'Confirm & Get Payment Link <i class="fas fa-link ms-2"></i>';
+            // Mirror current downpayment amount if already filled
+            const cashDp = document.getElementById('s4_dp');
+            const onlineDp = document.getElementById('s4_dp_online');
+            if (cashDp && onlineDp && cashDp.value && !onlineDp.value) {
+                onlineDp.value = cashDp.value;
+            }
+        }
+        updateSummaryBalances();
+    };
+
+    // Validate the online downpayment input
+    window.onDPOnlineInput = function() {
+        const val    = parseFloat(document.getElementById('s4_dp_online').value) || 0;
+        const errEl  = document.getElementById('s4_dpOnlineError');
+        const isLastMinute = state.date && (() => {
+            const diffH = (new Date(state.date) - new Date()) / 36e5;
+            return diffH >= 0 && diffH <= rushThresholdHours;
+        })();
+        const minDp = state.totalCost * (isLastMinute ? rushDpPct : minDpPct);
+        if (val <= 0) {
+            errEl.textContent = 'Please enter a downpayment amount.';
+            errEl.style.display = 'block';
+        } else if (val < minDp - 0.01) {
+            errEl.textContent = `Minimum is ${Format.peso(minDp)} (${Math.round((isLastMinute ? rushDpPct : minDpPct) * 100)}%).`;
+            errEl.style.display = 'block';
+        } else {
+            errEl.style.display = 'none';
+        }
+        state.dpAmount = val;
+        updateSummaryBalances();
+    };
+
     window.submitBooking = async function () {
         const btn = document.getElementById('stepSubmitBtn');
         if (!state.termsOk) { Toast.error('Please agree to the Terms & Conditions.'); return; }
 
         const total = state.totalCost;
-        const eventDate = new Date(state.date);
-        const now       = new Date();
-        const diffHours = (eventDate - now) / (1000 * 60 * 60);
+        const eventDate    = new Date(state.date);
+        const now          = new Date();
+        const diffHours    = (eventDate - now) / (1000 * 60 * 60);
         const isLastMinute = diffHours < rushThresholdHours;
         const dpPct        = isLastMinute ? rushDpPct : minDpPct;
+        const minDP        = Math.ceil(total * dpPct * 100) / 100;
+        const rushDays     = Math.round(rushThresholdHours / 24);
 
-        const dpAmt = parseFloat(document.getElementById('s4_dp').value) || 0;
-        const minDP = Math.ceil(total * dpPct * 100) / 100;
-        if (dpAmt < minDP - 0.01) {
-            const rushDays = Math.round(rushThresholdHours / 24);
-            Toast.error(isLastMinute ? `${Math.round(rushDpPct * 100)}% payment is required for bookings made within ${rushDays} days (${rushThresholdHours}h).` : `Downpayment is below the ${Math.round(minDpPct * 100)}% minimum.`); 
-            return;
+        const isOnlineMode = state.dpPayMode === 'online';
+
+        // ── Validate downpayment amount based on mode ──
+        let dpAmt;
+        if (isOnlineMode) {
+            dpAmt = parseFloat(document.getElementById('s4_dp_online').value) || 0;
+            if (dpAmt < minDP - 0.01) {
+                Toast.error(isLastMinute
+                    ? `${Math.round(rushDpPct * 100)}% payment required within ${rushDays} days.`
+                    : `Downpayment must be at least ${Format.peso(minDP)} (${Math.round(minDpPct * 100)}%).`);
+                return;
+            }
+        } else {
+            dpAmt = parseFloat(document.getElementById('s4_dp').value) || 0;
+            if (dpAmt < minDP - 0.01) {
+                Toast.error(isLastMinute
+                    ? `${Math.round(rushDpPct * 100)}% payment is required for bookings made within ${rushDays} days (${rushThresholdHours}h).`
+                    : `Downpayment is below the ${Math.round(minDpPct * 100)}% minimum.`);
+                return;
+            }
         }
 
         const allSelectedDishes = [
@@ -1955,38 +2138,49 @@ $dynamicPrivacy = appSetting('data_privacy_notice', "We value your privacy. Your
                 notes:              state.notes        || null,
                 dietary_notes:      state.dietaryNotes || null,
                 selected_dishes:    allSelectedDishes,
-                custom_items:       state.customItems, // {name, category, price, notes}
-                downpayment:        dpAmt > 0 ? dpAmt : null,
-                downpayment_method: document.getElementById('s4_dpMethod').value,
-                downpayment_ref:    document.getElementById('s4_dpRef').value || null,
+                custom_items:       state.customItems,
+                pay_mode:           state.dpPayMode,
+                // Cash mode: record the downpayment immediately; online mode: no manual payment yet
+                downpayment:        isOnlineMode ? null : (dpAmt > 0 ? dpAmt : null),
+                downpayment_method: isOnlineMode ? null : document.getElementById('s4_dpMethod').value,
+                downpayment_ref:    isOnlineMode ? null : (document.getElementById('s4_dpRef').value || null),
             };
 
             const res = await Api.post(BASE + 'src/api/bookings.php', payload);
-            const isConfirmed = res.booking_status === 'confirmed';
-
-            // Staff assignment removed — handled via Dispatching module after booking
-
-            if (isConfirmed) {
-                Toast.success(
-                    `${res.package_name} booking confirmed! Downpayment of ${Format.peso(dpAmt)} recorded.`,
-                    6000
-                );
-            } else {
-                const eventDate = new Date(state.date);
-                const now       = new Date();
-                const diffHours = (eventDate - now) / (1000 * 60 * 60);
-                const isLastMinute = diffHours < rushThresholdHours;
-                const dpPct        = isLastMinute ? rushDpPct : minDpPct;
-
-                Toast.warning(
-                    `${res.package_name} booking saved as Pending. ` +
-                    `Record a payment of at least ${Format.peso(res.total_cost * dpPct)} in Financials to confirm it.`,
-                    8000
-                );
-            }
             Modal.close('bookingStepperModal');
             if (typeof loadBookings   === 'function') await loadBookings();
             if (typeof loadBookingsFD === 'function') await loadBookingsFD();
+
+            if (isOnlineMode) {
+                // ── Generate the PayMongo checkout link for the downpayment ──
+                Toast.success(`Booking confirmed! Generating payment link for ${Format.peso(dpAmt)}…`, 4000);
+                try {
+                    const checkout = await Api.post(BASE + 'src/api/paymongo_checkout.php', {
+                        booking_id:       res.booking_id || res.id,
+                        override_amount:  Math.round(dpAmt * 100)   // centavos
+                    });
+                    if (checkout.checkout_url) {
+                        Toast.success(
+                            `🔗 Payment Gateway opened! Please complete the transaction in the new tab.`,
+                            8000
+                        );
+                        window.open(checkout.checkout_url, '_blank');
+                    }
+                } catch (linkErr) {
+                    Toast.error('Booking saved! But could not generate PayMongo link: ' + linkErr.message);
+                }
+            } else {
+                const isConfirmed = res.booking_status === 'confirmed';
+                if (isConfirmed) {
+                    Toast.success(`Booking confirmed! Downpayment of ${Format.peso(dpAmt)} recorded.`, 6000);
+                } else {
+                    Toast.warning(
+                        `Booking saved as Pending. Record at least ${Format.peso(minDP)} in Financials to confirm.`,
+                        8000
+                    );
+                }
+            }
+
         } catch(e) {
             Toast.error(e.message);
         }

@@ -511,7 +511,6 @@ if ($method === 'POST') {
                     );
                 }
             } catch (\Throwable $e) {
-                // non-fatal
             }
         }
 
@@ -630,6 +629,8 @@ if ($method === 'POST') {
     $downpayment = round((float)($data['downpayment'] ?? 0), 2);
     if ($downpayment < 0) jsonResponse(false, 'Downpayment cannot be a negative value.', [], 422);
 
+    $isOnlineMode = ($data['pay_mode'] ?? '') === 'online';
+
     // ── 5. Financial check ─────────────────────────────────────
     $eventDateObj = new DateTime($eventDate);
     $now          = new DateTime();
@@ -642,18 +643,22 @@ if ($method === 'POST') {
     }
 
     $minDPVal = round($totalCost * $minDpPct, 2);
-    if ($downpayment < $minDPVal - 0.01) {
-        $msg = ($minDpPct >= 1.0) 
-            ? 'Full payment is required for bookings made within ' . RUSH_THRESHOLD_HOURS . ' hours of the event.'
-            : 'Minimum downpayment is ' . (int)round($minDpPct * 100) . '% of total cost (₱' . number_format($minDPVal, 2) . ').';
-            
-        jsonResponse(false, $msg, ['min_downpayment' => $minDPVal, 'total_cost' => $totalCost], 422);
-    }
-    if ($downpayment > round($totalCost, 2)) {
-        jsonResponse(false,
-            'Downpayment cannot exceed total cost of ₱' . number_format($totalCost, 2) . '.',
-            [], 422
-        );
+    
+    // Bypass strict cash downpayment rule if generating an online checkout session
+    if (!$isOnlineMode) {
+        if ($downpayment < $minDPVal - 0.01) {
+            $msg = ($minDpPct >= 1.0) 
+                ? 'Full payment is required for bookings made within ' . RUSH_THRESHOLD_HOURS . ' hours of the event.'
+                : 'Minimum downpayment is ' . (int)round($minDpPct * 100) . '% of total cost (₱' . number_format($minDPVal, 2) . ').';
+                
+            jsonResponse(false, $msg, ['min_downpayment' => $minDPVal, 'total_cost' => $totalCost], 422);
+        }
+        if ($downpayment > round($totalCost, 2)) {
+            jsonResponse(false,
+                'Downpayment cannot exceed total cost of ₱' . number_format($totalCost, 2) . '.',
+                [], 422
+            );
+        }
     }
 
     // the validation and extraction of validDishIds is now handled before lines 450.
@@ -685,39 +690,55 @@ if ($method === 'POST') {
             ], 409);
         }
 
-        $bookingStmt = $pdo->prepare("
-            INSERT INTO bookings
-              (client_id, package_id, event_date, event_time, event_location, event_type,
-               pax_count, base_pax, extra_pax, base_price, extra_cost,
-               transport_fee, surcharge_total, total_cost, booking_status, invoice_token, notes, dietary_notes, created_by)
-            VALUES
-              (:client_id, :package_id, :event_date, :event_time, :event_location, :event_type,
-               :pax_count, :base_pax, :extra_pax, :base_price, :extra_cost,
-               :transport_fee, :surcharge_total, :total_cost, :booking_status, :invoice_token, :notes, :dietary_notes, :created_by)
-        ");
-        $initialStatus = 'confirmed';
+        $initialStatus = ($isOnlineMode) ? 'pending' : 'confirmed';
+        
+        try {
+            $bookingStmt = $pdo->prepare("
+                INSERT INTO bookings
+                  (client_id, package_id, event_date, event_time, event_location, event_type,
+                   pax_count, base_pax, extra_pax, base_price, extra_cost,
+                   transport_fee, surcharge_total, total_cost, amount_paid, payment_status, 
+                   booking_status, invoice_token, notes, dietary_notes, created_by)
+                VALUES
+                  (:client_id, :package_id, :event_date, :event_time, :event_location, :event_type,
+                   :pax_count, :base_pax, :extra_pax, :base_price, :extra_cost,
+                   :transport_fee, :surcharge_total, :total_cost, :amount_paid, :payment_status, 
+                   :booking_status, :invoice_token, :notes, :dietary_notes, :created_by)
+            ");
 
-        $bookingStmt->execute([
-            ':client_id'      => (int)$data['client_id'],
-            ':package_id'     => $pId > 0 ? $pId : null,
-            ':event_date'     => $eventDate,
-            ':event_time'     => $eventTime,
-            ':event_location' => !empty($data['event_location']) ? trim(substr($data['event_location'], 0, 500)) : null,
-            ':event_type'     => !empty($data['event_type']) ? trim(substr((string)$data['event_type'], 0, 100)) : 'Wedding',
-            ':pax_count'      => $paxCount,
-            ':base_pax'       => $basePax,
-            ':extra_pax'      => $extraPax,
-            ':base_price'     => $basePrice,
-            ':extra_cost'     => $extraCost,
-            ':transport_fee'  => $transportFee,
-            ':surcharge_total'=> $totalSurchargePerPax + $customItemsTotal,
-            ':total_cost'     => $totalCost,
-            ':booking_status' => $initialStatus,
-            ':invoice_token'  => ($invToken = bin2hex(random_bytes(16))),
-            ':notes'          => !empty($data['notes']) ? trim(substr((string)$data['notes'], 0, 2000)) : null,
-            ':dietary_notes'  => !empty($data['dietary_notes']) ? trim(substr((string)$data['dietary_notes'], 0, 1000)) : null,
-            ':created_by'     => $creatorId,
-        ]);
+            $bookingStmt->execute([
+                ':client_id'      => (int)$data['client_id'],
+                ':package_id'     => $pId > 0 ? $pId : null,
+                ':event_date'     => $eventDate,
+                ':event_time'     => $eventTime,
+                ':event_location' => !empty($data['event_location']) ? trim(substr($data['event_location'], 0, 500)) : null,
+                ':event_type'     => !empty($data['event_type']) ? trim(substr((string)$data['event_type'], 0, 50)) : 'Wedding',
+                ':pax_count'      => $paxCount,
+                ':base_pax'       => $basePax,
+                ':extra_pax'      => $extraPax,
+                ':base_price'     => $basePrice,
+                ':extra_cost'     => $extraCost,
+                ':transport_fee'  => $transportFee,
+                ':surcharge_total'=> $totalSurchargePerPax + $customItemsTotal,
+                ':total_cost'     => $totalCost,
+                ':amount_paid'    => 0.00,
+                ':payment_status' => 'unpaid',
+                ':booking_status' => trim((string)$initialStatus),
+                ':invoice_token'  => ($invToken = bin2hex(random_bytes(16))),
+                ':notes'          => !empty($data['notes']) ? trim(substr((string)$data['notes'], 0, 2000)) : null,
+                ':dietary_notes'  => !empty($data['dietary_notes']) ? trim(substr((string)$data['dietary_notes'], 0, 1000)) : null,
+                ':created_by'     => $creatorId,
+            ]);
+        } catch (PDOException $e) {
+            // Log the parameters for debugging
+            $debugData = [
+                'error' => $e->getMessage(),
+                'status_being_sent' => $initialStatus,
+                'data_received' => $data
+            ];
+            file_put_contents(__DIR__ . '/../../temp/booking_error_debug.json', json_encode($debugData, JSON_PRETTY_PRINT));
+            throw $e; // Re-throw to show the error to the user
+        }
         $newId = $pdo->lastInsertId();
 
         // ── 7. Save selected dishes ──────────────────────────────

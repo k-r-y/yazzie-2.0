@@ -20,7 +20,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 
-$currentUser = requireApiRole(['super_admin', 'admin', 'frontdesk', 'staff']);
+$currentUser = requireApiRole(['admin', 'frontdesk', 'staff']);
 requireCsrf();
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -41,11 +41,8 @@ if ($method === 'PUT') {
     // Build the same role-scoped ownership WHERE as read.php
     $params = [];
     switch ($role) {
-        case 'super_admin':
-            $ownershipWhere = "target_role = 'superadmin' AND type = 'user_management'";
-            break;
         case 'admin':
-            $ownershipWhere = "target_role IN ('admin', 'global') AND type IN ('booking', 'finance', 'dispatch', 'system')";
+            $ownershipWhere = "target_role IN ('admin', 'global', 'superadmin') AND type IN ('booking', 'finance', 'dispatch', 'system', 'user_management')";
             break;
         case 'frontdesk':
             $ownershipWhere = "target_role IN ('frontdesk', 'global') AND type IN ('booking', 'finance', 'dispatch')";
