@@ -188,7 +188,7 @@ if ($method === 'PUT') {
                     ':qty'    => $diff,
                     ':price'  => $inv['replacement_cost'],
                     ':total'  => $totalCost,
-                    ':charge' => 'CLIENT',
+                    ':charge' => strtoupper($chargeTo),
                     ':notes'  => "Auto-logged from inventory return discrepancy.",
                     ':uid'    => $userId
                 ]);
@@ -205,25 +205,30 @@ if ($method === 'PUT') {
             SET b.breakage_total = (
                     SELECT COALESCE(SUM(total_cost), 0) 
                     FROM booking_breakages 
-                    WHERE booking_id = :bid AND charge_to = 'CLIENT'
+                    WHERE booking_id = :bid1 AND charge_to = 'CLIENT'
                 ),
                 b.total_cost = (b.base_price + b.extra_cost + b.transport_fee + b.surcharge_total + b.overtime_total) + (
                     SELECT COALESCE(SUM(total_cost), 0) 
                     FROM booking_breakages 
-                    WHERE booking_id = :bid AND charge_to = 'CLIENT'
+                    WHERE booking_id = :bid2 AND charge_to = 'CLIENT'
                 ),
                 b.payment_status = CASE 
                     WHEN b.amount_paid <= 0 THEN 'unpaid'
                     WHEN b.amount_paid >= ((b.base_price + b.extra_cost + b.transport_fee + b.surcharge_total + b.overtime_total) + (
                         SELECT COALESCE(SUM(total_cost), 0) 
                         FROM booking_breakages 
-                        WHERE booking_id = :bid AND charge_to = 'CLIENT'
+                        WHERE booking_id = :bid3 AND charge_to = 'CLIENT'
                     )) THEN 'paid'
                     ELSE 'partial'
                 END
-            WHERE b.id = :bid2
+            WHERE b.id = :bid4
         ");
-        $sync->execute([':bid' => $bookingId, ':bid2' => $bookingId]);
+        $sync->execute([
+            ':bid1' => $bookingId,
+            ':bid2' => $bookingId,
+            ':bid3' => $bookingId,
+            ':bid4' => $bookingId
+        ]);
 
         // Unarchive logic
         if ($booking['is_archived']) {

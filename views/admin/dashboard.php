@@ -40,7 +40,7 @@ include __DIR__ . '/../../includes/sidebar.php';
 
 <!-- KPI CARDS -->
 <div class="row g-3 mb-4">
-    <div class="col-sm-6 col-xl-3">
+    <div class="col-12 col-md-6 col-xl-3 mb-3" style="cursor:pointer;" onclick="location.href='<?= BASE_URL ?>/views/admin/financial.php'">
         <div class="stat-card">
             <div class="stat-icon green"><i class="fas fa-peso-sign"></i></div>
             <div class="stat-info">
@@ -49,7 +49,7 @@ include __DIR__ . '/../../includes/sidebar.php';
             </div>
         </div>
     </div>
-    <div class="col-sm-6 col-xl-3">
+    <div class="col-12 col-md-6 col-xl-3 mb-3" style="cursor:pointer;" onclick="location.href='<?= BASE_URL ?>/views/admin/bookings.php'">
         <div class="stat-card">
             <div class="stat-icon teal"><i class="fas fa-calendar-check"></i></div>
             <div class="stat-info">
@@ -58,7 +58,7 @@ include __DIR__ . '/../../includes/sidebar.php';
             </div>
         </div>
     </div>
-    <div class="col-sm-6 col-xl-3">
+    <div class="col-12 col-md-6 col-xl-3 mb-3" style="cursor:pointer;" onclick="location.href='<?= BASE_URL ?>/views/admin/clients.php'">
         <div class="stat-card">
             <div class="stat-icon sage"><i class="fas fa-users"></i></div>
             <div class="stat-info">
@@ -67,8 +67,8 @@ include __DIR__ . '/../../includes/sidebar.php';
             </div>
         </div>
     </div>
-    <div class="col-sm-6 col-xl-3">
-        <div class="stat-card" style="cursor:pointer;" onclick="location.href='<?= BASE_URL ?>/views/admin/bookings.php?filter=unpaid'">
+    <div class="col-12 col-md-6 col-xl-3 mb-3" style="cursor:pointer;" onclick="location.href='<?= BASE_URL ?>/views/admin/financial.php'">
+        <div class="stat-card">
             <div class="stat-icon orange"><i class="fas fa-credit-card"></i></div>
             <div class="stat-info">
                 <div class="stat-value" id="kpi-unpaid">—</div>

@@ -1664,3 +1664,95 @@ div.swal2-bento-toast {
     padding: 10px 24px !important;
 }
 
+/* ================================================================
+   MOBILE-FIRST RESPONSIVENESS PATCH
+   ================================================================ */
+
+/* Ensure smooth sidebar transition */
+.sidebar {
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.35s ease;
+}
+
+/* Base Main Area transition for smoothness if needed */
+.main-area {
+  transition: margin-left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+}
+
+@media (min-width: 769px) {
+  .main-area {
+    width: calc(100% - var(--sidebar-w));
+  }
+}
+
+/* Modals Mobile Fixes */
+.modal-dialog-scrollable .modal-content {
+  max-height: 90vh; /* Prevent modal from exceeding mobile height */
+}
+
+/* Action Buttons Stacking for Mobile */
+@media (max-width: 576px) {
+  .table-responsive .btn {
+    width: 100%;
+    margin-bottom: 5px;
+    display: block;
+    text-align: center;
+  }
+}
+
+/* Mobile Breakpoint Overrides */
+@media (max-width: 768px) {
+  
+  /* 1. Typography Overrides */
+  h1, .page-title {
+    font-size: 1.25rem !important;
+  }
+  h2, .card-title {
+    font-size: 1.1rem !important;
+  }
+  h3, h4, h5, h6 {
+    font-size: 1rem !important;
+  }
+  
+  /* 2. Glassmorphism Performance & Layout Fixes */
+  .card, .glass-panel {
+    /* Reduce backdrop filter blur to prevent mobile GPU lag */
+    backdrop-filter: blur(10px) saturate(150%) !important;
+    -webkit-backdrop-filter: blur(10px) saturate(150%) !important;
+    
+    /* Responsive padding (equivalent to p-3 instead of large paddings) */
+    padding: 16px !important;
+    border-radius: 16px !important;
+  }
+  
+  /* 3. Stat Cards adjustments */
+  .stat-card {
+    padding: 14px 16px !important;
+    gap: 10px !important;
+  }
+  .stat-value {
+    font-size: 1.2rem !important;
+  }
+  .stat-icon {
+    width: 38px !important;
+    height: 38px !important;
+    font-size: 16px !important;
+  }
+
+  /* 4. Table Adjustments */
+  .table-responsive {
+    border: 0;
+    margin-bottom: 0;
+  }
+  
+  /* Ensure padding doesn't push containers off-screen */
+  .content-area {
+    padding: 12px !important;
+    overflow-x: hidden;
+  }
+
+  /* Multi-column form stacking */
+  .form-grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+}

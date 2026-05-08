@@ -69,7 +69,7 @@ include __DIR__ . '/../../includes/sidebar.php';
 
 <!-- USER MODAL -->
 <div class="modal fade" id="userModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header" style="position:relative;">
                 <h5 class="modal-title" id="userModalTitle" style="padding-right:40px;">Add User</h5>

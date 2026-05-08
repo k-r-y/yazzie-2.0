@@ -166,7 +166,7 @@ include __DIR__ . '/../../includes/sidebar.php';
 
 <!-- ── UNIFIED ADD / EDIT MODAL ─────────────────────────────────── -->
 <div class="modal fade" id="staffModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content glass-modal">
             <div class="modal-header">
                 <h5 class="modal-title" id="staffModalTitle">Add New Account</h5>
@@ -234,7 +234,7 @@ include __DIR__ . '/../../includes/sidebar.php';
 
 <!-- ── MASTER KEY TRANSFER MODAL ─────────────────────────────────── -->
 <div class="modal fade" id="masterKeyTransferModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-danger shadow-lg">
             <div class="modal-header bg-danger text-white">
                 <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Master Key Transfer</h5>

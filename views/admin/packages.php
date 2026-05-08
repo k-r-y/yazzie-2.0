@@ -53,7 +53,7 @@ include __DIR__ . '/../../includes/sidebar.php';
 
 <!-- MODAL: ADD/EDIT PACKAGE -->
 <div class="modal fade" id="packageModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header" style="position:relative;">
                 <h5 class="modal-title" id="modalTitle" style="padding-right:40px;">Package Details</h5>

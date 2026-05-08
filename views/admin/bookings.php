@@ -52,6 +52,7 @@ include __DIR__ . '/../../includes/sidebar.php';
         <span class="text-muted text-sm" id="bookingCount"></span>
     </div>
     <div class="table-wrapper">
+        <div class="table-responsive">
         <table class="data-table" id="bookingsTable">
             <thead>
                 <tr>
@@ -68,6 +69,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <tr><td colspan="9"><div class="spinner"></div></td></tr>
             </tbody>
         </table>
+        </div>
     </div>
     <div class="table-pagination" id="bookingsPagination">
         <button type="button" class="pagination-button" id="bookingPrevBtn" onclick="changeBookingPage(currentBookingPage - 1)" disabled>
@@ -87,7 +89,7 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
 
 <!-- VIEW BOOKING INFO MODAL (Operational Dashboard) -->
 <div class="modal fade" id="viewBookingModal" tabindex="-1" data-bs-focus="false">
-    <div class="modal-dialog modal-xl">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content" style="border-radius:24px; overflow:hidden; border:none; box-shadow: 0 20px 40px rgba(0,0,0,0.2);">
             <div class="modal-header" style="background: linear-gradient(135deg, #1a1a1a 0%, #333 100%); color:white; padding:20px 30px; border:none; position:relative;">
                 <div style="display:flex; align-items:center; gap:15px; padding-right:40px;">
@@ -263,6 +265,7 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                         <div>
                             <h6 style="font-weight:700; margin-bottom:15px;"><i class="fas fa-peso-sign me-2" style="color:#1A7A32;"></i>Payment History</h6>
                             <div class="table-wrapper shadow-sm" style="background:white; border-radius:16px; border:none;">
+                                <div class="table-responsive">
                                 <table class="data-table" style="font-size:13px;">
                                     <thead>
                                         <tr>
@@ -277,6 +280,7 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                                         <!-- Payments injected here -->
                                     </tbody>
                                 </table>
+                                </div>
                             </div>
                         </div>
 
@@ -303,7 +307,7 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
 
 <!-- VIEW/EDIT BOOKING MODAL -->
 <div class="modal fade" id="editBookingModal" tabindex="-1" data-bs-focus="false">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header" style="position:relative;">
                 <h5 class="modal-title" style="padding-right:40px;"><i class="fas fa-edit me-2"></i>Edit Booking <span id="editBookingId"></span></h5>
