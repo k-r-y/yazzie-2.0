@@ -151,15 +151,6 @@ if ($method === 'POST') {
     // CREATION GUARD: Force admin to be inactive by default
     $isActive = ($requestedRole === 'admin') ? 0 : 1;
 
-    // Admin Quota Enforcement (for active admins)
-    if ($requestedRole === 'admin' && $isActive === 1) {
-        $maxAdmins    = appSettingInt('max_admins', 5);
-        $activeAdmins = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1")->fetchColumn();
-        if ((int)$activeAdmins >= $maxAdmins) {
-            jsonResponse(false, "Maximum number of active administrators ($maxAdmins) reached.", [], 409);
-        }
-    }
-
     // Password Policy
     $pwError = validatePasswordPolicy($d['password']);
     if ($pwError) jsonResponse(false, $pwError, [], 422);
@@ -208,7 +199,7 @@ if ($method === 'PUT') {
     // SELF-LOCKOUT GUARD: Block current admin from deactivating or changing their own role
     if ($target_id === $current_admin_id) {
         if (isset($d['is_active']) && (int)$d['is_active'] === 0) {
-            jsonResponse(false, 'Self-lockout guard: You cannot deactivate your own account.', [], 403);
+            jsonResponse(false, 'You cannot deactivate yourself. Transfer the Master Key to another admin instead.', [], 403);
         }
         if (isset($d['role']) && $d['role'] !== 'admin') {
              jsonResponse(false, 'Self-lockout guard: You cannot demote yourself.', [], 403);
@@ -304,7 +295,7 @@ if ($method === 'DELETE') {
 
     // SELF-LOCKOUT GUARD
     if ($id === (int)$_SESSION['user_id']) {
-        jsonResponse(false, 'Self-lockout guard: You cannot delete your own account.', [], 403);
+        jsonResponse(false, 'You cannot deactivate yourself. Transfer the Master Key to another admin instead.', [], 403);
     }
 
     // Soft delete

@@ -148,7 +148,6 @@ async function loadSettings() {
         
         const categoryMapping = {
             'debug_mode': 'SECURITY',
-            'max_admins': 'SECURITY',
             'max_login_attempts': 'SECURITY',
             'lockout_duration_minutes': 'SECURITY',
             'session_timeout_minutes': 'SECURITY',
@@ -177,7 +176,6 @@ async function loadSettings() {
                 type: 'select', 
                 options: [{value: '1', label: 'Enabled'}, {value: '0', label: 'Disabled'}] 
             },
-            'max_admins': { label: 'Max Admin Accounts', help: 'Maximum number of Administrator accounts allowed.', type: 'number', min: 1, max: 100 },
             'max_login_attempts': { label: 'Max Login Attempts', help: 'Maximum failed login attempts before lockout.', type: 'number', min: 1, max: 100 },
             'lockout_duration_minutes': { label: 'Lockout Duration (Minutes)', help: 'How long a user is locked out after exceeding max failed login attempts (1–1440 min).', type: 'number', min: 1, max: 1440 },
             'session_timeout_minutes': { label: 'Session Timeout Minutes', help: 'Users will be logged out after this time (5-1440).', type: 'number', min: 5, max: 1440 },

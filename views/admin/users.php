@@ -89,7 +89,6 @@ include __DIR__ . '/../../includes/sidebar.php';
                             <option value="frontdesk">Front Desk</option>
                             <option value="staff" selected>On-Call Staff</option>
                         </select>
-                        <div class="form-hint" id="adminQuotaMsg" style="color:#ff9500;margin-top:6px;display:none;"></div>
                     </div>
                     <!-- Job Class: visible only for staff role -->
                     <div class="form-group" id="jobClassGroup">
@@ -136,17 +135,12 @@ include __DIR__ . '/../../includes/sidebar.php';
 
 let currentUserPage = 1;
 let userTotalPages = 1;
-let maxAdmins = 5;
-let activeAdmins = 0;
 
 async function loadSettings() {
     try {
         const d = await Api.get(BASE + 'src/api/settings.php');
-        maxAdmins = d.settings?.find(s => s.key === 'max_admins')?.value || 5;
-        maxAdmins = parseInt(maxAdmins);
     } catch (e) {
         console.error('Failed to load settings:', e);
-        maxAdmins = 5;
     }
 }
 
@@ -171,8 +165,6 @@ async function loadUsers(page = null) {
     const users = d.users || [];
     userTotalPages = d.meta?.totalPages || 1;
     
-    // Count active admins
-    activeAdmins = users.filter(u => u.role === 'admin' && u.is_active).length;
     
     renderUserPagination();
     const tbody = document.getElementById('userBody');
@@ -206,20 +198,6 @@ function applyFilters() {
     loadUsers(1);
 }
 
-function updateAdminOption() {
-    const optAdmin = document.getElementById('opt_admin');
-    const adminQuotaMsg = document.getElementById('adminQuotaMsg');
-    if (activeAdmins >= maxAdmins) {
-        optAdmin.disabled = true;
-        optAdmin.textContent = `Administrator (${activeAdmins}/${maxAdmins} - limit reached)`;
-        adminQuotaMsg.textContent = `Maximum admins (${maxAdmins}) reached. Deactivate one to create another.`;
-        adminQuotaMsg.style.display = 'block';
-    } else {
-        optAdmin.disabled = false;
-        optAdmin.textContent = `Administrator (${activeAdmins}/${maxAdmins})`;
-        adminQuotaMsg.style.display = 'none';
-    }
-}
 
 function openAddUser() {
     document.getElementById('userModalTitle').textContent = 'Add New User';
@@ -229,7 +207,6 @@ function openAddUser() {
     document.getElementById('pwHint').style.display = 'none';
     document.getElementById('statusGroup').style.display = 'none';
     document.getElementById('u_pw').required = true;
-    updateAdminOption();
     onRoleChange();
     Modal.open('userModal');
 }
@@ -256,7 +233,6 @@ function openEditUser(id, name, email, role, phone, active, jobClass = 'any') {
     document.getElementById('statusGroup').style.display = '';
     document.getElementById('u_pw').required = false;
     document.getElementById('u_pw').value = '';
-    updateAdminOption();
     onRoleChange();
     Modal.open('userModal');
 }

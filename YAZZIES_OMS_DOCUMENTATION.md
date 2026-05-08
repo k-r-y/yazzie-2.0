@@ -568,7 +568,6 @@ Key-value store for all dynamic business rules. Loaded at runtime by `appSetting
 | `waiter_ratio_birthday` | 20 | staffing | Pax per waiter for other events |
 | `staff_hourly_rate` | 75 | financial | PHP per staff hour |
 | `cancel_forfeiture_percent` | 0.50 | finance | % of paid amount forfeited on cancel |
-| `max_admins` | 5 | system | Maximum admin accounts allowed |
 | `session_timeout_minutes` | 30 | system | Inactivity timeout (minimum 5 min) |
 | `max_login_attempts` | 5 | system | Failed attempts before lockout |
 | `lockout_duration_minutes` | 15 | system | Duration of IP/email lockout |
@@ -757,7 +756,7 @@ The system enforces three roles defined in `users.role`. Role checks are perform
 | Inventory Items | **Full CRUD** | Add/edit equipment master list and stock levels |
 | Financials | **Full CRUD** | Record payments, view ledger, process cancellation refunds |
 | Staff Dispatching | **Full CRUD** | Create job orders, broadcast to staff, view responses |
-| Staff Management | **Full CRUD** | Create any account role (admin, frontdesk, staff) subject to quota |
+| Staff Management | **Full CRUD** | Create any account role (admin, frontdesk, staff); only one can be active at a time |
 | System Settings | **Full CRUD** | SMTP, session timeout, lockout, maintenance mode |
 | Business Settings | **Full CRUD** | Edit operational settings (PAX limits, rates, operating hours) |
 | Archive | **Read + Archive** | Archive completed bookings; view archive history |

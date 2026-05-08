@@ -243,11 +243,10 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <div class="mb-3">
                     <i class="fas fa-key fa-3x text-danger opacity-50"></i>
                 </div>
-                <h4 class="fw-bold text-danger">Warning: Administrative Handover</h4>
                 <p class="text-muted px-3">
-                    Activating this <strong>Admin</strong> account will immediately <strong>deactivate</strong> your own account and terminate your current session.
+                    Are you sure you want to activate this admin? <br>
+                    <strong>Your account will be deactivated</strong> and you will be logged out.
                 </p>
-                <p class="fw-bold mb-0">Proceed with the transfer and logout?</p>
             </div>
             <div class="modal-footer justify-content-center">
                 <button class="btn btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
@@ -545,10 +544,8 @@ async function executePut(data) {
     try {
         const res = await Api.put(BASE + 'src/api/staff.php', data);
         
-        // Logout Redirection Logic
         if (res.admin_transferred) {
-            Toast.success('Master Key Transferred. Logging out...');
-            setTimeout(() => window.location.href = 'logout.php', 1500);
+            window.location.href = 'logout.php';
             return;
         }
 
@@ -617,10 +614,26 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('staffSearch').addEventListener('input', debounce(() => loadRoster(1), 400));
 
     // Transfer Confirmation
-    document.getElementById('confirmTransferBtn').addEventListener('click', () => {
+    document.getElementById('confirmTransferBtn').addEventListener('click', async function() {
         if (pendingTransferData) {
-            transferModal.hide();
-            executePut(pendingTransferData);
+            const btn = this;
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin me-2"></i>Transferring...';
+            btn.disabled = true;
+            
+            try {
+                const res = await Api.put(BASE + 'src/api/staff.php', pendingTransferData);
+                if (res.admin_transferred) {
+                    window.location.href = 'logout.php';
+                } else {
+                    Toast.success(res.message);
+                    transferModal.hide();
+                    loadRoster();
+                }
+            } catch(e) { 
+                Toast.error(e.message);
+                btn.innerHTML = 'Yes, Transfer & Logout';
+                btn.disabled = false;
+            }
         }
     });
 });

@@ -105,12 +105,6 @@ if ($method === 'PUT') {
         case 'debug_mode':
             if ((int)$value !== 0 && (int)$value !== 1) jsonResponse(false, 'Debug mode must be either 0 (disabled) or 1 (enabled).', [], 422);
             break;
-        case 'max_admins':
-            if ((int)$value < 1 || (int)$value > 100) jsonResponse(false, 'Max admins must be between 1 and 100.', [], 422);
-            // Ensure we don't lower the limit below current active admins
-            $currentAdmins = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1")->fetchColumn();
-            if ((int)$value < (int)$currentAdmins) jsonResponse(false, "Cannot set max admins to $value. Currently $currentAdmins active admins exist.", [], 422);
-            break;
         case 'smtp_user':
             if (!filter_var($value, FILTER_VALIDATE_EMAIL)) jsonResponse(false, 'SMTP user must be a valid email address.', [], 422);
             break;
