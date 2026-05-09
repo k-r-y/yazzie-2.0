@@ -8,6 +8,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/rate_limiter.php';
+require_once __DIR__ . '/../../includes/audit.php';
 
 // Only POST allowed
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -71,6 +72,9 @@ $_SESSION['name']    = $user['name'];
 $_SESSION['email']   = $user['email'];
 $_SESSION['role']    = $user['role'];
 $_SESSION['phone']   = $user['phone'];
+
+// ── Log the authentication ──
+auditLog($pdo, 'login', 'user', $user['id']);
 
 // Determine redirect URL
 $redirectMap = [

@@ -200,6 +200,7 @@ if ($method === 'PUT') {
         }
 
         // 3. Synchronize Booking Totals (Recalculate from all breakages for this booking)
+        // COALESCE on every cost column guards against NULL arithmetic nullifying total_cost
         $sync = $pdo->prepare("
             UPDATE bookings b
             SET b.breakage_total = (
@@ -207,18 +208,32 @@ if ($method === 'PUT') {
                     FROM booking_breakages 
                     WHERE booking_id = :bid1 AND charge_to = 'CLIENT'
                 ),
-                b.total_cost = (b.base_price + b.extra_cost + b.transport_fee + b.surcharge_total + b.overtime_total) + (
+                b.total_cost = (
+                    COALESCE(b.base_price, 0)
+                    + COALESCE(b.extra_cost, 0)
+                    + COALESCE(b.transport_fee, 0)
+                    + COALESCE(b.surcharge_total, 0)
+                    + COALESCE(b.overtime_total, 0)
+                ) + (
                     SELECT COALESCE(SUM(total_cost), 0) 
                     FROM booking_breakages 
                     WHERE booking_id = :bid2 AND charge_to = 'CLIENT'
                 ),
                 b.payment_status = CASE 
                     WHEN b.amount_paid <= 0 THEN 'unpaid'
-                    WHEN b.amount_paid >= ((b.base_price + b.extra_cost + b.transport_fee + b.surcharge_total + b.overtime_total) + (
-                        SELECT COALESCE(SUM(total_cost), 0) 
-                        FROM booking_breakages 
-                        WHERE booking_id = :bid3 AND charge_to = 'CLIENT'
-                    )) THEN 'paid'
+                    WHEN b.amount_paid >= (
+                        (
+                            COALESCE(b.base_price, 0)
+                            + COALESCE(b.extra_cost, 0)
+                            + COALESCE(b.transport_fee, 0)
+                            + COALESCE(b.surcharge_total, 0)
+                            + COALESCE(b.overtime_total, 0)
+                        ) + (
+                            SELECT COALESCE(SUM(total_cost), 0) 
+                            FROM booking_breakages 
+                            WHERE booking_id = :bid3 AND charge_to = 'CLIENT'
+                        )
+                    ) THEN 'paid'
                     ELSE 'partial'
                 END
             WHERE b.id = :bid4

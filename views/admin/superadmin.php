@@ -50,7 +50,7 @@ include __DIR__ . '/../../includes/sidebar.php';
             </div>
             <div class="card-body p-0">
                 <div class="list-group list-group-flush">
-                    <a href="<?= BASE_URL ?>/views/admin/users.php" class="list-group-item list-group-item-action d-flex align-items-center py-3">
+                    <a href="<?= BASE_URL ?>/views/admin/staff.php" class="list-group-item list-group-item-action d-flex align-items-center py-3">
                         <div class="stat-icon sage me-3"><i class="fas fa-users-cog"></i></div>
                         <div style="flex:1;">
                             <div class="fw-700 text-sm">User Management</div>

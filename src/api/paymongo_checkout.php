@@ -259,7 +259,7 @@ $pdo->prepare("
 auditLog($pdo, 'paymongo_checkout_created', 'booking', $bookingId, null, [
     'checkout_session_id' => $checkoutSessionId,
     'amount_pesos'        => $balanceDue,
-    'initiated_by'        => $currentUser['id'],
+    'initiated_by'        => $_SESSION['name'] ?? 'Client',
 ]);
 
 // ── 14. Return the checkout URL to the frontend ──────────────────────────────

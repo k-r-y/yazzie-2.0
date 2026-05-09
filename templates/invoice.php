@@ -647,42 +647,7 @@ $privacyNotice = appSetting('data_privacy_notice', "We value your privacy. Your 
     <div class="po-title" id="poTitle">Payment in Progress</div>
     <div class="po-subtitle" id="poSubtitle">Waiting for payment... Please complete the transaction in the new tab. This page will refresh automatically once payment is received.</div>
 
-    <?php if (isset($_GET['mock_paymongo'])): ?>
-    <div id="mockSimulateBtn" style="margin-top: 30px; padding: 15px; border: 2px dashed #E67E22; border-radius: 12px; background: #FFF3E0; width: 100%; max-width: 320px;">
-        <p style="font-size: 13px; color: #E67E22; font-weight: 700; margin-bottom: 10px;">[DEV MOCK MODE ACTIVE]</p>
-        <button onclick="simulatePaymentSuccess(event)" style="background: #E67E22; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s; width: 100%;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
-            Simulate Payment Success
-        </button>
-        <p style="font-size: 11px; color: #666; margin-top: 8px;">Clicking this will trigger the "Paid" state in the database to test the auto-refresh logic.</p>
-    </div>
-    <script>
-    async function simulatePaymentSuccess(event) {
-        const btn = event.target;
-        btn.disabled = true;
-        btn.innerText = 'Simulating...';
-        try {
-            const res = await fetch('<?= BASE_URL ?>/src/api/mock_paymongo_complete.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ booking_id: <?= (int)$bookingId ?> })
-            });
-            const data = await res.json();
-            if (data.success) {
-                btn.innerText = 'Success! Updating DB...';
-                btn.style.background = '#27AE60';
-            } else {
-                alert('Mock failed: ' + data.error);
-                btn.disabled = false;
-                btn.innerText = 'Simulate Payment Success';
-            }
-        } catch (err) {
-            alert('Error: ' + err.message);
-            btn.disabled = false;
-            btn.innerText = 'Simulate Payment Success';
-        }
-    }
-    </script>
-    <?php endif; ?>
+
 </div>
 
 <script>

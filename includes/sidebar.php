@@ -43,13 +43,14 @@ $nav = [
         ['financial',   'Financials',   'fa-coins',        '/views/admin/financial.php'],
         ['section' => 'Human Resources'],
         ['dispatching', 'Staff Dispatching',      'fa-bullhorn',     '/views/frontdesk/dispatching.php'],
-        // Renamed: User & Staff Management — admin now owns all user accounts
-        ['users',       'User & Staff Management', 'fa-id-badge',     '/views/admin/users.php'],
+        // Unified module: User & Staff Management (staff.php is canonical, users.php removed)
+        ['staff',       'User & Staff Management', 'fa-id-badge',     '/views/admin/staff.php'],
         ['section' => 'Business Rules'],
         ['settings',    'Business Settings',       'fa-sliders',      '/views/admin/settings.php'],
         // System Settings transferred from super_admin to admin
-        ['superadmin',  'System Settings',         'fa-shield-halved','/views/admin/superadmin.php'],
-        ['archive',     'Archive',                 'fa-box-archive',  '/views/admin/archive.php'],
+        ['superadmin',    'System Settings',   'fa-shield-halved',  '/views/admin/superadmin.php'],
+        ['activity_log',  'Activity Log',      'fa-rectangle-list', '/views/admin/activity_log.php'],
+        ['archive',       'Archive',           'fa-box-archive',    '/views/admin/archive.php'],
     ],
     'frontdesk' => [
         ['section' => 'Overview'],

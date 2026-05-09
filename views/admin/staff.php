@@ -89,7 +89,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <div class="card-subtitle" id="staffCount">Loading users...</div>
             </div>
             <button class="btn btn-primary btn-sm" onclick="openAddModal()">
-                <i class="fas fa-plus"></i> Onboard User
+                <i class="fas fa-plus"></i> Add Staff
             </button>
         </div>
         <div class="table-wrapper table-responsive">
@@ -557,6 +557,20 @@ async function executePut(data) {
 
 // ── LEAVE & ROSTER HELPERS ──────────────────────────────────────────
 
+async function reviewLeave(id, status) {
+    const action = status === 'approved' ? 'approve' : 'reject';
+    if (!await confirmDialog(`Are you sure you want to ${action} this leave request?`)) return;
+
+    try {
+        const res = await Api.put(BASE + 'src/api/leave.php', { id, status });
+        Toast.success(res.message || `Leave request ${status}.`);
+        loadLeaves();
+        loadKPIs();
+    } catch(e) {
+        Toast.error(e.message);
+    }
+}
+
 async function loadLeaves() {
     const status = document.getElementById('leaveFilter').value;
     try {
@@ -572,7 +586,8 @@ async function loadLeaves() {
                 <td><span class="badge badge-${l.status}">${l.status}</span></td>
                 <td class="td-actions">
                     ${l.status === 'pending' ? `
-                        <button class="btn btn-primary btn-sm" onclick="reviewLeave(${l.id},'approved')"><i class="fas fa-check"></i></button>
+                        <button class="btn btn-success btn-sm me-1" title="Approve" onclick="reviewLeave(${l.id},'approved')"><i class="fas fa-check"></i></button>
+                        <button class="btn btn-danger btn-sm" title="Reject" onclick="reviewLeave(${l.id},'rejected')"><i class="fas fa-times"></i></button>
                     ` : '—'}
                 </td>
             </tr>`).join('');
@@ -623,7 +638,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await Api.put(BASE + 'src/api/staff.php', pendingTransferData);
                 if (res.admin_transferred) {
-                    window.location.href = 'logout.php';
+                    window.location.href = BASE + 'logout.php';
                 } else {
                     Toast.success(res.message);
                     transferModal.hide();

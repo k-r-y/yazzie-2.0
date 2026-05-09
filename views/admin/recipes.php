@@ -111,7 +111,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                 </div>
             </div>
 
-            <div class="card" id="calcResultCard" style="display:none;">
+            <div class="card " id="calcResultCard" style="display:none; padding: 10px;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--border);">
                     <div>
                         <h2 id="resDishName" style="font-size:22px; font-weight:800; margin-bottom:4px; color:var(--sys-green);">Adobo</h2>

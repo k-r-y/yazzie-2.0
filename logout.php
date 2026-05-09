@@ -4,6 +4,12 @@ require_once __DIR__ . '/includes/auth.php';
 
 startSession();
 
+require_once __DIR__ . '/includes/audit.php';
+
+if (isset($_SESSION['user_id'])) {
+    auditLog($pdo, 'logout', 'user', $_SESSION['user_id']);
+}
+
 // Clear all session variables
 $_SESSION = [];
 
