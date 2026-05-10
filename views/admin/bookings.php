@@ -325,7 +325,6 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
 
                                 <option value="confirmed">Confirmed</option>
                                 <option value="completed">Completed</option>
-                                <option value="cancelled">Cancelled</option>
                             </select>
                         </div>
                         <div class="form-group">

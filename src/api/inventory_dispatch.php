@@ -217,6 +217,12 @@ if ($method === 'PUT') {
                     SELECT COALESCE(SUM(total_cost), 0) 
                     FROM booking_breakages 
                     WHERE booking_id = :bid2 AND charge_to = 'CLIENT'
+                ) + (
+                    SELECT COALESCE(SUM(
+                        CASE WHEN category IN ('main', 'dessert') THEN price * b.pax_count ELSE price END
+                    ), 0)
+                    FROM booking_custom_items
+                    WHERE booking_id = :bid_custom1
                 ),
                 b.payment_status = CASE 
                     WHEN b.amount_paid <= 0 THEN 'unpaid'
@@ -230,8 +236,14 @@ if ($method === 'PUT') {
                             SELECT COALESCE(SUM(total_cost), 0) 
                             FROM booking_breakages 
                             WHERE booking_id = :bid3 AND charge_to = 'CLIENT'
+                        ) + (
+                            SELECT COALESCE(SUM(
+                                CASE WHEN category IN ('main', 'dessert') THEN price * b.pax_count ELSE price END
+                            ), 0)
+                            FROM booking_custom_items
+                            WHERE booking_id = :bid_custom2
                         )
-                    ) THEN 'paid'
+                    ) - 0.01 THEN 'paid'
                     ELSE 'partial'
                 END
             WHERE b.id = :bid4
@@ -239,7 +251,9 @@ if ($method === 'PUT') {
         $sync->execute([
             ':bid1' => $bookingId,
             ':bid2' => $bookingId,
+            ':bid_custom1' => $bookingId,
             ':bid3' => $bookingId,
+            ':bid_custom2' => $bookingId,
             ':bid4' => $bookingId
         ]);
 

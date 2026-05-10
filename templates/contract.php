@@ -8,10 +8,14 @@ $bookingId = (int)($_GET['booking_id'] ?? 0);
 if (!$bookingId) die('Invalid booking ID.');
 
 $stmt = $pdo->prepare("
-    SELECT b.*, c.name AS client_name, c.phone AS client_phone, 
-           c.email AS client_email, c.address AS client_address
+    SELECT b.*, 
+           c.name AS client_name, c.phone AS client_phone, 
+           c.email AS client_email, c.address AS client_address,
+           COALESCE(pk.set_name, 'Catering Package') AS menu_name,
+           pk.max_main_dishes, pk.max_desserts
     FROM bookings b
     JOIN clients c ON c.id = b.client_id
+    LEFT JOIN packages pk ON pk.id = b.package_id
     WHERE b.id = :id
 ");
 $stmt->execute([':id' => $bookingId]);
@@ -19,15 +23,42 @@ $b = $stmt->fetch();
 
 if (!$b) die('Booking not found.');
 
+$ratePerPax = $b['base_pax'] > 0 ? ($b['base_price'] / $b['base_pax']) : 0;
+
 $stmtDishes = $pdo->prepare("
-    SELECT d.name, d.category 
+    SELECT d.name, d.category, d.custom_fee
     FROM booking_dishes bd
     JOIN dishes d ON d.id = bd.dish_id
     WHERE bd.booking_id = :id
-    ORDER BY d.category ASC
+    ORDER BY bd.id ASC
 ");
 $stmtDishes->execute([':id' => $bookingId]);
-$selectedDishes = $stmtDishes->fetchAll(PDO::FETCH_GROUP);
+$dishes = $stmtDishes->fetchAll();
+
+// Identify Extra Dishes (exceeding package limits)
+$mainLimit = (int)($b['max_main_dishes'] ?? 5);
+$dessertLimit = (int)($b['max_desserts'] ?? 1);
+$counts = [];
+$allExtraDishes = [];
+foreach ($dishes as $d) {
+    $cat = strtolower($d['category'] ?? '');
+    $type = 'other';
+    $mainCats = ['beef', 'pork', 'chicken', 'seafood', 'vegetables', 'pasta', 'main', 'vegetable'];
+    if (in_array($cat, $mainCats)) $type = 'main';
+    elseif (in_array($cat, ['dessert', 'desserts', 'sweets'])) $type = 'dessert';
+    elseif (in_array($cat, ['rice', 'additional'])) $type = 'rice';
+
+    $limit = ($type === 'main') ? $mainLimit : (($type === 'dessert') ? $dessertLimit : 1);
+    $currCount = $counts[$type] ?? 0;
+    if ($currCount >= $limit) $allExtraDishes[] = $d;
+    $counts[$type] = $currCount + 1;
+}
+
+// Group for the menu display section
+$selectedDishes = [];
+foreach($dishes as $d) {
+    $selectedDishes[$d['category']][] = $d;
+}
 
 $stmtCustom = $pdo->prepare("SELECT * FROM booking_custom_items WHERE booking_id = :id");
 $stmtCustom->execute([':id' => $bookingId]);
@@ -93,44 +124,65 @@ $balance = $b['total_cost'] - $b['amount_paid'];
         <!-- Left Column: Totals -->
         <div class="print-total-block" style="max-width:100%; margin:0;">
             <div class="print-total-row">
-                <span>Base Package (<?= $b['base_pax'] ?> pax)</span>
+                <span>Base Package: <?= htmlspecialchars($b['menu_name']) ?> (<?= $b['base_pax'] ?> pax)</span>
                 <span>₱<?= number_format($b['base_price'], 2) ?></span>
             </div>
             
             <?php if ($b['extra_pax'] > 0): ?>
             <div class="print-total-row">
-                <span>Extra Guests (<?= $b['extra_pax'] ?> × ₱<?= number_format(125, 2) ?>)</span>
+                <span>Extra Guests (<?= $b['extra_pax'] ?> × ₱<?= number_format($ratePerPax, 2) ?>)</span>
                 <span>₱<?= number_format($b['extra_cost'], 2) ?></span>
             </div>
             <?php endif; ?>
 
+            <?php foreach ($allExtraDishes as $ed): 
+                $cat = strtolower($ed['category'] ?? '');
+                $type = 'other';
+                $mainCats = ['beef', 'pork', 'chicken', 'seafood', 'vegetables', 'pasta', 'main', 'vegetable'];
+                if (in_array($cat, $mainCats)) $type = 'main';
+                elseif (in_array($cat, ['dessert', 'desserts', 'sweets'])) $type = 'dessert';
+                elseif (in_array($cat, ['rice', 'additional'])) $type = 'rice';
+
+                $defaultRate = EXTRA_RICE_RATE;
+                if ($type === 'main') $defaultRate = EXTRA_MAIN_RATE;
+                elseif ($type === 'dessert') $defaultRate = EXTRA_DESSERT_RATE;
+                $fee = (float)($ed['custom_fee'] > 0 ? $ed['custom_fee'] : $defaultRate);
+            ?>
+            <div class="print-total-row">
+                <span>Extra Dish: <?= htmlspecialchars($ed['name']) ?> (<?= $b['pax_count'] ?> pax × ₱<?= number_format($fee, 2) ?>)</span>
+                <span>₱<?= number_format($fee * $b['pax_count'], 2) ?></span>
+            </div>
+            <?php endforeach; ?>
+
+            <?php foreach ($customItems as $ci): 
+                $qty = in_array(strtolower($ci['category'] ?? ''), ['main','dessert']) ? $b['pax_count'] : 1;
+            ?>
+            <div class="print-total-row">
+                <span>Add-on: <?= htmlspecialchars($ci['name']) ?> (<?= $qty ?> × ₱<?= number_format($ci['price'], 2) ?>)</span>
+                <span>₱<?= number_format($ci['price'] * $qty, 2) ?></span>
+            </div>
+            <?php endforeach; ?>
+
             <?php if ($b['transport_fee'] > 0): ?>
             <div class="print-total-row">
-                <span>Transport Fee / Surcharge</span>
+                <span>Transport Fee / Mobilization</span>
                 <span>₱<?= number_format($b['transport_fee'], 2) ?></span>
-            </div>
-            <?php endif; ?>
-
-            <?php if ($b['surcharge_total'] > 0): ?>
-            <div class="print-total-row">
-                <span>Additional Items / Menu Surcharges</span>
-                <span>₱<?= number_format($b['surcharge_total'], 2) ?></span>
             </div>
             <?php endif; ?>
 
             <div style="height:1px; background:#ddd; margin:8px 0;"></div>
             
-            <div class="print-total-row">
-                <span style="font-weight:700;">TOTAL CONTRACT AMOUNT</span>
-                <span style="font-weight:700;">₱<?= number_format($b['total_cost'], 2) ?></span>
+            <div class="print-total-row" style="font-size: 14pt;">
+                <span style="font-weight:800;">TOTAL CONTRACT AMOUNT</span>
+                <span style="font-weight:800;">₱<?= number_format($b['total_cost'], 2) ?></span>
             </div>
             <div class="print-total-row">
-                <span>Amount Paid / Downpayment</span>
-                <span style="color:#059669;">(₱<?= number_format($b['amount_paid'], 2) ?>)</span>
+                <span>Payments Received</span>
+                <span style="color:#059669;">- ₱<?= number_format($b['amount_paid'], 2) ?></span>
             </div>
             <div class="print-total-row grand">
-                <span>OUTSTANDING BALANCE</span>
-                <span style="color:<?= $balance > 0 ? '#DC2626' : '#059669'; ?>">₱<?= number_format(max(0, $balance), 2) ?></span>
+                <span style="font-weight:800;">OUTSTANDING BALANCE</span>
+                <span style="font-weight:800; font-size: 16pt; color:<?= $balance > 0.01 ? '#DC2626' : '#059669'; ?>">₱<?= number_format(max(0, $balance), 2) ?></span>
             </div>
         </div>
 

@@ -389,6 +389,9 @@ if ($method === 'GET') {
 // POST — create booking
 // ────────────────────────────────────────────────────────────────
 if ($method === 'POST') {
+    // Temporary fix: Drop strict unique index to allow multiple bookings per date if others are cancelled
+    try { $pdo->exec("ALTER TABLE bookings DROP INDEX idx_unique_event_date"); } catch (Exception $e) {}
+
     $data = readJsonBody();
 
     // ── ACTION: Send manual reminder ───────────────────────────────────────────
@@ -948,7 +951,7 @@ if ($method === 'PUT') {
     $booking_status = !empty($newStatus) ? $newStatus : null;
 
     // ── Date Change Validation ──
-    $newDate = !empty($data['event_date']) ? trim($data['event_date']) : null;
+    $newDate = (!empty($data['event_date']) && is_string($data['event_date'])) ? trim($data['event_date']) : null;
     $dateChanged = ($newDate && $newDate !== $current['event_date']);
     if ($dateChanged) {
         if ((int)($current['resched_count'] ?? 0) >= 1) {

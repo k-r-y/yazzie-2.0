@@ -185,8 +185,21 @@ if ($method === 'POST') {
             ':id'     => $bookingId,
         ]);
 
-        // ── Auto-promote logic removed: pending status is deprecated ────────
+        // ── Auto-promote logic: upgrade pending to confirmed if DP met ────────
         $finalStatus = $booking['booking_status'];
+        if ($finalStatus === 'pending') {
+            $eventDateObj = new DateTime($booking['event_date']);
+            $now = new DateTime();
+            $interval = $now->diff($eventDateObj);
+            $diffHours = ($interval->days * 24) + $interval->h;
+            $dpPercent = (!$interval->invert && $diffHours < RUSH_THRESHOLD_HOURS) ? RUSH_DP_PERCENT : MIN_DP_PERCENT;
+            $minDPThresh = round($totalCost * $dpPercent, 2);
+
+            if ($newPaid >= $minDPThresh - 0.01) {
+                $finalStatus = 'confirmed';
+                $pdo->prepare("UPDATE bookings SET booking_status = 'confirmed' WHERE id = :id")->execute([':id' => $bookingId]);
+            }
+        }
 
         $pdo->commit();
     } catch (Exception $e) {

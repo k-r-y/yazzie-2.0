@@ -179,11 +179,11 @@ if ($method === 'PUT') {
 
         $bookingId = (int)$cancel['booking_id'];
 
-        // Transitioning to 'processed' (STEP 2: FINAL CANCELLATION)
-        if ($status === 'processed' && $cancel['refund_status'] !== 'processed') {
+        // Transitioning to 'processed' or 'waived' (STEP 2: FINAL CANCELLATION)
+        if (in_array($status, ['processed', 'waived']) && !in_array($cancel['refund_status'], ['processed', 'waived'])) {
             
-            // 1. Record negative payment
-            if ($cancel['refundable_amount'] > 0) {
+            // 1. Record negative payment ONLY if processed
+            if ($status === 'processed' && $cancel['refundable_amount'] > 0) {
                 $refundPct = 100 - (CANCEL_FORFEIT_PCT * 100);
                 $ins = $pdo->prepare("INSERT INTO payments (booking_id, amount, payment_method, reference_no, notes, payment_date, recorded_by) VALUES (:bid, :amt, :meth, :ref, CONCAT('Cancellation Refund (', :pct, '%)'), NOW(), :uid)");
                 $ins->execute([
@@ -217,15 +217,16 @@ if ($method === 'PUT') {
                 refund_status       = :st,
                 refund_method       = :meth,
                 refund_reference    = :ref,
-                refund_processed_at = IF(:st_at='processed', NOW(), refund_processed_at),
-                refund_processed_by = IF(:st_by='processed', :uid, refund_processed_by)
+                refund_processed_at = IF(:is_final=1, NOW(), refund_processed_at),
+                refund_processed_by = IF(:is_final_by=1, :uid, refund_processed_by)
             WHERE id = :id
         ");
+        $isFinal = in_array($status, ['processed', 'waived']) ? 1 : 0;
         $stmt->execute([
             ':id'    => $id,
             ':st'    => $status,
-            ':st_at' => $status,
-            ':st_by' => $status,
+            ':is_final' => $isFinal,
+            ':is_final_by' => $isFinal,
             ':meth'  => $rmethod,
             ':ref'   => $ref,
             ':uid'   => (int)$_SESSION['user_id']

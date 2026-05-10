@@ -37,7 +37,7 @@ try {
     }
 
     // 2. Generate PDF Invoice
-    $pdfContent = generateInvoicePDF($pdo, $bookingId);
+    $pdfContent = (string)generateInvoicePDF($pdo, $bookingId);
     $fileName = 'Invoice_INV-' . str_pad($bookingId, 5, '0', STR_PAD_LEFT) . '.pdf';
 
     // 3. Prepare Email Body

@@ -39,12 +39,14 @@ use PHPMailer\PHPMailer\Exception as MailException;
  * @param string $htmlBody    HTML content of the email
  * @return bool               True on success, false on failure
  */
-function sendMailImmediate(?string $toEmail, ?string $toName, ?string $subject, ?string $htmlBody, string $attachment = '', string $attachmentName = ''): bool
+function sendMailImmediate(?string $toEmail, ?string $toName, ?string $subject, ?string $htmlBody, $attachment = '', $attachmentName = ''): bool
 {
     $toEmail = (string)$toEmail;
     $toName = (string)$toName;
     $subject = (string)$subject;
     $htmlBody = (string)$htmlBody;
+    $attachment = (string)$attachment;
+    $attachmentName = (string)$attachmentName;
 
     if (empty($toEmail)) {
         error_log("[Mailer] No recipient email provided. Skipped.");
@@ -210,12 +212,85 @@ function sendMail(string $toEmail, string $toName, string $subject, string $html
  */
 function sendBookingConfirmation(array $booking): bool
 {
+    global $pdo;
     if (empty($booking['client_email'])) return false;
 
     $subject   = "Booking Confirmed — " . APP_NAME;
     $eventDate = date('F j, Y', strtotime($booking['event_date']));
+    $bookingId = (int)$booking['id'];
+
+    // Fetch Full Breakdown for Email
+    $stmt = $pdo->prepare("
+        SELECT b.*, pk.set_name AS menu_name, pk.max_main_dishes, pk.max_desserts 
+        FROM bookings b 
+        LEFT JOIN packages pk ON pk.id = b.package_id 
+        WHERE b.id = :id
+    ");
+    $stmt->execute([':id' => $bookingId]);
+    $b = $stmt->fetch();
+    if (!$b) return false;
+
+    $ratePerPax = $b['base_pax'] > 0 ? ($b['base_price'] / $b['base_pax']) : 0;
     
-    $invoiceUrl = BASE_URL . "/templates/invoice.php?booking_id={$booking['id']}&token=" . ($booking['invoice_token'] ?? '');
+    // Dishes
+    $dStmt = $pdo->prepare("SELECT d.name, d.category, d.custom_fee FROM booking_dishes bd JOIN dishes d ON d.id = bd.dish_id WHERE bd.booking_id = :bid ORDER BY bd.id ASC");
+    $dStmt->execute([':bid' => $bookingId]);
+    $dishes = $dStmt->fetchAll();
+
+    $mainLimit = (int)($b['max_main_dishes'] ?? 5);
+    $dessertLimit = (int)($b['max_desserts'] ?? 1);
+    $counts = [];
+    $allExtraDishes = [];
+    foreach ($dishes as $d) {
+        $cat = strtolower($d['category'] ?? '');
+        $type = 'other';
+        $mainCats = ['beef', 'pork', 'chicken', 'seafood', 'vegetables', 'pasta', 'main', 'vegetable'];
+        if (in_array($cat, $mainCats)) $type = 'main';
+        elseif (in_array($cat, ['dessert', 'desserts', 'sweets'])) $type = 'dessert';
+        elseif (in_array($cat, ['rice', 'additional'])) $type = 'rice';
+
+        $limit = ($type === 'main') ? $mainLimit : (($type === 'dessert') ? $dessertLimit : 1);
+        $currCount = $counts[$type] ?? 0;
+        if ($currCount >= $limit) $allExtraDishes[] = $d;
+        $counts[$type] = $currCount + 1;
+    }
+
+    // Custom Items
+    $cStmt = $pdo->prepare("SELECT name, price, category FROM booking_custom_items WHERE booking_id = :bid");
+    $cStmt->execute([':bid' => $bookingId]);
+    $customItems = $cStmt->fetchAll();
+
+    $breakdownRows = "<tr><td style='padding:8px 0; color:#1C1C1E; font-weight:600;'>Base Package: {$b['menu_name']} ({$b['base_pax']} pax)</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($b['base_price'], 2) . "</td></tr>";
+    
+    if ($b['extra_pax'] > 0) {
+        $breakdownRows .= "<tr><td style='padding:6px 0; font-size:13px; color:rgba(60,60,67,0.6);'>Extra Guests ({$b['extra_pax']} × ₱" . number_format($ratePerPax, 2) . ")</td><td style='padding:6px 0; text-align:right; font-weight:700; font-size:13px;'>₱" . number_format($b['extra_cost'], 2) . "</td></tr>";
+    }
+
+    foreach ($allExtraDishes as $ed) {
+        $cat = strtolower($ed['category'] ?? '');
+        $type = 'other';
+        $mainCats = ['beef', 'pork', 'chicken', 'seafood', 'vegetables', 'pasta', 'main', 'vegetable'];
+        if (in_array($cat, $mainCats)) $type = 'main';
+        elseif (in_array($cat, ['dessert', 'desserts', 'sweets'])) $type = 'dessert';
+        elseif (in_array($cat, ['rice', 'additional'])) $type = 'rice';
+
+        $defaultRate = EXTRA_RICE_RATE;
+        if ($type === 'main') $defaultRate = EXTRA_MAIN_RATE;
+        elseif ($type === 'dessert') $defaultRate = EXTRA_DESSERT_RATE;
+        $fee = (float)($ed['custom_fee'] > 0 ? $ed['custom_fee'] : $defaultRate);
+        $lineTotal = $fee * $b['pax_count'];
+        $breakdownRows .= "<tr><td style='padding:6px 0; font-size:13px; color:rgba(60,60,67,0.6);'>Extra Dish: {$ed['name']} ({$b['pax_count']} pax)</td><td style='padding:6px 0; text-align:right; font-weight:700; font-size:13px;'>₱" . number_format($lineTotal, 2) . "</td></tr>";
+    }
+
+    foreach ($customItems as $ci) {
+        $qty = in_array(strtolower($ci['category'] ?? ''), ['main','dessert']) ? $b['pax_count'] : 1;
+        $lineTotal = (float)$ci['price'] * $qty;
+        $breakdownRows .= "<tr><td style='padding:6px 0; font-size:13px; color:rgba(60,60,67,0.6);'>Add-on: {$ci['name']} (×$qty)</td><td style='padding:6px 0; text-align:right; font-weight:700; font-size:13px;'>₱" . number_format($lineTotal, 2) . "</td></tr>";
+    }
+
+    if ($b['transport_fee'] > 0) {
+        $breakdownRows .= "<tr><td style='padding:6px 0; font-size:13px; color:rgba(60,60,67,0.6);'>Transport Fee</td><td style='padding:6px 0; text-align:right; font-weight:700; font-size:13px;'>₱" . number_format($b['transport_fee'], 2) . "</td></tr>";
+    }
 
     $content = "
         <h2 style='margin: 0 0 12px; font-size: 21px; font-weight: 700; color: #1C1C1E; letter-spacing: -0.8px;'>Hi, {$booking['client_name']}!</h2>
@@ -228,27 +303,23 @@ function sendBookingConfirmation(array $booking): bool
                     <td style='padding: 10px 0; text-align: right; font-weight: 600; color: #1C1C1E;'>$eventDate</td>
                 </tr>
                 <tr>
-                    <td style='padding: 10px 0; font-size: 11px; color: rgba(60, 60, 67, 0.5); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;'>Package</td>
-                    <td style='padding: 10px 0; text-align: right; font-weight: 600; color: #1C1C1E;'>{$booking['menu_name']}</td>
+                    <td colspan='2' style='padding: 10px 0; font-size: 11px; color: rgba(60, 60, 67, 0.5); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 0.5px solid rgba(60, 60, 67, 0.08);'>Breakdown</td>
                 </tr>
-                <tr>
-                    <td style='padding: 10px 0; font-size: 11px; color: rgba(60, 60, 67, 0.5); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;'>Guests</td>
-                    <td style='padding: 10px 0; text-align: right; font-weight: 700; color: #30D158;'>{$booking['pax_count']} pax</td>
-                </tr>
+                $breakdownRows
                 
                 <tr><td colspan='2' style='border-top: 0.5px solid rgba(60, 60, 67, 0.1); padding-top: 18px; margin-top: 18px;'></td></tr>
                 
                 <tr>
                     <td style='padding: 8px 0; font-size: 11px; color: rgba(60, 60, 67, 0.5); font-weight: 700; text-transform: uppercase;'>Total Cost</td>
-                    <td style='padding: 8px 0; text-align: right; font-weight: 700; color: #1C1C1E; font-size: 18px;'>₱" . number_format($booking['total_cost'], 2) . "</td>
+                    <td style='padding: 8px 0; text-align: right; font-weight: 700; color: #1C1C1E; font-size: 18px;'>₱" . number_format($b['total_cost'], 2) . "</td>
                 </tr>
                 <tr>
                     <td style='padding: 8px 0; font-size: 11px; color: rgba(60, 60, 67, 0.5); font-weight: 700; text-transform: uppercase;'>Amount Paid</td>
-                    <td style='padding: 8px 0; text-align: right; font-weight: 700; color: #30D158;'>₱" . number_format($booking['amount_paid'], 2) . "</td>
+                    <td style='padding: 8px 0; text-align: right; font-weight: 700; color: #30D158;'>₱" . number_format($b['amount_paid'], 2) . "</td>
                 </tr>
                 <tr>
                     <td style='padding: 8px 0; font-size: 11px; color: rgba(60, 60, 67, 0.5); font-weight: 700; text-transform: uppercase;'>Remaining</td>
-                    <td style='padding: 8px 0; text-align: right; font-weight: 800; color: #FF3B30;'>₱" . number_format($booking['total_cost'] - $booking['amount_paid'], 2) . "</td>
+                    <td style='padding: 8px 0; text-align: right; font-weight: 800; color: #FF3B30;'>₱" . number_format($b['total_cost'] - $b['amount_paid'], 2) . "</td>
                 </tr>
             </table>
         </div>
@@ -283,43 +354,64 @@ function sendPaymentReceipt(array $booking, float $paymentAmount, string $method
     $packageName = htmlspecialchars($booking['menu_name'] ?? 'Catering Service');
     $pax         = (int)($booking['pax_count'] ?? 0);
 
-    // Fetch breakdown for email consistency
-    $cStmt = $pdo->prepare("SELECT name, price FROM booking_custom_items WHERE booking_id = :bid");
+    // Fetch Full Breakdown for consistency
+    $stmt = $pdo->prepare("SELECT b.*, pk.set_name AS menu_name, pk.max_main_dishes, pk.max_desserts FROM bookings b LEFT JOIN packages pk ON pk.id = b.package_id WHERE b.id = :id");
+    $stmt->execute([':id' => $booking['id']]);
+    $b = $stmt->fetch();
+    
+    $ratePerPax = $b['base_pax'] > 0 ? ($b['base_price'] / $b['base_pax']) : 0;
+    $dStmt = $pdo->prepare("SELECT d.name, d.category, d.custom_fee FROM booking_dishes bd JOIN dishes d ON d.id = bd.dish_id WHERE bd.booking_id = :bid ORDER BY bd.id ASC");
+    $dStmt->execute([':bid' => $booking['id']]);
+    $dishes = $dStmt->fetchAll();
+
+    $cStmt = $pdo->prepare("SELECT name, price, category FROM booking_custom_items WHERE booking_id = :bid");
     $cStmt->execute([':bid' => $booking['id']]);
     $customItems = $cStmt->fetchAll();
 
-    // Fetch dishes for email inclusion
-    $dStmt = $pdo->prepare("SELECT d.name FROM booking_dishes bd JOIN dishes d ON d.id = bd.dish_id WHERE bd.booking_id = :bid");
-    $dStmt->execute([':bid' => $booking['id']]);
-    $dishesList = implode(', ', $dStmt->fetchAll(PDO::FETCH_COLUMN));
-    if (empty($dishesList)) $dishesList = "Standard Menu Items";
+    $mainLimit = (int)($b['max_main_dishes'] ?? 5);
+    $dessertLimit = (int)($b['max_desserts'] ?? 1);
+    $counts = [];
+    $allExtraDishes = [];
+    foreach ($dishes as $d) {
+        $cat = strtolower($d['category'] ?? '');
+        $type = 'other';
+        $mainCats = ['beef', 'pork', 'chicken', 'seafood', 'vegetables', 'pasta', 'main', 'vegetable'];
+        if (in_array($cat, $mainCats)) $type = 'main';
+        elseif (in_array($cat, ['dessert', 'desserts', 'sweets'])) $type = 'dessert';
+        elseif (in_array($cat, ['rice', 'additional'])) $type = 'rice';
 
-    $breakdownRows = "";
-    // Base Package
-    $extraCost = (float)($booking['extra_cost'] ?? 0);
-    $breakageTotal = (float)($booking['breakage_total'] ?? 0);
-    $transportFee  = (float)($booking['transport_fee'] ?? 0);
-    $customSum = array_sum(array_column($customItems, 'price'));
-    $trueMiscSurcharge = round(max(0, (float)($booking['surcharge_total'] ?? 0) - $customSum), 2);
-    $baseLineAmount = round(max(0, $booking['total_cost'] - $extraCost - $breakageTotal - $transportFee - (float)($booking['surcharge_total'] ?? 0)), 2);
+        $limit = ($type === 'main') ? $mainLimit : (($type === 'dessert') ? $dessertLimit : 1);
+        $currCount = $counts[$type] ?? 0;
+        if ($currCount >= $limit) $allExtraDishes[] = $d;
+        $counts[$type] = $currCount + 1;
+    }
 
-    $breakdownRows .= "<tr><td style='padding:8px 0; color:#1C1C1E; font-weight:600;'>$packageName</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($baseLineAmount, 2) . "</td></tr>";
-    $breakdownRows .= "<tr><td colspan='2' style='padding:0 0 8px; color:rgba(60,60,67,0.5); font-size:11px; font-style:italic;'>Inclusions: $dishesList</td></tr>";
-    
-    if ($extraCost > 0) {
-        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Additional Guest Service</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($extraCost, 2) . "</td></tr>";
+    $breakdownRows = "<tr><td style='padding:8px 0; color:#1C1C1E; font-weight:600;'>Base Package: {$b['menu_name']} ({$b['base_pax']} pax)</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($b['base_price'], 2) . "</td></tr>";
+    if ($b['extra_pax'] > 0) {
+        $breakdownRows .= "<tr><td style='padding:6px 0; font-size:12px; color:rgba(60,60,67,0.6);'>Extra Guests ({$b['extra_pax']} × ₱" . number_format($ratePerPax, 2) . ")</td><td style='padding:6px 0; text-align:right; font-weight:700;'>₱" . number_format($b['extra_cost'], 2) . "</td></tr>";
     }
-    if ($transportFee > 0) {
-        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Transport Fee</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($transportFee, 2) . "</td></tr>";
-    }
-    if ($trueMiscSurcharge > 0) {
-        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Menu & Service Surcharge</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($trueMiscSurcharge, 2) . "</td></tr>";
+    foreach ($allExtraDishes as $ed) {
+        $type = 'other';
+        $cat = strtolower($ed['category'] ?? '');
+        $mainCats = ['beef', 'pork', 'chicken', 'seafood', 'vegetables', 'pasta', 'main', 'vegetable'];
+        if (in_array($cat, $mainCats)) $type = 'main';
+        elseif (in_array($cat, ['dessert', 'desserts', 'sweets'])) $type = 'dessert';
+        elseif (in_array($cat, ['rice', 'additional'])) $type = 'rice';
+        $defaultRate = EXTRA_RICE_RATE;
+        if ($type === 'main') $defaultRate = EXTRA_MAIN_RATE;
+        elseif ($type === 'dessert') $defaultRate = EXTRA_DESSERT_RATE;
+        $fee = (float)($ed['custom_fee'] > 0 ? $ed['custom_fee'] : $defaultRate);
+        $breakdownRows .= "<tr><td style='padding:6px 0; font-size:12px; color:rgba(60,60,67,0.6);'>Extra Dish: {$ed['name']}</td><td style='padding:6px 0; text-align:right; font-weight:700;'>₱" . number_format($fee * $b['pax_count'], 2) . "</td></tr>";
     }
     foreach ($customItems as $ci) {
-        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>" . htmlspecialchars($ci['name']) . "</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($ci['price'], 2) . "</td></tr>";
+        $qty = in_array(strtolower($ci['category'] ?? ''), ['main','dessert']) ? $b['pax_count'] : 1;
+        $breakdownRows .= "<tr><td style='padding:6px 0; font-size:12px; color:rgba(60,60,67,0.6);'>Add-on: {$ci['name']} (×$qty)</td><td style='padding:6px 0; text-align:right; font-weight:700;'>₱" . number_format($ci['price'] * $qty, 2) . "</td></tr>";
     }
-    if ($breakageTotal > 0) {
-        $breakdownRows .= "<tr><td style='padding:8px 0; color:#FF3B30; font-size:12px;'>Breakage / Damage</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($breakageTotal, 2) . "</td></tr>";
+    if ($b['transport_fee'] > 0) {
+        $breakdownRows .= "<tr><td style='padding:6px 0; font-size:12px; color:rgba(60,60,67,0.6);'>Transport Fee</td><td style='padding:6px 0; text-align:right; font-weight:700;'>₱" . number_format($b['transport_fee'], 2) . "</td></tr>";
+    }
+    if ((float)($b['breakage_total'] ?? 0) > 0) {
+        $breakdownRows .= "<tr><td style='padding:6px 0; font-size:12px; color:#FF3B30;'>Breakage Charge</td><td style='padding:6px 0; text-align:right; font-weight:700; color:#FF3B30;'>₱" . number_format($b['breakage_total'], 2) . "</td></tr>";
     }
 
     $content = "
@@ -382,44 +474,66 @@ function sendRefundReceipt(array $booking, float $refundAmount, string $method):
     $eventDate   = date('F j, Y', strtotime($booking['event_date']));
     $packageName = htmlspecialchars($booking['menu_name'] ?? 'Catering Service');
 
-    // Fetch breakdown for email consistency
-    $cStmt = $pdo->prepare("SELECT name, price FROM booking_custom_items WHERE booking_id = :bid");
+    // Fetch Full Breakdown for consistency
+    $stmt = $pdo->prepare("SELECT b.*, pk.set_name AS menu_name, pk.max_main_dishes, pk.max_desserts FROM bookings b LEFT JOIN packages pk ON pk.id = b.package_id WHERE b.id = :id");
+    $stmt->execute([':id' => $booking['id']]);
+    $b = $stmt->fetch();
+
+    $ratePerPax = $b['base_pax'] > 0 ? ($b['base_price'] / $b['base_pax']) : 0;
+    $dStmt = $pdo->prepare("SELECT d.name, d.category, d.custom_fee FROM booking_dishes bd JOIN dishes d ON d.id = bd.dish_id WHERE bd.booking_id = :bid ORDER BY bd.id ASC");
+    $dStmt->execute([':bid' => $booking['id']]);
+    $dishes = $dStmt->fetchAll();
+
+    $cStmt = $pdo->prepare("SELECT name, price, category FROM booking_custom_items WHERE booking_id = :bid");
     $cStmt->execute([':bid' => $booking['id']]);
     $customItems = $cStmt->fetchAll();
 
-    // Fetch dishes for email inclusion
-    $dStmt = $pdo->prepare("SELECT d.name FROM booking_dishes bd JOIN dishes d ON d.id = bd.dish_id WHERE bd.booking_id = :bid");
-    $dStmt->execute([':bid' => $booking['id']]);
-    $dishesList = implode(', ', $dStmt->fetchAll(PDO::FETCH_COLUMN));
-    if (empty($dishesList)) $dishesList = "Standard Menu Items";
+    $mainLimit = (int)($b['max_main_dishes'] ?? 5);
+    $dessertLimit = (int)($b['max_desserts'] ?? 1);
+    $counts = [];
+    $allExtraDishes = [];
+    foreach ($dishes as $d) {
+        $cat = strtolower($d['category'] ?? '');
+        $type = 'other';
+        $mainCats = ['beef', 'pork', 'chicken', 'seafood', 'vegetables', 'pasta', 'main', 'vegetable'];
+        if (in_array($cat, $mainCats)) $type = 'main';
+        elseif (in_array($cat, ['dessert', 'desserts', 'sweets'])) $type = 'dessert';
+        elseif (in_array($cat, ['rice', 'additional'])) $type = 'rice';
 
-    $breakdownRows = "";
-    // Base Package
-    $extraCost = (float)($booking['extra_cost'] ?? 0);
-    $breakageTotal = (float)($booking['breakage_total'] ?? 0);
-    $transportFee  = (float)($booking['transport_fee'] ?? 0);
-    $customSum = array_sum(array_column($customItems, 'price'));
-    $trueMiscSurcharge = round(max(0, (float)($booking['surcharge_total'] ?? 0) - $customSum), 2);
-    $baseLineAmount = round(max(0, $booking['total_cost'] - $extraCost - $breakageTotal - $transportFee - (float)($booking['surcharge_total'] ?? 0)), 2);
+        $limit = ($type === 'main') ? $mainLimit : (($type === 'dessert') ? $dessertLimit : 1);
+        $currCount = $counts[$type] ?? 0;
+        if ($currCount >= $limit) $allExtraDishes[] = $d;
+        $counts[$type] = $currCount + 1;
+    }
 
-    $breakdownRows .= "<tr><td style='padding:8px 0; color:#1C1C1E; font-weight:600;'>$packageName</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($baseLineAmount, 2) . "</td></tr>";
-    $breakdownRows .= "<tr><td colspan='2' style='padding:0 0 8px; color:rgba(60,60,67,0.5); font-size:11px; font-style:italic;'>Inclusions: $dishesList</td></tr>";
-    
-    if ($extraCost > 0) {
-        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Additional Guest Service</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($extraCost, 2) . "</td></tr>";
+    $breakdownRows = "<tr><td style='padding:8px 0; color:#1C1C1E; font-weight:600;'>Base Package: {$b['menu_name']} ({$b['base_pax']} pax)</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($b['base_price'], 2) . "</td></tr>";
+    if ($b['extra_pax'] > 0) {
+        $breakdownRows .= "<tr><td style='padding:6px 0; font-size:12px; color:rgba(60,60,67,0.6);'>Extra Guests ({$b['extra_pax']} × ₱" . number_format($ratePerPax, 2) . ")</td><td style='padding:6px 0; text-align:right; font-weight:700;'>₱" . number_format($b['extra_cost'], 2) . "</td></tr>";
     }
-    if ($transportFee > 0) {
-        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Transport Fee</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($transportFee, 2) . "</td></tr>";
-    }
-    if ($trueMiscSurcharge > 0) {
-        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Menu & Service Surcharge</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($trueMiscSurcharge, 2) . "</td></tr>";
+    foreach ($allExtraDishes as $ed) {
+        $type = 'other';
+        $cat = strtolower($ed['category'] ?? '');
+        $mainCats = ['beef', 'pork', 'chicken', 'seafood', 'vegetables', 'pasta', 'main', 'vegetable'];
+        if (in_array($cat, $mainCats)) $type = 'main';
+        elseif (in_array($cat, ['dessert', 'desserts', 'sweets'])) $type = 'dessert';
+        elseif (in_array($cat, ['rice', 'additional'])) $type = 'rice';
+        $defaultRate = EXTRA_RICE_RATE;
+        if ($type === 'main') $defaultRate = EXTRA_MAIN_RATE;
+        elseif ($type === 'dessert') $defaultRate = EXTRA_DESSERT_RATE;
+        $fee = (float)($ed['custom_fee'] > 0 ? $ed['custom_fee'] : $defaultRate);
+        $breakdownRows .= "<tr><td style='padding:6px 0; font-size:12px; color:rgba(60,60,67,0.6);'>Extra Dish: {$ed['name']}</td><td style='padding:6px 0; text-align:right; font-weight:700;'>₱" . number_format($fee * $b['pax_count'], 2) . "</td></tr>";
     }
     foreach ($customItems as $ci) {
-        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>" . htmlspecialchars($ci['name']) . "</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($ci['price'], 2) . "</td></tr>";
+        $qty = in_array(strtolower($ci['category'] ?? ''), ['main','dessert']) ? $b['pax_count'] : 1;
+        $breakdownRows .= "<tr><td style='padding:6px 0; font-size:12px; color:rgba(60,60,67,0.6);'>Add-on: {$ci['name']} (×$qty)</td><td style='padding:6px 0; text-align:right; font-weight:700;'>₱" . number_format($ci['price'] * $qty, 2) . "</td></tr>";
     }
-    if ($breakageTotal > 0) {
-        $breakdownRows .= "<tr><td style='padding:8px 0; color:#FF3B30; font-size:12px;'>Breakage / Damage</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($breakageTotal, 2) . "</td></tr>";
+    if ($b['transport_fee'] > 0) {
+        $breakdownRows .= "<tr><td style='padding:6px 0; font-size:12px; color:rgba(60,60,67,0.6);'>Transport Fee</td><td style='padding:6px 0; text-align:right; font-weight:700;'>₱" . number_format($b['transport_fee'], 2) . "</td></tr>";
     }
+    if ((float)($b['breakage_total'] ?? 0) > 0) {
+        $breakdownRows .= "<tr><td style='padding:6px 0; font-size:12px; color:#FF3B30;'>Breakage Charge</td><td style='padding:6px 0; text-align:right; font-weight:700; color:#FF3B30;'>₱" . number_format($b['breakage_total'], 2) . "</td></tr>";
+    }
+
 
     $content = "
         <h2 style='margin: 0 0 12px; font-size: 22px; font-weight: 800; color: #1C1C1E; letter-spacing: -0.8px;'>Hi, {$booking['client_name']}!</h2>

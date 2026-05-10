@@ -119,7 +119,7 @@ if ($bookingId <= 0 || empty($gatewayRefId)) {
 try {
     $pdo->beginTransaction();
 
-    $bStmt = $pdo->prepare("SELECT id, amount_paid, total_cost FROM bookings WHERE id = :id FOR UPDATE");
+    $bStmt = $pdo->prepare("SELECT id, amount_paid, total_cost, booking_status, event_date FROM bookings WHERE id = :id FOR UPDATE");
     $bStmt->execute([':id' => $bookingId]);
     $booking = $bStmt->fetch();
 
@@ -156,8 +156,23 @@ try {
     $newPaid = $booking['amount_paid'] + $amountPesos;
     $status = ($newPaid >= $booking['total_cost'] - 0.01) ? 'paid' : 'partial';
 
-    $pdo->prepare("UPDATE bookings SET amount_paid = :p, payment_status = :s, updated_at = NOW() WHERE id = :id")
-        ->execute([':p' => $newPaid, ':s' => $status, ':id' => $bookingId]);
+    $bStatus = $booking['booking_status'];
+    if ($bStatus === 'pending') {
+        $eventDateObj = new DateTime($booking['event_date']);
+        $now = new DateTime();
+        $interval = $now->diff($eventDateObj);
+        $diffHours = ($interval->days * 24) + $interval->h;
+        // Assume constants are loaded from config.php
+        $dpPercent = (!$interval->invert && $diffHours < RUSH_THRESHOLD_HOURS) ? RUSH_DP_PERCENT : MIN_DP_PERCENT;
+        $minDPThresh = round($booking['total_cost'] * $dpPercent, 2);
+        
+        if ($newPaid >= $minDPThresh - 0.01) {
+            $bStatus = 'confirmed';
+        }
+    }
+
+    $pdo->prepare("UPDATE bookings SET amount_paid = :p, payment_status = :s, booking_status = :bs, updated_at = NOW() WHERE id = :id")
+        ->execute([':p' => $newPaid, ':s' => $status, ':bs' => $bStatus, ':id' => $bookingId]);
 
     $pdo->commit();
     debugLog("SUCCESS: Booking #$bookingId updated to $status.");

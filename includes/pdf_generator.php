@@ -31,14 +31,21 @@ function generateInvoicePDF($pdo, $bookingId) {
     $dessertLimit = (int)($b['max_desserts'] ?? 1);
     $riceLimit = ($b['includes_rice'] == 1) ? 99 : 1;
 
-    $mains = array_filter($dishes, fn($d) => in_array(strtolower($d['category']), ['beef','pork','chicken','seafood','main']));
-    $desserts = array_filter($dishes, fn($d) => in_array(strtolower($d['category']), ['dessert','desserts']));
-    $others = array_filter($dishes, fn($d) => !in_array($d, $mains) && !in_array($d, $desserts));
+    $counts = [];
+    $allExtraDishes = [];
+    foreach ($dishes as $d) {
+        $cat = strtolower($d['category'] ?? '');
+        $type = 'other';
+        $mainCats = ['beef', 'pork', 'chicken', 'seafood', 'vegetables', 'pasta', 'main', 'vegetable'];
+        if (in_array($cat, $mainCats)) $type = 'main';
+        elseif (in_array($cat, ['dessert', 'desserts', 'sweets'])) $type = 'dessert';
+        elseif (in_array($cat, ['rice', 'additional'])) $type = 'rice';
 
-    $extraMains = array_slice($mains, $mainLimit);
-    $extraDesserts = array_slice($desserts, $dessertLimit);
-    $extraOthers = array_slice($others, $riceLimit);
-    $allExtraDishes = array_merge($extraMains, $extraDesserts, $extraOthers);
+        $limit = ($type === 'main') ? $mainLimit : (($type === 'dessert') ? $dessertLimit : 1);
+        $currCount = $counts[$type] ?? 0;
+        if ($currCount >= $limit) $allExtraDishes[] = $d;
+        $counts[$type] = $currCount + 1;
+    }
 
     $cStmt = $pdo->prepare("SELECT name, price, category FROM booking_custom_items WHERE booking_id = :bid");
     $cStmt->execute([':bid' => $bookingId]);
@@ -176,9 +183,15 @@ function generateInvoicePDF($pdo, $bookingId) {
                 <?php endif; ?>
                 <?php foreach ($allExtraDishes as $ed): 
                     $cat = strtolower($ed['category'] ?? '');
-                    $defaultRate = EXTRA_MAIN_RATE;
-                    if (in_array($cat, ['dessert', 'desserts'])) $defaultRate = EXTRA_DESSERT_RATE;
-                    else if (in_array($cat, ['rice', 'additional'])) $defaultRate = EXTRA_RICE_RATE;
+                    $type = 'other';
+                    $mainCats = ['beef', 'pork', 'chicken', 'seafood', 'vegetables', 'pasta', 'main', 'vegetable'];
+                    if (in_array($cat, $mainCats)) $type = 'main';
+                    elseif (in_array($cat, ['dessert', 'desserts', 'sweets'])) $type = 'dessert';
+                    elseif (in_array($cat, ['rice', 'additional'])) $type = 'rice';
+
+                    $defaultRate = EXTRA_RICE_RATE;
+                    if ($type === 'main') $defaultRate = EXTRA_MAIN_RATE;
+                    elseif ($type === 'dessert') $defaultRate = EXTRA_DESSERT_RATE;
                     $fee = (float)($ed['custom_fee'] > 0 ? $ed['custom_fee'] : $defaultRate);
                 ?>
                 <tr>
@@ -311,7 +324,7 @@ function generateInvoicePDF($pdo, $bookingId) {
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
         return $dompdf->output();
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         error_log("PDF Generation Error: " . $e->getMessage());
         return false;
     }

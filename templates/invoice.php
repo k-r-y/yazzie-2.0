@@ -42,23 +42,34 @@ $generatedBy = $_SESSION['user_name'] ?? 'Authorized Signatory';
 $ratePerPax = $b['base_pax'] > 0 ? ($b['base_price'] / $b['base_pax']) : 0;
 
 // Fetch Dishes
-$dStmt = $pdo->prepare("SELECT d.name, d.category, d.custom_fee FROM booking_dishes bd JOIN dishes d ON d.id = bd.dish_id WHERE bd.booking_id = :bid ORDER BY d.category ASC");
+$dStmt = $pdo->prepare("SELECT d.name, d.category, d.custom_fee FROM booking_dishes bd JOIN dishes d ON d.id = bd.dish_id WHERE bd.booking_id = :bid ORDER BY bd.id ASC");
 $dStmt->execute([':bid' => $bookingId]);
 $dishes = $dStmt->fetchAll();
 
 // Identify Extra Dishes (exceeding package limits)
 $mainLimit = (int)($b['max_main_dishes'] ?? 5);
 $dessertLimit = (int)($b['max_desserts'] ?? 1);
-$riceLimit = ($b['includes_rice'] == 1) ? 99 : 1;
 
-$mains = array_filter($dishes, fn($d) => in_array(strtolower($d['category']), ['beef','pork','chicken','seafood','main']));
-$desserts = array_filter($dishes, fn($d) => in_array(strtolower($d['category']), ['dessert','desserts']));
-$others = array_filter($dishes, fn($d) => !in_array($d, $mains) && !in_array($d, $desserts));
+$counts = [];
+$allExtraDishes = [];
+foreach ($dishes as $d) {
+    $cat = strtolower($d['category'] ?? '');
+    
+    $type = 'other';
+    $mainCats = ['beef', 'pork', 'chicken', 'seafood', 'vegetables', 'pasta', 'main', 'vegetable'];
+    if (in_array($cat, $mainCats)) $type = 'main';
+    elseif (in_array($cat, ['dessert', 'desserts', 'sweets'])) $type = 'dessert';
+    elseif (in_array($cat, ['rice', 'additional'])) $type = 'rice';
 
-$extraMains = array_slice($mains, $mainLimit);
-$extraDesserts = array_slice($desserts, $dessertLimit);
-$extraOthers = array_slice($others, $riceLimit);
-$allExtraDishes = array_merge($extraMains, $extraDesserts, $extraOthers);
+    $limit = ($type === 'main') ? $mainLimit : (($type === 'dessert') ? $dessertLimit : 1);
+    
+    $currentCount = $counts[$type] ?? 0;
+    if ($currentCount >= $limit) {
+        $allExtraDishes[] = $d;
+    }
+    
+    $counts[$type] = $currentCount + 1;
+}
 
 // Fetch Custom Items
 $cStmt = $pdo->prepare("SELECT name, price, category FROM booking_custom_items WHERE booking_id = :bid");
@@ -467,9 +478,15 @@ $privacyNotice = appSetting('data_privacy_notice', "We value your privacy. Your 
 
             <?php foreach ($allExtraDishes as $ed): 
                 $cat = strtolower($ed['category'] ?? '');
-                $defaultRate = EXTRA_MAIN_RATE;
-                if (in_array($cat, ['dessert', 'desserts'])) $defaultRate = EXTRA_DESSERT_RATE;
-                else if (in_array($cat, ['rice', 'additional'])) $defaultRate = EXTRA_RICE_RATE;
+                $type = 'other';
+                $mainCats = ['beef', 'pork', 'chicken', 'seafood', 'vegetables', 'pasta', 'main', 'vegetable'];
+                if (in_array($cat, $mainCats)) $type = 'main';
+                elseif (in_array($cat, ['dessert', 'desserts', 'sweets'])) $type = 'dessert';
+                elseif (in_array($cat, ['rice', 'additional'])) $type = 'rice';
+
+                $defaultRate = EXTRA_RICE_RATE;
+                if ($type === 'main') $defaultRate = EXTRA_MAIN_RATE;
+                elseif ($type === 'dessert') $defaultRate = EXTRA_DESSERT_RATE;
 
                 $fee = (float)($ed['custom_fee'] > 0 ? $ed['custom_fee'] : $defaultRate);
                 $lineTotal = $fee * $b['pax_count'];
@@ -483,7 +500,7 @@ $privacyNotice = appSetting('data_privacy_notice', "We value your privacy. Your 
             <?php endforeach; ?>
 
             <?php foreach ($customItems as $ci): 
-                $qty = in_array(strtolower($ci['category']), ['main','dessert','food']) ? $b['pax_count'] : 1;
+                $qty = in_array(strtolower($ci['category']), ['main','dessert']) ? $b['pax_count'] : 1;
                 $lineTotal = (float)$ci['price'] * $qty;
             ?>
             <tr>
