@@ -15,14 +15,121 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     $search = $_GET['search'] ?? '';
-    $like   = "%$search%";
+    $sort   = $_GET['sort']   ?? 'archived'; // archived, upcoming, latest, payment
+    $mode   = $_GET['mode']   ?? '';         // online, manual
+    
+    $where  = ['1=1'];
+    $params = [];
+    
+    if ($search) {
+        $where[] = "(client_name LIKE :s1 OR event_location LIKE :s2)";
+        $params[':s1'] = "%$search%";
+        $params[':s2'] = "%$search%";
+    }
+    
+    if ($mode === 'online') {
+        $where[] = "original_id IN (SELECT booking_id FROM payments WHERE payment_method IN ('gcash', 'maya', 'paymongo', 'card'))";
+    } elseif ($mode === 'manual') {
+        $where[] = "original_id IN (SELECT booking_id FROM payments WHERE payment_method IN ('cash', 'bank_transfer'))";
+    }
+    
+    $orderBy = "archived_at DESC";
+    if ($sort === 'upcoming') {
+        $orderBy = "event_date DESC";
+    } elseif ($sort === 'latest') {
+        $orderBy = "id DESC";
+    } elseif ($sort === 'payment') {
+        $orderBy = "(SELECT MAX(payment_date) FROM payments WHERE booking_id = original_id) DESC";
+    }
+    
+    $whereClause = implode(' AND ', $where);
+    
+    // ── ACTION: Export CSV ───────────────────────────────────────────
+    if (isset($_GET['export'])) {
+        $stmt = $pdo->prepare("
+            SELECT event_date, client_name, client_phone, pax_count, total_cost, amount_paid, payment_status, archived_at
+            FROM archived_bookings
+            WHERE $whereClause
+            ORDER BY $orderBy
+        ");
+        foreach ($params as $key => $val) $stmt->bindValue($key, $val);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="archive_export_' . date('Ymd') . '.csv"');
+        $output = fopen('php://output', 'w');
+        fputcsv($output, ['Event Date', 'Client', 'Phone', 'Pax', 'Total Cost', 'Amount Paid', 'Payment Status', 'Archived At']);
+        foreach ($rows as $row) {
+            fputcsv($output, $row);
+        }
+        fclose($output);
+        exit;
+    }
+    
+    // Pagination
+    $page  = max(1, (int)($_GET['page'] ?? 1));
+    $limit = max(1, (int)($_GET['limit'] ?? 10));
+    $offset = ($page - 1) * $limit;
+    
+    // Count total
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM archived_bookings WHERE $whereClause");
+    $countStmt->execute($params);
+    $totalRecords = (int)$countStmt->fetchColumn();
+    $totalPages = ceil($totalRecords / $limit);
+    
     $stmt = $pdo->prepare("
         SELECT * FROM archived_bookings
-        WHERE client_name LIKE :s1 OR event_location LIKE :s2
-        ORDER BY event_date DESC, archived_at DESC
+        WHERE $whereClause
+        ORDER BY $orderBy
+        LIMIT :limit OFFSET :offset
     ");
-    $stmt->execute([':s1' => $like, ':s2' => $like]);
-    jsonResponse(true, '', ['archived' => $stmt->fetchAll()]);
+    foreach ($params as $key => $val) $stmt->bindValue($key, $val);
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    
+    jsonResponse(true, '', [
+        'archived' => $stmt->fetchAll(),
+        'meta' => [
+            'currentPage'  => $page,
+            'totalPages'   => (int)$totalPages,
+            'totalRecords' => $totalRecords
+        ]
+    ]);
+}
+
+if ($method === 'DELETE') {
+    $d = json_decode(file_get_contents('php://input'), true) ?? [];
+    if (empty($d['id'])) jsonResponse(false, 'Archived booking ID is required.', [], 422);
+    
+    $id = (int)$d['id'];
+    
+    // Find original_id
+    $find = $pdo->prepare("SELECT original_id FROM archived_bookings WHERE id = ?");
+    $find->execute([$id]);
+    $row = $find->fetch();
+    if (!$row) jsonResponse(false, 'Archived record not found.', [], 404);
+    
+    $originalId = (int)$row['original_id'];
+    
+    $pdo->beginTransaction();
+    try {
+        // 1. Mark as not archived in bookings table
+        $pdo->prepare("UPDATE bookings SET is_archived = 0, archived_at = NULL, archived_by = NULL WHERE id = ?")
+            ->execute([$originalId]);
+            
+        // 2. Remove from archived_bookings snapshot table
+        $pdo->prepare("DELETE FROM archived_bookings WHERE id = ?")->execute([$id]);
+        
+        $pdo->commit();
+        
+        auditLog($pdo, 'booking_unarchived', 'booking', $originalId);
+        jsonResponse(true, 'Booking restored from archive.');
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        jsonResponse(false, 'Unarchive failed: ' . $e->getMessage(), [], 500);
+    }
 }
 
 if ($method === 'POST') {

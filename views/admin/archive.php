@@ -12,10 +12,37 @@ include __DIR__ . '/../../includes/sidebar.php';
 ?>
 
 <div class="card mb-3">
-    <div class="card-body" style="padding:14px 20px;">
-        <div class="search-input-wrap" style="max-width:380px;">
-            <i class="fas fa-search"></i>
-            <input type="text" class="search-input" id="archiveSearch" placeholder="Search client, menu, location…">
+    <div class="card-body" style="padding:16px 20px;">
+        <div class="search-bar">
+            <div class="search-input-wrap">
+                <i class="fas fa-search"></i>
+                <input type="text" class="search-input" id="archiveSearch" placeholder="Search client, menu, location…">
+            </div>
+            
+            <div class="d-flex align-items-center gap-2">
+                <div style="font-size:10px; font-weight:700; color:var(--label-3); text-transform:uppercase; margin-right:2px; white-space:nowrap;">Sort By</div>
+                <select class="form-control" id="sortFilter" style="width:180px; border-radius:var(--r-pill); font-size:13px;">
+                    <option value="archived">Archived Date (Default)</option>
+                    <option value="upcoming">Event Date (Upcoming)</option>
+                    <option value="latest">Latest Added</option>
+                    <option value="payment">Payment Date</option>
+                </select>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <div style="font-size:10px; font-weight:700; color:var(--label-3); text-transform:uppercase; margin-right:2px; white-space:nowrap;">Mode</div>
+                <select class="form-control" id="modeFilter" style="width:150px; border-radius:var(--r-pill); font-size:13px;">
+                    <option value="">All Payments</option>
+                    <option value="online">Online Only</option>
+                    <option value="manual">Manual Only</option>
+                </select>
+            </div>
+
+            <button class="btn btn-secondary" onclick="resetFilters()" title="Reset All Filters" style="border-radius:50%; width:40px; height:40px; padding:0; flex-shrink:0;">
+                <i class="fas fa-undo"></i>
+            </button>
+
+            
         </div>
     </div>
 </div>
@@ -36,6 +63,16 @@ include __DIR__ . '/../../includes/sidebar.php';
             </thead>
             <tbody id="archiveBody"><tr><td colspan="8"><div class="spinner"></div></td></tr></tbody>
         </table>
+    </div>
+    <!-- Pagination Bar -->
+    <div class="table-pagination" id="archivePagination">
+        <button type="button" class="pagination-button" id="prevBtn" onclick="changePage(currentPage - 1)" disabled>
+            <i class="fas fa-chevron-left"></i> Previous
+        </button>
+        <div class="pagination-info" id="pageInfo">Page 1 of 1</div>
+        <button type="button" class="pagination-button" id="nextBtn" onclick="changePage(currentPage + 1)" disabled>
+            Next <i class="fas fa-chevron-right"></i>
+        </button>
     </div>
 </div>
 
@@ -246,39 +283,105 @@ include __DIR__ . '/../../includes/sidebar.php';
 
 <script>
 
-async function loadArchive() {
+async function loadArchive(page = 1) {
+    currentPage = page;
     const search = document.getElementById('archiveSearch').value;
-    const d = await Api.get(BASE + 'src/api/archive.php', { search });
-    const rows = d.archived || [];
-    document.getElementById('archiveCount').textContent = rows.length + ' archived event(s)';
+    const sort   = document.getElementById('sortFilter').value;
+    const mode   = document.getElementById('modeFilter').value;
+    
     const tbody = document.getElementById('archiveBody');
-    if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="8"><div class="table-empty">
-            <i class="fas fa-box-archive"></i><p>No archived events yet. Complete and archive bookings from the Bookings page.</p>
-        </div></td></tr>`;
-        return;
+    tbody.innerHTML = '<tr><td colspan="9"><div class="spinner"></div></td></tr>';
+
+    try {
+        const d = await Api.get(BASE + 'src/api/archive.php', { 
+            search, sort, mode, page: currentPage, limit: 10 
+        });
+        const rows = d.archived || [];
+        const meta = d.meta || { currentPage: 1, totalPages: 1, totalRecords: 0 };
+        
+        totalPages = meta.totalPages;
+        document.getElementById('archiveCount').textContent = meta.totalRecords + ' archived event(s)';
+        renderPagination(meta);
+
+        if (!rows.length) {
+            tbody.innerHTML = `<tr><td colspan="9"><div class="table-empty">
+                <i class="fas fa-box-archive"></i><p>No archived events found.</p>
+            </div></td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = rows.map(r => `
+            <tr>
+                <td class="fw-600">${Format.dateShort(r.event_date)}</td>
+                <td class="td-name">${esc(r.client_name)}<br><small class="text-muted">${esc(r.client_phone||'')}</small></td>
+                <td>${r.pax_count}</td>
+                <td>${Format.peso(r.total_cost)}</td>
+                <td class="text-success fw-600">${Format.peso(r.amount_paid)}</td>
+                <td>${Format.paymentBadge(r.payment_status)}</td>
+                <td style="max-width:250px;">
+                    ${r.notes ? `<div class="text-xs mb-1"><i class="fas fa-sticky-note me-1 text-muted"></i>${esc(r.notes)}</div>` : ''}
+                    ${r.event_report_notes ? `<div class="text-xs text-info"><i class="fas fa-clipboard-check me-1"></i>${esc(r.event_report_notes)}</div>` : ''}
+                    ${!r.notes && !r.event_report_notes ? '<span class="text-muted text-xs">—</span>' : ''}
+                </td>
+                <td class="text-xs text-muted">${Format.dateShort(r.archived_at)}</td>
+                <td class="td-actions">
+                    <div class="btn-group">
+                        <button class="btn btn-outline-info btn-sm" onclick="openViewBooking(${r.original_id})" title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-outline-warning btn-sm" onclick="unarchiveBooking(${r.id})" title="Unarchive / Restore">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>`).join('');
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center p-4 text-muted">Failed to load archive.</td></tr>';
     }
-    tbody.innerHTML = rows.map(r => `
-        <tr>
-            <td class="fw-600">${Format.dateShort(r.event_date)}</td>
-            <td class="td-name">${esc(r.client_name)}<br><small class="text-muted">${esc(r.client_phone||'')}</small></td>
-            <td>${r.pax_count}</td>
-            <td>${Format.peso(r.total_cost)}</td>
-            <td class="text-success fw-600">${Format.peso(r.amount_paid)}</td>
-            <td>${Format.paymentBadge(r.payment_status)}</td>
-            <td style="max-width:250px;">
-                ${r.notes ? `<div class="text-xs mb-1"><i class="fas fa-sticky-note me-1 text-muted"></i>${esc(r.notes)}</div>` : ''}
-                ${r.event_report_notes ? `<div class="text-xs text-info"><i class="fas fa-clipboard-check me-1"></i>${esc(r.event_report_notes)}</div>` : ''}
-                ${!r.notes && !r.event_report_notes ? '<span class="text-muted text-xs">—</span>' : ''}
-            </td>
-            <td class="text-xs text-muted">${Format.dateShort(r.archived_at)}</td>
-            <td class="td-actions">
-                <button class="btn btn-outline-info btn-sm" onclick="openViewBooking(${r.original_id})" title="View Details">
-                    <i class="fas fa-eye"></i>
-                </button>
-            </td>
-        </tr>`).join('');
-    initTableSearch('archiveSearch', 'archiveTable');
+}
+
+let currentPage = 1;
+let totalPages = 1;
+
+function renderPagination(meta) {
+    document.getElementById('pageInfo').textContent = `Page ${meta.currentPage} of ${meta.totalPages}`;
+    document.getElementById('prevBtn').disabled = meta.currentPage <= 1;
+    document.getElementById('nextBtn').disabled = meta.currentPage >= meta.totalPages;
+}
+
+function changePage(page) {
+    if (page < 1 || page > totalPages) return;
+    loadArchive(page);
+}
+
+function resetFilters() {
+    document.getElementById('archiveSearch').value = '';
+    document.getElementById('sortFilter').value = 'archived';
+    document.getElementById('modeFilter').value = '';
+    loadArchive(1);
+}
+
+async function unarchiveBooking(id) {
+    if (!await confirmDialog('Restore this booking to the active list? It will be removed from the archive snapshot.')) return;
+    try {
+        await Api.delete(BASE + 'src/api/archive.php', { id });
+        Toast.success('Booking restored successfully.');
+        loadArchive(currentPage);
+    } catch (e) { Toast.error(e.message); }
+}
+
+function exportArchive() {
+    const search = document.getElementById('archiveSearch').value;
+    const sort   = document.getElementById('sortFilter').value;
+    const mode   = document.getElementById('modeFilter').value;
+    
+    // Construct export URL
+    const url = BASE + 'src/api/archive.php?export=1' + 
+                '&search=' + encodeURIComponent(search) + 
+                '&sort=' + encodeURIComponent(sort) + 
+                '&mode=' + encodeURIComponent(mode);
+    
+    window.location.href = url;
 }
 
 async function openViewBooking(id) {
@@ -425,7 +528,9 @@ async function openViewBooking(id) {
     } catch (e) { Toast.error(e.message); }
 }
 
-document.getElementById('archiveSearch').addEventListener('input', debounce(loadArchive, 400));
+document.getElementById('archiveSearch').addEventListener('input', debounce(() => loadArchive(1), 400));
+document.getElementById('sortFilter').addEventListener('change', () => loadArchive(1));
+document.getElementById('modeFilter').addEventListener('change', () => loadArchive(1));
 loadArchive();
 </script>
 

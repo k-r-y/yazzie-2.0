@@ -148,6 +148,7 @@ if ($method === 'POST') {
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
 
     if (isset($d['type']) && $d['type'] === 'package') {
+        // ... (Keep your existing package POST logic exactly as it is) ...
         if (strlen($d['set_name']) > 100) jsonResponse(false, 'Package name cannot exceed 100 characters.', [], 422);
         if ((float)$d['price'] < 0) jsonResponse(false, 'Price cannot be negative.', [], 422);
         if ((int)$d['pax_count'] < 1) jsonResponse(false, 'Pax count must be at least 1.', [], 422);
@@ -175,9 +176,23 @@ if ($method === 'POST') {
     if (empty($d['category'])) jsonResponse(false, 'Category is required.', [], 422);
     if (strlen($d['category']) > 50) jsonResponse(false, 'Category name too long.', [], 422);
 
+    // Normalize Name: trim and collapse multiple internal spaces to one
+    $dishName = preg_replace('/\s+/', ' ', trim($d['name']));
+
+    // 🛡️ SECURITY GUARD: Check for existing dish (case-insensitive)
+    $checkStmt = $pdo->prepare("SELECT is_active FROM dishes WHERE LOWER(name) = LOWER(:name)");
+    $checkStmt->execute([':name' => $dishName]);
+    $existingDish = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($existingDish !== false) {
+        $statusStr = $existingDish['is_active'] == 1 ? 'active' : 'inactive (archived)';
+        jsonResponse(false, "The dish '{$dishName}' already exists as an {$statusStr} item. Please edit the existing dish instead.", [], 409);
+        exit;
+    }
+
     $stmt = $pdo->prepare("INSERT INTO dishes (name, category, meal_type, custom_fee, base_pax) VALUES (:name, :cat, :meal, :fee, 50)");
     $stmt->execute([
-        ':name' => trim($d['name']), 
+        ':name' => $dishName, 
         ':cat' => trim($d['category']), 
         ':meal' => trim(substr($d['meal_type'] ?? 'all', 0, 50)),
         ':fee' => max(0, (float)($d['custom_fee'] ?? 0))
@@ -191,6 +206,7 @@ if ($method === 'PUT') {
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
 
     if (isset($d['type']) && $d['type'] === 'package') {
+         // ... (Keep your existing package PUT logic exactly as it is) ...
         if (empty($d['id'])) jsonResponse(false, 'Package ID required.', [], 422);
         if (strlen($d['set_name'] ?? '') > 100) jsonResponse(false, 'Package name too long.', [], 422);
 
@@ -220,13 +236,28 @@ if ($method === 'PUT') {
     if (empty($d['name'])) jsonResponse(false, 'Dish name required.', [], 422);
     if (strlen($d['name']) > 100) jsonResponse(false, 'Dish name too long.', [], 422);
 
+    // Normalize Name
+    $dishName = preg_replace('/\s+/', ' ', trim(substr($d['name'], 0, 100)));
+    $dishId = (int)$d['id'];
+
+    // 🛡️ SECURITY GUARD: Check if the new name belongs to ANOTHER existing dish
+    $checkStmt = $pdo->prepare("SELECT is_active FROM dishes WHERE LOWER(name) = LOWER(:name) AND id != :id");
+    $checkStmt->execute([':name' => $dishName, ':id' => $dishId]);
+    $existingDish = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($existingDish !== false) {
+        $statusStr = $existingDish['is_active'] == 1 ? 'active' : 'inactive (archived)';
+        jsonResponse(false, "Another dish is already named '{$dishName}' ({$statusStr}). Please choose a unique name.", [], 409);
+        exit;
+    }
+
     $pdo->prepare("UPDATE dishes SET name = :name, category = :cat, meal_type = :meal, custom_fee = :fee WHERE id = :id")
         ->execute([
-            ':name' => trim(substr($d['name'], 0, 100)),
+            ':name' => $dishName,
             ':cat'  => trim(substr($d['category'] ?? 'main', 0, 50)),
             ':meal' => trim(substr($d['meal_type'] ?? 'all', 0, 50)),
             ':fee'  => max(0, (float)($d['custom_fee'] ?? 0)),
-            ':id'   => (int)$d['id'],
+            ':id'   => $dishId,
         ]);
     jsonResponse(true, 'Dish updated.');
 }

@@ -15,32 +15,43 @@ include __DIR__ . '/../../includes/sidebar.php';
     <div class="card-body" style="padding:16px 20px;">
         
         <div class="search-bar">
-           
             <div class="search-input-wrap">
                 <i class="fas fa-search"></i>
                 <input type="text" class="search-input" id="searchInput" placeholder="Search by client, location">
             </div>
-            <select class="form-control" id="filterStatus" style="width:160px;">
-                <option value="">All Statuses</option>
 
-                <option value="confirmed">Confirmed</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-            </select>
-            <select class="form-control" id="filterOrder" style="width:160px;">
-                <option value="ASC">Upcoming First</option>
-                <option value="DESC">Latest First</option>
-            </select>
-            <select class="form-control" id="filterPayment" style="width:160px;">
-                <option value="">All Payments</option>
-                <option value="partial">Partial</option>
-                <option value="paid">Paid</option>
-            </select>
+            <div class="d-flex align-items-center gap-2">
+                <div style="font-size:10px; font-weight:700; color:var(--label-3); text-transform:uppercase; margin-right:2px; white-space:nowrap;">Status</div>
+                <select class="form-control" id="filterStatus" style="width:150px; border-radius:var(--r-pill); font-size:13.5px;">
+                    <option value="">All Statuses</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </div>
 
-             <button class="btn btn-primary py-3" onclick="openBookingStepper()">
-                <i class="fas fa-plus"></i> New Booking
+            <div class="d-flex align-items-center gap-2">
+                <div style="font-size:10px; font-weight:700; color:var(--label-3); text-transform:uppercase; margin-right:2px; white-space:nowrap;">Order</div>
+                <select class="form-control" id="filterOrder" style="width:160px; border-radius:var(--r-pill); font-size:13.5px;">
+                    <option value="ASC">Upcoming First</option>
+                    <option value="DESC">Latest First</option>
+                </select>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <div style="font-size:10px; font-weight:700; color:var(--label-3); text-transform:uppercase; margin-right:2px; white-space:nowrap;">Payment</div>
+                <select class="form-control" id="filterPayment" style="width:150px; border-radius:var(--r-pill); font-size:13.5px;">
+                    <option value="">All Payments</option>
+                    <option value="unpaid">Unpaid Only</option>
+                    <option value="partial">Partial Only</option>
+                    <option value="paid">Paid Only</option>
+                </select>
+            </div>
+
+            <button class="btn btn-primary" onclick="openBookingStepper()" style="border-radius:var(--r-pill); padding: 0 24px; height: 42px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <i class="fas fa-plus"></i>
+                <span>New Booking</span>
             </button>
-            
         </div>
     </div>
 </div>

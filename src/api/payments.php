@@ -238,6 +238,7 @@ if ($method === 'POST') {
 }
 
 if ($method === 'DELETE') {
+    requireApiRole('admin');
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
     if (empty($d['id'])) jsonResponse(false, 'Payment ID required.', [], 422);
 

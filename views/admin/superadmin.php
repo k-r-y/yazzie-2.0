@@ -186,9 +186,9 @@ async function loadSettings() {
             'smtp_port': { label: 'SMTP Port', help: 'SMTP server port (e.g., 587, 465).', type: 'number', min: 1, max: 65535 },
             'smtp_secure': { 
                 label: 'SMTP Security', 
-                help: 'Encryption protocol (TLS or SSL).', 
+                help: 'Encryption protocol (TLS).', 
                 type: 'select', 
-                options: [{value: 'tls', label: 'TLS'}, {value: 'ssl', label: 'SSL'}, {value: 'none', label: 'None'}] 
+                options: [{value: 'tls', label: 'TLS'}] 
             },
             'smtp_user': { label: 'SMTP User (Email)', help: 'Email address for SMTP authentication.', type: 'email' }
         };

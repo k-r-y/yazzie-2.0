@@ -204,7 +204,9 @@ include __DIR__ . '/../../includes/sidebar.php';
                             <th>Method</th>
                             <th>Reference</th>
                             <th>Notes</th>
-                            <th class="td-actions">Del</th>
+                            <?php if ($_SESSION['role'] === 'admin'): ?>
+                                <th class="td-actions">Del</th>
+                            <?php endif; ?>
                         </tr>
                     </thead>
                     <tbody id="historyBody"></tbody>
@@ -370,6 +372,9 @@ include __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <script>
+const USER_ROLE = "<?= $_SESSION['role'] ?? '' ?>";
+const isAdmin   = USER_ROLE === 'admin';
+
 const preloadBookingId = <?= $preloadBookingId ?>;
 let currentBalance = 0;
 
@@ -711,11 +716,13 @@ async function loadPaymentHistory(bookingId, bookingInfo) {
                 <td>${methodLabel[p.payment_method] || p.payment_method}</td>
                 <td class="td-mono text-xs">${esc(p.reference_no || '—')}</td>
                 <td class="text-muted text-sm">${esc(p.notes || '—')}</td>
+                ${isAdmin ? `
                 <td class="td-actions">
                     <button class="btn btn-danger btn-sm" onclick="deletePayment(${p.id}, ${bookingId})" title="Remove">
                         <i class="fas fa-trash-alt"></i>
                     </button>
                 </td>
+                ` : ''}
             </tr>
         `).join('');
     } catch(e) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Failed to load.</td></tr>'; }

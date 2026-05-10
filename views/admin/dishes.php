@@ -27,22 +27,29 @@ include __DIR__ . '/../../includes/sidebar.php';
         <div class="row g-3 align-items-center">
             <div class="col-md-4">
                 <div class="input-group">
-                    <span class="input-prefix"><i class="fas fa-search"></i></span>
                     <input type="text" class="form-control" id="searchFilter" placeholder="Search dish name..." oninput="filterDishes()" title="Type to search dishes by name">
                 </div>
             </div>
             <div class="col-md-3">
+                <div class="d-flex align-items-center gap-2">
+                <div style="font-size:10px; font-weight:700; color:var(--label-3); text-transform:uppercase; margin-right:2px; white-space:nowrap;">Category</div>
+            
                 <select class="form-control" id="catFilter" onchange="filterDishes()" title="Filter dishes by category">
                     <option value="all">All Categories</option>
                 </select>
+                </div>
             </div>
             <div class="col-md-3">
+
+              <div class="d-flex align-items-center gap-2">
+                <div style="font-size:10px; font-weight:700; color:var(--label-3); text-transform:uppercase; margin-right:2px; white-space:nowrap;">Meal</div>
                 <select class="form-control" id="mealFilter" onchange="filterDishes()" title="Filter dishes by meal type">
                     <option value="all">All Meal Types</option>
                     <option value="breakfast">🍳 Breakfast</option>
                     <option value="lunch">🍱 Lunch</option>
                     <option value="dinner">🍷 Dinner</option>
                 </select>
+                </div>
             </div>
             <div class="col-md-2 text-end">
                 <div id="filterCount" class="filter-summary"></div>

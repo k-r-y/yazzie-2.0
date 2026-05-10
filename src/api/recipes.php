@@ -95,15 +95,42 @@ if ($method === 'POST') {
         if (empty($d[$req])) jsonResponse(false, "Field '$req' is required.", [], 422);
     }
 
+    $dishId = (int)$d['dish_id'];
+    $name   = preg_replace('/\s+/', ' ', trim($d['ingredient_name']));
+    $unit   = preg_replace('/\s+/', ' ', trim($d['unit']));
+    $qty    = max(0, (float)$d['base_quantity']);
+
+    // 🛡️ SECURITY GUARD: Check for existing ingredient in this dish (case-insensitive name & unit)
+    $checkStmt = $pdo->prepare("
+        SELECT id, base_quantity 
+        FROM recipe_ingredients 
+        WHERE dish_id = :did 
+          AND LOWER(ingredient_name) = LOWER(:iname) 
+          AND LOWER(unit) = LOWER(:unit)
+    ");
+    $checkStmt->execute([':did' => $dishId, ':iname' => $name, ':unit' => $unit]);
+    $existing = $checkStmt->fetch();
+
+    if ($existing) {
+        // MERGE: Update existing quantity
+        $newQty = (float)$existing['base_quantity'] + $qty;
+        $upd = $pdo->prepare("UPDATE recipe_ingredients SET base_quantity = :bqty WHERE id = :id");
+        $upd->execute([':bqty' => $newQty, ':id' => $existing['id']]);
+        
+        jsonResponse(true, "Added {$qty} {$unit} to existing '{$name}'. New total: {$newQty} {$unit}.", ['id' => $existing['id']], 200);
+        exit;
+    }
+
+    // INSERT: New ingredient
     $stmt = $pdo->prepare("
         INSERT INTO recipe_ingredients (dish_id, ingredient_name, base_quantity, unit)
         VALUES (:did, :iname, :bqty, :unit)
     ");
     $stmt->execute([
-        ':did'   => (int)$d['dish_id'],
-        ':iname' => trim(substr($d['ingredient_name'], 0, 100)),
-        ':bqty'  => max(0, (float)$d['base_quantity']),
-        ':unit'  => trim(substr($d['unit'], 0, 20))
+        ':did'   => $dishId,
+        ':iname' => $name,
+        ':bqty'  => $qty,
+        ':unit'  => $unit
     ]);
 
     jsonResponse(true, 'Ingredient added successfully.', ['id' => $pdo->lastInsertId()], 201);
