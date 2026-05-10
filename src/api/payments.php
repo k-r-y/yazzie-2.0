@@ -30,7 +30,7 @@ if ($method === 'GET') {
 
         // Also return booking summary
         $bStmt = $pdo->prepare("
-            SELECT b.total_cost, b.amount_paid, b.payment_status, b.market_cost, b.breakage_total,
+            SELECT b.total_cost, b.amount_paid, b.payment_status, b.breakage_total,
                    c.name AS client_name
             FROM bookings b JOIN clients c ON c.id = b.client_id
             WHERE b.id = :bid
@@ -89,7 +89,7 @@ if ($method === 'POST') {
     // Verify booking exists + get current details for receipt
     $bStmt = $pdo->prepare("
         SELECT b.id, b.total_cost, b.amount_paid, b.booking_status, b.event_date, b.invoice_token, 
-               b.pax_count, b.extra_cost, b.transport_fee, b.overtime_total, b.breakage_total, b.surcharge_total,
+               b.pax_count, b.extra_cost, b.transport_fee, b.breakage_total, b.surcharge_total,
                COALESCE(pk.set_name, 'Catering Service') AS menu_name,
                c.email AS client_email, c.name AS client_name
         FROM bookings b

@@ -213,7 +213,6 @@ if ($method === 'PUT') {
                     + COALESCE(b.extra_cost, 0)
                     + COALESCE(b.transport_fee, 0)
                     + COALESCE(b.surcharge_total, 0)
-                    + COALESCE(b.overtime_total, 0)
                 ) + (
                     SELECT COALESCE(SUM(total_cost), 0) 
                     FROM booking_breakages 
@@ -227,7 +226,6 @@ if ($method === 'PUT') {
                             + COALESCE(b.extra_cost, 0)
                             + COALESCE(b.transport_fee, 0)
                             + COALESCE(b.surcharge_total, 0)
-                            + COALESCE(b.overtime_total, 0)
                         ) + (
                             SELECT COALESCE(SUM(total_cost), 0) 
                             FROM booking_breakages 

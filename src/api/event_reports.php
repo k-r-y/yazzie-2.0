@@ -2,7 +2,7 @@
 /**
  * Event Reports API
  * GET  — list reportable bookings for staff (assigned via job_orders, event completed)
- * POST — submit a post-event report (staff) with breakages + overtime calc
+ * POST — submit a post-event report (staff)
  */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/config.php';
@@ -27,7 +27,6 @@ if ($method === 'GET') {
             SELECT b.id, b.event_date, b.event_time, b.event_location, b.pax_count,
                    b.booking_status, b.actual_start_time, b.actual_end_time,
                    b.event_report_notes, b.report_submitted_at,
-                   b.overtime_minutes, b.overtime_total,
                    c.name AS client_name,
                    pk.set_name AS menu_name
             FROM bookings b
@@ -46,7 +45,6 @@ if ($method === 'GET') {
             SELECT b.id, b.event_date, b.event_time, b.event_location, b.pax_count,
                    b.booking_status, b.actual_start_time, b.actual_end_time,
                    b.event_report_notes, b.report_submitted_at,
-                   b.overtime_minutes, b.overtime_total,
                    c.name AS client_name,
                    pk.set_name AS menu_name,
                    u.name AS report_by_name
@@ -80,7 +78,6 @@ if ($method === 'POST') {
     $complaints = $data['complaints'] ?? null;
     $clientRating = isset($data['client_rating']) ? (int)$data['client_rating'] : null;
     $staffRating  = isset($data['staff_rating']) ? (int)$data['staff_rating'] : null;
-    $breakages  = $data['breakages'] ?? []; // array of {equipment_id, quantity, charge_to, notes}
 
     // Validate booking exists and staff is assigned (if staff role)
     if ($role === 'staff') {
@@ -95,40 +92,19 @@ if ($method === 'POST') {
         }
     }
 
-    // ── Calculate overtime ──
-    $overtimeMinutes = 0;
-    $overtimeTotal   = 0.00;
-    $eventDuration   = EVENT_DURATION_HOURS;
-    $overtimeRate    = OVERTIME_RATE;
-
-    if ($startTime && $endTime) {
-        $start = strtotime($startTime);
-        $end   = strtotime($endTime);
-        if ($start && $end && $end > $start) {
-            $actualMinutes = ($end - $start) / 60;
-            $standardMinutes = $eventDuration * 60;
-            $overtimeMinutes = max(0, (int)($actualMinutes - $standardMinutes));
-            $overtimeTotal   = round(($overtimeMinutes / 60) * $overtimeRate, 2);
-        }
-    }
-
     try {
         $pdo->beginTransaction();
 
         // Update booking with report data
         $update = $pdo->prepare("
             UPDATE bookings 
-            SET actual_start_time = :start, 
-                actual_end_time = :end,
-                event_report_notes = :notes,
-                client_rating = :client_rating,
-                staff_rating = :staff_rating,
-                report_submitted_by = :staff,
-                report_submitted_at = NOW(),
-                overtime_minutes = :ot_min,
-                overtime_rate = :ot_rate,
-                overtime_total = :ot_total,
-                total_cost = total_cost + :ot_total_add
+            SET actual_start_time = :start,
+                actual_end_time   = :end,
+                event_report_notes    = :notes,
+                client_rating         = :client_rating,
+                staff_rating          = :staff_rating,
+                report_submitted_by   = :staff,
+                report_submitted_at   = NOW()
             WHERE id = :id
         ");
         $update->execute([
@@ -139,10 +115,6 @@ if ($method === 'POST') {
             ':staff_rating'  => $staffRating,
             ':staff'         => $userId,
             ':id'            => $bid,
-            ':ot_min'        => $overtimeMinutes,
-            ':ot_rate'       => $overtimeRate,
-            ':ot_total'      => $overtimeTotal,
-            ':ot_total_add'  => $overtimeTotal,
         ]);
 
         // ── Log breakages ──
@@ -152,20 +124,16 @@ if ($method === 'POST') {
 
         // Audit Trail
         auditLog($pdo, 'event_report_submitted', 'booking', $bid, null, [
-            'actual_start'     => $startTime,
-            'actual_end'       => $endTime,
-            'overtime_minutes' => $overtimeMinutes,
-            'overtime_total'   => $overtimeTotal,
-            'breakage_total'   => $breakageTotal,
-            'submitted_by'     => $userId,
+            'actual_start'  => $startTime,
+            'actual_end'    => $endTime,
+            'breakage_total'=> $breakageTotal,
+            'submitted_by'  => $userId,
         ]);
 
         $pdo->commit();
 
         jsonResponse(true, 'Event report submitted successfully.', [
-            'overtime_minutes' => $overtimeMinutes,
-            'overtime_total'   => $overtimeTotal,
-            'breakage_total'   => $breakageTotal,
+            'breakage_total' => $breakageTotal,
         ]);
 
     } catch (Exception $e) {

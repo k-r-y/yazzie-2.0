@@ -297,12 +297,11 @@ function sendPaymentReceipt(array $booking, float $paymentAmount, string $method
     $breakdownRows = "";
     // Base Package
     $extraCost = (float)($booking['extra_cost'] ?? 0);
-    $overtimeTotal = (float)($booking['overtime_total'] ?? 0);
     $breakageTotal = (float)($booking['breakage_total'] ?? 0);
     $transportFee  = (float)($booking['transport_fee'] ?? 0);
     $customSum = array_sum(array_column($customItems, 'price'));
     $trueMiscSurcharge = round(max(0, (float)($booking['surcharge_total'] ?? 0) - $customSum), 2);
-    $baseLineAmount = round(max(0, $booking['total_cost'] - $extraCost - $overtimeTotal - $breakageTotal - $transportFee - (float)($booking['surcharge_total'] ?? 0)), 2);
+    $baseLineAmount = round(max(0, $booking['total_cost'] - $extraCost - $breakageTotal - $transportFee - (float)($booking['surcharge_total'] ?? 0)), 2);
 
     $breakdownRows .= "<tr><td style='padding:8px 0; color:#1C1C1E; font-weight:600;'>$packageName</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($baseLineAmount, 2) . "</td></tr>";
     $breakdownRows .= "<tr><td colspan='2' style='padding:0 0 8px; color:rgba(60,60,67,0.5); font-size:11px; font-style:italic;'>Inclusions: $dishesList</td></tr>";
@@ -318,9 +317,6 @@ function sendPaymentReceipt(array $booking, float $paymentAmount, string $method
     }
     foreach ($customItems as $ci) {
         $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>" . htmlspecialchars($ci['name']) . "</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($ci['price'], 2) . "</td></tr>";
-    }
-    if ($overtimeTotal > 0) {
-        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Overtime Extension</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($overtimeTotal, 2) . "</td></tr>";
     }
     if ($breakageTotal > 0) {
         $breakdownRows .= "<tr><td style='padding:8px 0; color:#FF3B30; font-size:12px;'>Breakage / Damage</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($breakageTotal, 2) . "</td></tr>";
@@ -400,12 +396,11 @@ function sendRefundReceipt(array $booking, float $refundAmount, string $method):
     $breakdownRows = "";
     // Base Package
     $extraCost = (float)($booking['extra_cost'] ?? 0);
-    $overtimeTotal = (float)($booking['overtime_total'] ?? 0);
     $breakageTotal = (float)($booking['breakage_total'] ?? 0);
     $transportFee  = (float)($booking['transport_fee'] ?? 0);
     $customSum = array_sum(array_column($customItems, 'price'));
     $trueMiscSurcharge = round(max(0, (float)($booking['surcharge_total'] ?? 0) - $customSum), 2);
-    $baseLineAmount = round(max(0, $booking['total_cost'] - $extraCost - $overtimeTotal - $breakageTotal - $transportFee - (float)($booking['surcharge_total'] ?? 0)), 2);
+    $baseLineAmount = round(max(0, $booking['total_cost'] - $extraCost - $breakageTotal - $transportFee - (float)($booking['surcharge_total'] ?? 0)), 2);
 
     $breakdownRows .= "<tr><td style='padding:8px 0; color:#1C1C1E; font-weight:600;'>$packageName</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($baseLineAmount, 2) . "</td></tr>";
     $breakdownRows .= "<tr><td colspan='2' style='padding:0 0 8px; color:rgba(60,60,67,0.5); font-size:11px; font-style:italic;'>Inclusions: $dishesList</td></tr>";
@@ -421,9 +416,6 @@ function sendRefundReceipt(array $booking, float $refundAmount, string $method):
     }
     foreach ($customItems as $ci) {
         $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>" . htmlspecialchars($ci['name']) . "</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($ci['price'], 2) . "</td></tr>";
-    }
-    if ($overtimeTotal > 0) {
-        $breakdownRows .= "<tr><td style='padding:8px 0; color:rgba(60,60,67,0.6); font-size:12px;'>Overtime Extension</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($overtimeTotal, 2) . "</td></tr>";
     }
     if ($breakageTotal > 0) {
         $breakdownRows .= "<tr><td style='padding:8px 0; color:#FF3B30; font-size:12px;'>Breakage / Damage</td><td style='padding:8px 0; text-align:right; font-weight:700;'>₱" . number_format($breakageTotal, 2) . "</td></tr>";

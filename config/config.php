@@ -164,8 +164,6 @@ define('MAX_PAX',              appSettingInt('max_pax', 300));
 define('MIN_DP_PERCENT',       appSettingFloat('standard_dp_percent', 0.30)); 
 define('RUSH_DP_PERCENT',      appSettingFloat('rush_dp_percent', 1.00));
 define('EXTRA_PAX_RATE',       appSettingFloat('extra_pax_rate', 125.0));
-define('EVENT_DURATION_HOURS', appSettingInt('event_duration_hours', 4));
-define('OVERTIME_RATE',        appSettingFloat('overtime_rate_per_hour', 200.0));
 define('RUSH_THRESHOLD_HOURS', appSettingInt('rush_threshold_hours', 72));
 define('OPERATING_HOURS_START', appSetting('operating_hours_start', '07:00'));
 define('OPERATING_HOURS_END',   appSetting('operating_hours_end', '23:00'));

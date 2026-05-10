@@ -1069,6 +1069,7 @@ button.pagination-button,
 .badge-staff     { background: rgba(142,142,147,0.12); color: #636366; }
 .badge-success   { background: rgba(48,209,88,0.12);   color: #1A7A32; }
 .badge-info      { background: rgba(0,122,255,0.10);   color: #007AFF; }
+.badge-secondary { background: rgba(142,142,147,0.12); color: #636366; }
 
 /* ================================================================
    MODALS — iOS Sheet style

@@ -75,11 +75,7 @@ if ($method === 'PUT') {
             break;
         case 'extra_pax_rate':
         case 'staff_hourly_rate':
-        case 'overtime_rate_per_hour':
             if ((float)$value < 0) jsonResponse(false, 'Rates cannot be negative.', [], 422);
-            break;
-        case 'event_duration_hours':
-            if ((int)$value < 1 || (int)$value > 24) jsonResponse(false, 'Event duration must be between 1 and 24 hours.', [], 422);
             break;
         case 'min_lead_time_days':
             if ((int)$value < 0 || (int)$value > 365) jsonResponse(false, 'Lead time must be between 0 and 365 days.', [], 422);

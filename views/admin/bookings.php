@@ -235,15 +235,6 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                                     </div>
                                 </div>
 
-                                <div>
-                                    <h6 style="font-weight:700; margin-bottom:15px;"><i class="fas fa-triangle-exclamation me-2" style="color:var(--sys-orange);"></i>Breakage & Reports</h6>
-                                    <div id="view_breakage_list" style="display:grid; gap:8px;">
-                                        <!-- Breakages injected here -->
-                                    </div>
-                                    <div id="no_breakage_msg" style="padding:20px; text-align:center; background:rgba(0,0,0,0.03); border-radius:12px; color:#888; font-size:13px;">
-                                        No incidents reported.
-                                    </div>
-                                </div>
 
                                 <div id="view_report_section">
                                     <h6 style="font-weight:700; margin-bottom:15px;"><i class="fas fa-clipboard-check me-2" style="color:var(--sys-green);"></i>Staff Event Report</h6>
@@ -364,9 +355,7 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                 <button class="btn btn-outline-danger btn-sm me-2" id="cancelReqBtn" onclick="requestCancellation()">
                     <i class="fas fa-ban"></i> Request Cancellation
                 </button>
-                <button class="btn btn-outline-warning btn-sm me-2" id="breakageLogBtn" onclick="openBreakageModal()">
-                    <i class="fas fa-shrimp"></i> Breakage Log
-                </button>
+                <button class="btn btn-outline-warning btn-sm me-2" style="display:none;" id="breakageLogBtn"></button>
                 <button class="btn btn-outline-secondary btn-sm me-2" id="archiveBtn" onclick="archiveBooking()" title="Archive Booking">
                     <i class="fas fa-box-archive"></i> Archive Booking
                 </button>
@@ -562,26 +551,6 @@ async function openViewBooking(id) {
             noStaff.style.display = 'block';
         }
 
-        // Breakages
-        const breakageList = document.getElementById('view_breakage_list');
-        const noBreakage = document.getElementById('no_breakage_msg');
-        if (b.breakages && b.breakages.length > 0) {
-            noBreakage.style.display = 'none';
-            breakageList.innerHTML = b.breakages.map(br => `
-                <div style="background:white; padding:10px 15px; border-radius:10px; border:1px solid #eee; display:flex; align-items:center; justify-content:space-between;">
-                    <div>
-                        <div style="font-weight:600; font-size:13px; color:#C0392B;">${esc(br.equipment_name)} (x${br.quantity})</div>
-                        ${br.notes ? `<div style="font-size:11px; color:#666; font-style:italic;">Note: ${esc(br.notes)}</div>` : ''}
-                        <div style="font-size:11px; color:#888;">Charge to: ${esc(br.charge_to.toUpperCase())}</div>
-                    </div>
-                    <div style="font-weight:700; color:#1a1a1a;">${Format.peso(br.total_cost)}</div>
-                </div>
-            `).join('');
-        } else {
-            breakageList.innerHTML = '';
-            noBreakage.style.display = 'block';
-        }
-
         // Staff Report Notes
         const reportSection = document.getElementById('view_report_section');
         const reportNotes = document.getElementById('view_report_notes');
@@ -716,9 +685,6 @@ async function openEdit(id) {
         
         document.getElementById('cancelReqBtn').style.display =
             (b.booking_status === 'confirmed') ? 'flex' : 'none';
-
-        document.getElementById('breakageLogBtn').style.display =
-            (b.booking_status !== 'cancelled' && b.booking_status !== 'pending_cancellation') ? 'flex' : 'none';
 
         // Reminder button logic
         const hasBalance = (parseFloat(b.total_cost) - parseFloat(b.amount_paid)) > 0.01;
@@ -857,112 +823,6 @@ function renderBookingPagination() {
     document.getElementById('bookingPageInfo').textContent = `Page ${currentBookingPage} of ${bookingTotalPages}`;
     document.getElementById('bookingPrevBtn').disabled = currentBookingPage <= 1;
     document.getElementById('bookingNextBtn').disabled = currentBookingPage >= bookingTotalPages;
-}
-
-// ── BREAKAGE LOGGING ─────────────────────────────────────────────
-let inventory = [];
-
-async function openBreakageModal() {
-    const id = document.getElementById('edit_id').value;
-    const b  = currentBookings.find(x => x.id == id);
-    if (!b) return;
-
-    // Fetch catalog first if empty
-    if (inventory.length === 0) {
-        const d = await Api.get(BASE + 'src/api/inventory.php');
-        inventory = d.equipment || [];
-    }
-
-    // Load existing breakages
-    const res = await Api.get(BASE + 'src/api/breakages.php', { booking_id: id });
-    const logs = res.items || [];
-
-    let html = `
-        <div style="text-align:left;">
-            <p class="text-xs text-muted mb-3">Log damaged or missing equipment for this event. These charges will be added to the final balance.</p>
-            
-            <div id="breakageList" class="mb-3" style="max-height:200px; overflow-y:auto; background:#f8f9fa; border-radius:10px; padding:10px;">
-                ${logs.length === 0 ? '<div class="text-center py-3 text-muted">No losses logged.</div>' : logs.map(l => `
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:13px; border-bottom:1px solid #eee; padding-bottom:5px;">
-                        <div>
-                            <div style="font-weight:600;">${esc(l.equipment_name)} (x${l.quantity}) <small class="text-muted">[${esc(l.charge_to)}]</small></div>
-                            ${l.notes ? `<div style="font-size:11px; color:#888; font-style:italic;">Note: ${esc(l.notes)}</div>` : ''}
-                        </div>
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <span class="fw-700">${Format.peso(l.total_cost)}</span>
-                            <button class="btn-icon text-danger" onclick="deleteBreakage(${l.id})"><i class="fas fa-times"></i></button>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-
-            <div class="card p-3" style="background:#fff2f0; border:1px solid #ffccc7;">
-                <div class="row g-2">
-                    <div class="col-8">
-                        <label class="form-label text-xs">Item</label>
-                        <select class="form-control form-control-sm" id="bb_item">
-                            <option value="">Select equipment...</option>
-                            ${inventory.map(i => `<option value="${i.id}">${esc(i.name)} (${Format.peso(i.replacement_cost)})</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="col-4">
-                        <label class="form-label text-xs">Qty</label>
-                        <input type="number" class="form-control form-control-sm" id="bb_qty" name="bb_qty" value="1" min="1">
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label text-xs">Charge To</label>
-                        <select class="form-control form-control-sm" id="bb_charge_to">
-                            <option value="client">Client</option>
-                            <option value="staff">Staff</option>
-                            <option value="business">Business</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="mt-2">
-                    <label class="form-label text-xs">Internal Note (optional)</label>
-                    <input type="text" class="form-control form-control-sm" id="bb_note" name="bb_note" placeholder="Table 4 breakage...">
-                </div>
-            </div>
-        </div>
-    `;
-
-    const result = await CustomConfirm.show({
-        title: 'Breakage & Loss Log: #' + id,
-        html: html,
-        confirmText: 'Add Loss Log',
-        confirmColor: 'var(--sys-orange)'
-    });
-
-    if (!result) return;
-
-    const itemId   = result.bb_item;
-    const qty      = result.bb_qty;
-    const chargeTo = result.bb_charge_to || 'client';
-    const note     = result.bb_note;
-
-    if (!itemId) return Toast.error('Please select an item.');
-
-    try {
-        await Api.post(BASE + 'src/api/breakages.php', {
-            booking_id: id,
-            equipment_id: itemId,
-            quantity: qty,
-            charge_to: chargeTo,
-            notes: note
-        });
-        Toast.success('Loss logged.');
-        openBreakageModal(); // Re-open to show updated list
-    } catch(e) { Toast.error(e.message); }
-}
-
-async function deleteBreakage(id) {
-
-    if (!await confirmDialog('Remove this breakage entry?')) return;
-    try {
-        await Api.delete(BASE + 'src/api/breakages.php', { id });
-        Toast.success('Entry removed.');
-        openBreakageModal(); // Re-open
-    } catch(e) { Toast.error(e.message); }
 }
 
 init().then(() => console.log('[DEBUG] Bookings Page Initialized'));

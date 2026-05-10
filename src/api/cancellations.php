@@ -28,6 +28,16 @@ if ($method === 'GET') {
 
     $whereClause = implode(' AND ', $where);
 
+    $page  = max(1, (int)($_GET['page'] ?? 1));
+    $limit = (int)($_GET['limit'] ?? 10);
+    if ($limit < 1) $limit = 10;
+    $offset = ($page - 1) * $limit;
+
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM booking_cancellations c WHERE $whereClause");
+    $countStmt->execute($params);
+    $totalRecords = (int)$countStmt->fetchColumn();
+    $totalPages = (int)ceil($totalRecords / $limit);
+
     $stmt = $pdo->prepare("
         SELECT c.*, 
                b.event_date, b.total_cost AS booking_total,
@@ -41,9 +51,23 @@ if ($method === 'GET') {
         LEFT JOIN users u_proc ON u_proc.id = c.refund_processed_by
         WHERE $whereClause
         ORDER BY c.created_at DESC
+        LIMIT :limit OFFSET :offset
     ");
-    $stmt->execute($params);
-    jsonResponse(true, '', ['cancellations' => $stmt->fetchAll()]);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->bindValue(':limit',  $limit,  PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    
+    jsonResponse(true, '', [
+        'cancellations' => $stmt->fetchAll(),
+        'meta' => [
+            'currentPage'  => $page,
+            'totalPages'   => $totalPages,
+            'totalRecords' => $totalRecords,
+        ]
+    ]);
 }
 
 // ────────────────────────────────────────────────────────────────

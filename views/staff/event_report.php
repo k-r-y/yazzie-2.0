@@ -144,16 +144,13 @@ function loadReportForm() {
             <div class="form-grid-2" style="gap:14px; margin-bottom:20px;">
                 <div class="form-group">
                     <label class="form-label">Actual Start Time <span class="required">*</span></label>
-                    <input type="time" class="form-control" id="rpt_start" value="${booking.actual_start_time || ''}" onchange="calcOvertime()">
+                    <input type="time" class="form-control" id="rpt_start" value="${booking.actual_start_time || ''}">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Actual End Time <span class="required">*</span></label>
-                    <input type="time" class="form-control" id="rpt_end" value="${booking.actual_end_time || ''}" onchange="calcOvertime()">
+                    <input type="time" class="form-control" id="rpt_end" value="${booking.actual_end_time || ''}">
                 </div>
             </div>
-
-            <!-- Overtime Badge -->
-            <div id="overtimeBadge" style="display:none; margin-bottom:20px;"></div>
 
             <!-- Complaints -->
             <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:rgba(60,60,67,0.4); margin-bottom:12px; margin-top:8px;">
@@ -181,9 +178,6 @@ function loadReportForm() {
                 </button>
             </div>
         </div>`;
-
-    // Pre-populate overtime badge if times exist
-    if (booking.actual_start_time && booking.actual_end_time) calcOvertime();
 
     loadInventoryStatus(bookingId);
 }
@@ -224,57 +218,6 @@ async function loadInventoryStatus(bookingId) {
     }
 }
 
-function calcOvertime() {
-    const start = document.getElementById('rpt_start')?.value;
-    const end   = document.getElementById('rpt_end')?.value;
-    const badge = document.getElementById('overtimeBadge');
-    if (!start || !end || !badge) return;
-
-    const [sh, sm] = start.split(':').map(Number);
-    const [eh, em] = end.split(':').map(Number);
-    const startMin = sh * 60 + sm;
-    const endMin   = eh * 60 + em;
-    const duration = endMin - startMin;
-
-    if (duration <= 0) {
-        badge.style.display = 'none';
-        return;
-    }
-
-    const shiftHours = <?= function_exists('appSettingInt') ? appSettingInt('standard_shift_hours', 4) : 4 ?>;
-    const standardMin = shiftHours * 60;
-    const otMin = Math.max(0, duration - standardMin);
-    const hours = Math.floor(duration / 60);
-    const mins  = duration % 60;
-
-    if (otMin > 0) {
-        const otHours = (otMin / 60).toFixed(1);
-        badge.style.display = 'block';
-        badge.innerHTML = `
-            <div style="display:flex; gap:10px; align-items:center; background:rgba(255,59,48,0.08);
-                        border:1px solid rgba(255,59,48,0.25); border-radius:12px; padding:14px 16px;">
-                <span style="font-size:24px;">⏱️</span>
-                <div>
-                    <div style="font-size:14px; font-weight:700; color:#C0392B;">
-                        Overtime Detected: ${otHours} hour(s) beyond ${shiftHours}-hour standard
-                    </div>
-                    <div style="font-size:12px; color:rgba(60,60,67,0.6);">
-                        Total duration: ${hours}h ${mins}m · Standard: ${shiftHours}h · Excess: ${otHours}h
-                    </div>
-                </div>
-            </div>`;
-    } else {
-        badge.style.display = 'block';
-        badge.innerHTML = `
-            <div style="display:flex; gap:10px; align-items:center; background:rgba(48,209,88,0.08);
-                        border:1px solid rgba(48,209,88,0.25); border-radius:12px; padding:12px 16px;">
-                <span style="font-size:20px;">✅</span>
-                <div style="font-size:13px; font-weight:600; color:#1A7A32;">
-                    Within standard time — ${hours}h ${mins}m (${shiftHours}h limit)
-                </div>
-            </div>`;
-    }
-}
 
 async function submitReport(bookingId) {
     const startTime  = document.getElementById('rpt_start').value;
@@ -299,9 +242,6 @@ async function submitReport(bookingId) {
         });
 
         let msg = 'Event report submitted successfully!';
-        if (res.overtime_minutes > 0) {
-            msg += ` Overtime: ${(res.overtime_minutes / 60).toFixed(1)}h (₱${res.overtime_total.toFixed(2)})`;
-        }
         if (res.breakage_total > 0) {
             msg += ` | Breakage: ₱${res.breakage_total.toFixed(2)}`;
         }

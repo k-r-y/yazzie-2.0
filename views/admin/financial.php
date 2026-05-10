@@ -130,6 +130,18 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </tbody>
                 </table>
             </div>
+            <!-- Ledger Pagination -->
+            <div class="table-pagination" id="ledgerPaginationBar">
+                <button type="button" class="pagination-button" id="ledgerPrevBtn"
+                    onclick="changeLedgerPage(currentLedgerPage - 1)" disabled>
+                    <i class="fas fa-chevron-left"></i> Previous
+                </button>
+                <div class="pagination-info" id="ledgerPageInfo">Page 1 of 1</div>
+                <button type="button" class="pagination-button" id="ledgerNextBtn"
+                    onclick="changeLedgerPage(currentLedgerPage + 1)" disabled>
+                    Next <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
 
             <div class="table-wrapper table-responsive" id="refundsWrapper" style="display:none; overflow-x: auto; -webkit-overflow-scrolling: touch;">
                 <table class="data-table" id="refundsTable">
@@ -148,6 +160,19 @@ include __DIR__ . '/../../includes/sidebar.php';
                         <tr><td colspan="7"><div class="spinner"></div></td></tr>
                     </tbody>
                 </table>
+            </div>
+            
+            <!-- Refunds Pagination -->
+            <div class="table-pagination" id="refundsPaginationBar" style="display:none;">
+                <button type="button" class="pagination-button" id="refundsPrevBtn"
+                    onclick="changeRefundPage(currentRefundPage - 1)" disabled>
+                    <i class="fas fa-chevron-left"></i> Previous
+                </button>
+                <div class="pagination-info" id="refundsPageInfo">Page 1 of 1</div>
+                <button type="button" class="pagination-button" id="refundsNextBtn"
+                    onclick="changeRefundPage(currentRefundPage + 1)" disabled>
+                    Next <i class="fas fa-chevron-right"></i>
+                </button>
             </div>
         </div>
 
@@ -348,12 +373,48 @@ include __DIR__ . '/../../includes/sidebar.php';
 const preloadBookingId = <?= $preloadBookingId ?>;
 let currentBalance = 0;
 
+// ── LEDGER PAGINATION STATE ────────────────────────────────────────────
+let currentLedgerPage = 1;
+let ledgerTotalPages  = 1;
+const LEDGER_LIMIT    = 10;
+
+function changeLedgerPage(page) {
+    currentLedgerPage = Math.max(1, Math.min(ledgerTotalPages, page));
+    loadLedger();
+}
+
+function renderLedgerPagination(meta) {
+    ledgerTotalPages = meta.totalPages || 1;
+    document.getElementById('ledgerPageInfo').textContent =
+        `Page ${meta.currentPage} of ${ledgerTotalPages}`;
+    document.getElementById('ledgerPrevBtn').disabled = currentLedgerPage <= 1;
+    document.getElementById('ledgerNextBtn').disabled = currentLedgerPage >= ledgerTotalPages;
+}
+
+// ── REFUNDS PAGINATION STATE ───────────────────────────────────────────
+let currentRefundPage = 1;
+let refundTotalPages  = 1;
+const REFUND_LIMIT    = 10;
+
+function changeRefundPage(page) {
+    currentRefundPage = Math.max(1, Math.min(refundTotalPages, page));
+    loadRefunds();
+}
+
+function renderRefundsPagination(meta) {
+    refundTotalPages = meta.totalPages || 1;
+    document.getElementById('refundsPageInfo').textContent =
+        `Page ${meta.currentPage} of ${refundTotalPages}`;
+    document.getElementById('refundsPrevBtn').disabled = currentRefundPage <= 1;
+    document.getElementById('refundsNextBtn').disabled = currentRefundPage >= refundTotalPages;
+}
 
 // ── SEARCH DEBOUNCE ────────────────────────────────────────────────────
 let searchTimer;
 document.getElementById('searchLedger').addEventListener('input', function() {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
+        currentLedgerPage = 1;
         loadLedger();
     }, 300);
 });
@@ -399,7 +460,8 @@ function getTimeframe() {
 async function refreshStats() {
     const tf = getTimeframe();
     loadKPIs({ timeframe: tf });
-    loadLedger(); 
+    currentLedgerPage = 1;
+    loadLedger();
 }
 
 // ── KPIs ───────────────────────────────────────────────────────────────
@@ -520,15 +582,26 @@ async function loadLedger() {
     const status  = document.getElementById('filterStatus').value;
     const payment = document.getElementById('filterPayment').value;
     const tf      = getTimeframe();
-    
+
+    // Show spinner
+    document.getElementById('ledgerBody').innerHTML =
+        '<tr><td colspan="8"><div class="spinner"></div></td></tr>';
+    document.getElementById('ledgerPrevBtn').disabled = true;
+    document.getElementById('ledgerNextBtn').disabled = true;
+
     try {
-        const params = { timeframe: tf };
+        const params = {
+            page:  currentLedgerPage,
+            limit: LEDGER_LIMIT,
+        };
         if (search)  params.search = search;
         if (status)  params.status = status;
         if (payment) params.payment_status = payment;
-        
+
         const d = await Api.get(BASE + 'src/api/bookings.php', params);
         const bookings = d.bookings || [];
+        renderLedgerPagination(d.meta || { currentPage: 1, totalPages: 1, totalRecords: bookings.length });
+
         const tbody = document.getElementById('ledgerBody');
 
         if (bookings.length === 0) {
@@ -544,7 +617,6 @@ async function loadLedger() {
             const balance   = total - paid;
             const paidPct   = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
             const isCancelled = b.booking_status === 'cancelled';
-
             const balColor = balance <= 0 ? '#1A7A32' : (paid > 0 ? '#9A5400' : '#C0392B');
 
             return `
@@ -775,12 +847,19 @@ document.getElementById('paymentForm').addEventListener('submit', async function
 
 // ── FILTERS ────────────────────────────────────────────────────────────
 ['filterStatus','filterPayment'].forEach(id => {
-    document.getElementById(id).addEventListener('change', loadLedger);
+    document.getElementById(id).addEventListener('change', () => {
+        currentLedgerPage = 1;
+        loadLedger();
+    });
 });
 
 function showTab(tab) {
     document.getElementById('ledgerWrapper').style.display  = tab === 'ledger' ? 'block' : 'none';
+    document.getElementById('ledgerPaginationBar').style.display = tab === 'ledger' ? 'flex' : 'none';
+    
     document.getElementById('refundsWrapper').style.display = tab === 'refunds' ? 'block' : 'none';
+    document.getElementById('refundsPaginationBar').style.display = tab === 'refunds' ? 'flex' : 'none';
+    
     document.getElementById('tabLedgerBtn').classList.toggle('active', tab === 'ledger');
     document.getElementById('tabRefundBtn').classList.toggle('active', tab === 'refunds');
     
@@ -788,9 +867,21 @@ function showTab(tab) {
 }
 
 async function loadRefunds() {
+    // Show spinner
+    document.getElementById('refundsBody').innerHTML =
+        '<tr><td colspan="7"><div class="spinner"></div></td></tr>';
+    document.getElementById('refundsPrevBtn').disabled = true;
+    document.getElementById('refundsNextBtn').disabled = true;
+
     try {
-        const d = await Api.get(BASE + 'src/api/cancellations.php');
+        const params = {
+            page:  currentRefundPage,
+            limit: REFUND_LIMIT,
+        };
+        const d = await Api.get(BASE + 'src/api/cancellations.php', params);
         const refunds = d.cancellations || [];
+        renderRefundsPagination(d.meta || { currentPage: 1, totalPages: 1, totalRecords: refunds.length });
+
         const tbody   = document.getElementById('refundsBody');
 
         if (refunds.length === 0) {
