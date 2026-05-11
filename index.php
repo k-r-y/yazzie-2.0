@@ -569,14 +569,14 @@ $successMessages = ['logged_out' => "You've been signed out."];
                     <div class="chrome-icon g"><i class="fas fa-calendar-check"></i></div>
                     <div>
                         <div class="chrome-stat-label">Active Bookings</div>
-                        <div class="chrome-stat-value" id="statBookings">—</div>
+                        <div class="chrome-stat-value">—</div>
                     </div>
                 </div>
                 <div class="chrome-stat">
                     <div class="chrome-icon t"><i class="fas fa-users"></i></div>
                     <div>
                         <div class="chrome-stat-label">On-Call Staff</div>
-                        <div class="chrome-stat-value">8</div>
+                        <div class="chrome-stat-value">—</div>
                     </div>
                 </div>
                 <div class="chrome-stat">
@@ -948,18 +948,7 @@ document.getElementById('resetPwBtn').onclick = async () => {
     finally { btn.disabled = false; icon.className = 'fas fa-shield-halved'; txt.textContent = 'Update Password'; }
 };
 
-// Decorative active bookings count
-(async () => {
-    try {
-        const r = await fetch('<?= BASE_URL ?>/src/api/bookings.php?count_active=1');
-        if (r.ok) {
-            const d = await r.json();
-            if (d.count !== undefined) {
-                document.getElementById('statBookings').textContent = d.count;
-            }
-        }
-    } catch {}
-})();
+// Landing page widget remains decorative for public view
 </script>
 </body>
 </html>

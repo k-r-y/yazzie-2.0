@@ -45,9 +45,12 @@ include __DIR__ . '/../../includes/sidebar.php';
 <div class="card mb-3">
     <div class="card-body" style="padding:14px 20px;">
         <div class="search-bar">
-            <div class="search-input-wrap">
-                <i class="fas fa-search"></i>
-                <input type="text" class="search-input" id="clientSearch" placeholder="Search name, phone, or email...">
+            <div class="d-flex align-items-center gap-2 flex-grow-1">
+                <div style="font-size:10px; font-weight:700; color:var(--label-3); text-transform:uppercase; margin-right:2px; white-space:nowrap;">Search</div>
+                <div class="search-input-wrap flex-grow-1">
+                    <i class="fas fa-search"></i>
+                    <input type="text" class="search-input" id="clientSearch" placeholder="Search name, phone, or email...">
+                </div>
             </div>
         </div>
     </div>
@@ -108,7 +111,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <div class="form-grid-2">
                         <div class="form-group">
                             <label class="form-label" for="f-phone">Phone Number <span class="required">*</span></label>
-                            <input type="text" class="form-control" name="phone" id="f-phone" required placeholder="09XX XXX XXXX" maxlength="11" data-restrict="phone" title="11-digit mobile number starting with 09">
+                            <input type="tel" class="form-control" name="phone" id="f-phone" required placeholder="09XX XXX XXXX" maxlength="11" data-restrict="phone" title="11-digit mobile number starting with 09" oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 11)">
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="f-email">Email Address <span class="required">*</span></label>
@@ -288,7 +291,7 @@ async function saveClient() {
     if (!/^[a-zA-Z\s\-.]+$/.test(name)) return Toast.error('Name contains invalid characters.');
     
     if (!/^09\d{9}$/.test(phone)) {
-        Toast.error('Invalid phone number. Must be 11 digits starting with 09.');
+        Toast.error('Invalid phone number. Must be exactly 11 digits starting with 09.');
         return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {

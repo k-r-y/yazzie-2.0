@@ -80,36 +80,45 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <div class="card-title">Booking Balance Ledger</div>
                     <div class="card-subtitle">Per-booking view of total cost, paid, and remaining</div>
                 </div>
-                <div class="d-flex gap-2 flex-wrap">
+                <div class="d-flex gap-2 flex-wrap align-items-center">
                     <!-- Tab Toggle -->
                     <div class="btn-group me-2">
-                        <button class="btn btn-outline-primary btn-sm active" id="tabLedgerBtn" onclick="showTab('ledger')">
+                        <button class="btn btn-outline-primary btn-sm active" id="tabLedgerBtn" onclick="showTab('ledger')" style="border-radius:var(--r-pill) 0 0 var(--r-pill);">
                             <i class="fas fa-list"></i> Payments
                         </button>
-                        <button class="btn btn-outline-primary btn-sm" id="tabRefundBtn" onclick="showTab('refunds')">
+                        <button class="btn btn-outline-primary btn-sm" id="tabRefundBtn" onclick="showTab('refunds')" style="border-radius:0 var(--r-pill) var(--r-pill) 0;">
                             <i class="fas fa-hand-holding-dollar"></i> Refunds
                         </button>
                     </div>
 
                     <!-- Search Bar -->
-                    <div class="input-group input-group-sm me-2" style="min-width: 250px; flex: 2;">
-                        <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
-                        <input type="text" class="form-control bg-light border-start-0" id="searchLedger" placeholder="Quick search client name...">
+                    <div class="d-flex align-items-center gap-2" style="flex: 2; min-width: 250px;">
+                        <div style="font-size:10px; font-weight:700; color:var(--label-3); text-transform:uppercase; margin-right:2px; white-space:nowrap;">Search</div>
+                        <div class="search-input-wrap flex-grow-1">
+                            <i class="fas fa-search"></i>
+                            <input type="text" class="search-input" id="searchLedger" placeholder="Quick search client name...">
+                        </div>
                     </div>
 
-                    <select class="form-control" id="filterStatus" style="min-width:130px; flex:1;" title="Filter by booking status">
-                        <option value="">All Statuses</option>
+                    <div class="d-flex align-items-center gap-2" style="flex: 1; min-width: 150px;">
+                        <div style="font-size:10px; font-weight:700; color:var(--label-3); text-transform:uppercase; margin-right:2px; white-space:nowrap;">Status</div>
+                        <select class="form-control" id="filterStatus" style="border-radius:var(--r-pill); font-size:13px;" title="Filter by booking status">
+                            <option value="">All Statuses</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
 
-                        <option value="confirmed">Confirmed</option>
-                        <option value="completed">Completed</option>
-                        <option value="cancelled">Cancelled</option>
-                    </select>
-                    <select class="form-control" id="filterPayment" style="min-width:120px; flex:1;" title="Filter by payment status">
-                        <option value="">All Payments</option>
-                        <option value="unpaid">Unpaid</option>
-                        <option value="partial">Partial</option>
-                        <option value="paid">Paid</option>
-                    </select>
+                    <div class="d-flex align-items-center gap-2" style="flex: 1; min-width: 140px;">
+                        <div style="font-size:10px; font-weight:700; color:var(--label-3); text-transform:uppercase; margin-right:2px; white-space:nowrap;">Payment</div>
+                        <select class="form-control" id="filterPayment" style="border-radius:var(--r-pill); font-size:13px;" title="Filter by payment status">
+                            <option value="">All Payments</option>
+                            <option value="unpaid">Unpaid</option>
+                            <option value="partial">Partial</option>
+                            <option value="paid">Paid</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             <div class="table-wrapper table-responsive" id="ledgerWrapper" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
@@ -211,6 +220,18 @@ include __DIR__ . '/../../includes/sidebar.php';
                     </thead>
                     <tbody id="historyBody"></tbody>
                 </table>
+            </div>
+            <!-- History Pagination -->
+            <div class="table-pagination" id="historyPaginationBar">
+                <button type="button" class="pagination-button" id="historyPrevBtn"
+                    onclick="changeHistoryPage(currentHistoryPage - 1)" disabled>
+                    <i class="fas fa-chevron-left"></i> Previous
+                </button>
+                <div class="pagination-info" id="historyPageInfo">Page 1 of 1</div>
+                <button type="button" class="pagination-button" id="historyNextBtn"
+                    onclick="changeHistoryPage(currentHistoryPage + 1)" disabled>
+                    Next <i class="fas fa-chevron-right"></i>
+                </button>
             </div>
         </div>
     </div>
@@ -412,6 +433,25 @@ function renderRefundsPagination(meta) {
         `Page ${meta.currentPage} of ${refundTotalPages}`;
     document.getElementById('refundsPrevBtn').disabled = currentRefundPage <= 1;
     document.getElementById('refundsNextBtn').disabled = currentRefundPage >= refundTotalPages;
+}
+
+// ── HISTORY PAGINATION STATE ───────────────────────────────────────────
+let currentHistoryPage = 1;
+let historyTotalPages  = 1;
+let currentHistoryBid  = null;
+const HISTORY_LIMIT    = 10;
+
+function changeHistoryPage(page) {
+    currentHistoryPage = Math.max(1, Math.min(historyTotalPages, page));
+    loadPaymentHistory(currentHistoryBid);
+}
+
+function renderHistoryPagination(meta) {
+    historyTotalPages = meta.totalPages || 1;
+    document.getElementById('historyPageInfo').textContent =
+        `Page ${meta.currentPage} of ${historyTotalPages}`;
+    document.getElementById('historyPrevBtn').disabled = currentHistoryPage <= 1;
+    document.getElementById('historyNextBtn').disabled = currentHistoryPage >= historyTotalPages;
 }
 
 // ── SEARCH DEBOUNCE ────────────────────────────────────────────────────
@@ -667,11 +707,14 @@ async function loadLedger() {
 
 // ── PAYMENT HISTORY ────────────────────────────────────────────────────
 async function viewHistory(bookingId) {
-    const d = await Api.get(BASE + 'src/api/bookings.php', { id: bookingId });
-    loadPaymentHistory(bookingId, d.booking);
+    currentHistoryPage = 1;
+    loadPaymentHistory(bookingId);
 }
 
-async function loadPaymentHistory(bookingId, bookingInfo) {
+async function loadPaymentHistory(bookingId, bookingInfo = null) {
+    if (!bookingId) return;
+    currentHistoryBid = bookingId;
+
     const card = document.getElementById('paymentHistoryCard');
     const tbody = document.getElementById('historyBody');
     const btnInv = document.getElementById('btnGenInvoice');
@@ -680,27 +723,35 @@ async function loadPaymentHistory(bookingId, bookingInfo) {
     card.style.display = 'block';
     tbody.innerHTML = '<tr><td colspan="6"><div class="spinner"></div></td></tr>';
 
-    if (bookingInfo) {
-        // Update Links
-        btnInv.href = `${BASE}/templates/invoice.php?booking_id=${bookingId}&token=${bookingInfo.invoice_token || ''}`;
-        btnEmail.onclick = () => sendInvoice(bookingId);
-        
-        const total     = parseFloat(bookingInfo.total_cost);
-        const breakage  = parseFloat(bookingInfo.breakage_total || 0);
-        const eventCost = total - breakage;
-        const paid      = parseFloat(bookingInfo.amount_paid);
-        const balance   = total - paid;
-        
-        let sub = `Event: ${Format.peso(eventCost)}`;
-        if (breakage > 0) sub += ` + Loss: ${Format.peso(breakage)}`;
-        sub += ` | Paid: ${Format.peso(paid)} | Balance: ${Format.peso(Math.max(0, balance))}`;
-        
-        document.getElementById('historySubtitle').textContent = sub;
-    }
-
     try {
-        const d = await Api.get(BASE + 'src/api/payments.php', { booking_id: bookingId });
+        const d = await Api.get(BASE + 'src/api/payments.php', { 
+            booking_id: bookingId,
+            page: currentHistoryPage,
+            limit: HISTORY_LIMIT
+        });
+        
+        const b = bookingInfo || d.booking;
+        if (b) {
+            // Update Links
+            btnInv.href = `${BASE}/templates/invoice.php?booking_id=${bookingId}&token=${b.invoice_token || ''}`;
+            btnEmail.onclick = () => sendInvoice(bookingId);
+            
+            const total     = parseFloat(b.total_cost);
+            const breakage  = parseFloat(b.breakage_total || 0);
+            const eventCost = total - breakage;
+            const paid      = parseFloat(b.amount_paid);
+            const balance   = total - paid;
+            
+            let sub = `Event: ${Format.peso(eventCost)}`;
+            if (breakage > 0) sub += ` + Loss: ${Format.peso(breakage)}`;
+            sub += ` | Paid: ${Format.peso(paid)} | Balance: ${Format.peso(Math.max(0, balance))}`;
+            
+            document.getElementById('historySubtitle').textContent = sub;
+        }
+
         const payments = d.payments || [];
+        renderHistoryPagination(d.meta || { currentPage: 1, totalPages: 1 });
+
         const methodLabel = { cash:'💵 Cash', gcash:'📱 GCash', maya:'📱 Maya', bank_transfer:'🏦 Bank', paymongo:'🔗 PayMongo' };
 
         if (payments.length === 0) {

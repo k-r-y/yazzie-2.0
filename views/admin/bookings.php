@@ -247,6 +247,16 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                                 </div>
 
 
+                                <div>
+                                    <h6 style="font-weight:700; margin-bottom:15px;"><i class="fas fa-triangle-exclamation me-2" style="color:var(--sys-orange);"></i>Breakage Log</h6>
+                                    <div id="view_breakage_list" style="display:grid; gap:8px;">
+                                        <!-- Breakages injected here -->
+                                    </div>
+                                    <div id="no_breakage_msg" style="padding:20px; text-align:center; background:rgba(0,0,0,0.03); border-radius:12px; color:#888; font-size:13px;">
+                                        No incidents reported.
+                                    </div>
+                                </div>
+
                                 <div id="view_report_section">
                                     <h6 style="font-weight:700; margin-bottom:15px;"><i class="fas fa-clipboard-check me-2" style="color:var(--sys-green);"></i>Staff Event Report</h6>
                                     <div id="view_report_notes" style="padding:15px; background:#fff8f0; border:1px solid #ffe8cc; border-radius:12px; font-size:13px; line-height:1.5; color:#5a3e1b;">
@@ -283,6 +293,18 @@ include __DIR__ . '/../../includes/_booking_stepper.php';
                                     </tbody>
                                 </table>
                                 </div>
+                            </div>
+                            <!-- History Pagination -->
+                            <div class="table-pagination" id="historyPaginationBar" style="margin-top: 10px;">
+                                <button type="button" class="pagination-button" id="historyPrevBtn"
+                                    onclick="changeHistoryPage(currentHistoryPage - 1)" disabled>
+                                    <i class="fas fa-chevron-left"></i> Previous
+                                </button>
+                                <div class="pagination-info" id="historyPageInfo">Page 1 of 1</div>
+                                <button type="button" class="pagination-button" id="historyNextBtn"
+                                    onclick="changeHistoryPage(currentHistoryPage + 1)" disabled>
+                                    Next <i class="fas fa-chevron-right"></i>
+                                </button>
                             </div>
                         </div>
 
@@ -386,6 +408,25 @@ let allDishes = { mains: [], desserts: [] };
 let currentBookingPage = 1;
 let bookingTotalPages = 1;
 
+// ── HISTORY PAGINATION STATE ───────────────────────────────────────────
+let currentHistoryPage = 1;
+let historyTotalPages  = 1;
+let currentHistoryBid  = null;
+const HISTORY_LIMIT    = 10;
+
+function changeHistoryPage(page) {
+    currentHistoryPage = Math.max(1, Math.min(historyTotalPages, page));
+    loadPaymentHistory(currentHistoryBid);
+}
+
+function renderHistoryPagination(meta) {
+    historyTotalPages = meta.totalPages || 1;
+    document.getElementById('historyPageInfo').textContent =
+        `Page ${meta.currentPage} of ${historyTotalPages}`;
+    document.getElementById('historyPrevBtn').disabled = currentHistoryPage <= 1;
+    document.getElementById('historyNextBtn').disabled = currentHistoryPage >= historyTotalPages;
+}
+
 async function init() {
     await loadDishes();
     await loadBookings();
@@ -478,6 +519,8 @@ function renderTable(bookings) {
 
 
 async function openViewBooking(id) {
+    currentHistoryBid  = id;
+    currentHistoryPage = 1;
     try {
         const d = await Api.get(BASE + 'src/api/bookings.php', { id });
         const b = d.booking;
@@ -561,6 +604,35 @@ async function openViewBooking(id) {
             noStaff.style.display = 'block';
         }
 
+        // Breakages
+        const breakageList = document.getElementById('view_breakage_list');
+        const noBreakage = document.getElementById('no_breakage_msg');
+        if (b.breakages && b.breakages.length > 0) {
+            noBreakage.style.display = 'none';
+            breakageList.innerHTML = b.breakages.map(br => {
+                let chargeBadge = '';
+                const c = (br.charge_to || '').toUpperCase();
+                if (c === 'CLIENT') chargeBadge = '<span class="badge bg-soft-danger text-danger" style="font-size:10px;">CLIENT</span>';
+                else if (c === 'STAFF') chargeBadge = '<span class="badge bg-soft-warning text-warning" style="font-size:10px;">STAFF</span>';
+                else chargeBadge = '<span class="badge bg-soft-secondary text-muted" style="font-size:10px;">LOSS</span>';
+
+                return `
+                <div style="background:white; padding:10px 15px; border-radius:10px; border:1px solid #eee; display:flex; align-items:center; justify-content:space-between;">
+                    <div style="flex:1;">
+                        <div style="font-weight:600; font-size:13px; color:#C0392B;">${esc(br.equipment_name)} (x${br.quantity})</div>
+                        <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+                            ${chargeBadge}
+                            ${br.notes ? `<span style="font-size:11px; color:#666; font-style:italic; border-left:1px solid #eee; padding-left:8px;">${esc(br.notes)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div style="font-weight:700; color:#1a1a1a; font-size:14px;">${Format.peso(br.total_cost)}</div>
+                </div>`;
+            }).join('');
+        } else {
+            breakageList.innerHTML = '';
+            noBreakage.style.display = 'block';
+        }
+
         // Staff Report Notes
         const reportSection = document.getElementById('view_report_section');
         const reportNotes = document.getElementById('view_report_notes');
@@ -572,20 +644,7 @@ async function openViewBooking(id) {
         }
 
         // Payment History
-        const payBody = document.getElementById('view_payments_body');
-        if (b.payments && b.payments.length > 0) {
-            payBody.innerHTML = b.payments.map(p => `
-                <tr>
-                    <td>${Format.dateShort(p.payment_date)}</td>
-                    <td><span class="text-xs uppercase fw-700">${esc(p.payment_method)}</span></td>
-                    <td class="text-muted text-xs">${esc(p.reference_no || '—')}</td>
-                    <td class="fw-700">${Format.peso(p.amount)}</td>
-                    <td class="text-muted text-xs">${esc(p.recorded_by_name)}</td>
-                </tr>
-            `).join('');
-        } else {
-            payBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No payments recorded.</td></tr>';
-        }
+        loadPaymentHistory(id);
 
         // Client Notes
         const notesSection = document.getElementById('view_notes_section');
@@ -612,6 +671,37 @@ async function openViewBooking(id) {
 
         Modal.open('viewBookingModal');
     } catch (e) { Toast.error(e.message); }
+}
+
+async function loadPaymentHistory(bookingId) {
+    const payBody = document.getElementById('view_payments_body');
+    payBody.innerHTML = '<tr><td colspan="5" class="text-center"><div class="spinner"></div></td></tr>';
+
+    try {
+        const d = await Api.get(BASE + 'src/api/payments.php', { 
+            booking_id: bookingId,
+            page: currentHistoryPage,
+            limit: HISTORY_LIMIT
+        });
+        const payments = d.payments || [];
+        renderHistoryPagination(d.meta || { currentPage: 1, totalPages: 1 });
+
+        if (payments.length > 0) {
+            payBody.innerHTML = payments.map(p => `
+                <tr>
+                    <td>${Format.dateShort(p.payment_date)}</td>
+                    <td><span class="text-xs uppercase fw-700">${esc(p.payment_method)}</span></td>
+                    <td class="text-muted text-xs">${esc(p.reference_no || '—')}</td>
+                    <td class="fw-700">${Format.peso(p.amount)}</td>
+                    <td class="text-muted text-xs">${esc(p.recorded_by_name)}</td>
+                </tr>
+            `).join('');
+        } else {
+            payBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No payments recorded.</td></tr>';
+        }
+    } catch (e) {
+        payBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Failed to load payments.</td></tr>';
+    }
 }
 
 // ── PAYMONGO: Generate & Copy Payment Link ────────────────────────────────────

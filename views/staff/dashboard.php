@@ -772,6 +772,8 @@ async function saveDispatch() {
         await Api.post(BASE + 'src/api/inventory_dispatch.php', { booking_id: invSelectedBookingId, items });
         Toast.success('Dispatch recorded!');
         document.getElementById('dispatchRows').innerHTML = '';
+        equipmentList = []; // Force refresh
+        await loadInventoryEvents();
         refreshInventoryList();
     } catch(e) { Toast.error(e.message); }
     Form.setLoading(btn, false);
@@ -817,6 +819,8 @@ async function saveReturn() {
     try {
         const res = await Api.put(BASE + 'src/api/inventory_dispatch.php', { booking_id: invSelectedBookingId, returns });
         Toast.success(res.message);
+        equipmentList = []; // Force refresh
+        await loadInventoryEvents();
         refreshInventoryList();
     } catch(e) { Toast.error(e.message); }
     Form.setLoading(btn, false);
@@ -842,10 +846,10 @@ function renderJob(j, showActions = true, compact = false) {
         ${!compact && j.notes ? `<div class="text-sm text-muted mb-3 mt-2"><i class="fas fa-note-sticky me-1"></i>${esc(j.notes)}</div>` : ''}
         ${showActions && j.status === 'pending' ? `
         <div class="job-card-actions">
-            <button class="btn btn-success" onclick="respond(${j.id}, 'accepted')">
+            <button class="btn btn-success" onclick="respond(${j.id}, 'accepted', this)">
                 <i class="fas fa-check"></i> Accept
             </button>
-            <button class="btn btn-outline-secondary" onclick="respond(${j.id}, 'declined')">
+            <button class="btn btn-outline-secondary" onclick="respond(${j.id}, 'declined', this)">
                 <i class="fas fa-times"></i> Decline
             </button>
         </div>` : ''}
@@ -877,13 +881,22 @@ async function loadJobs() {
     }
 }
 
-async function respond(jobId, status) {
+async function respond(jobId, status, btn) {
     if (!await confirmDialog(`${status === 'accepted' ? 'Accept' : 'Decline'} this job offer?`)) return;
+    
+    const otherBtn = btn.parentElement.querySelector(status === 'accepted' ? '.btn-outline-secondary' : '.btn-success');
+    Form.setLoading(btn, true, status === 'accepted' ? 'Accepting...' : 'Declining...');
+    if (otherBtn) otherBtn.disabled = true;
+
     try {
         await Api.put(BASE + 'src/api/dispatching.php', { id: jobId, status });
         Toast.success(status === 'accepted' ? '✓ Job accepted! See you at the event.' : 'Job declined.');
         await loadJobs();
-    } catch (e) { Toast.error(e.message); }
+    } catch (e) { 
+        Toast.error(e.message); 
+        Form.setLoading(btn, false);
+        if (otherBtn) otherBtn.disabled = false;
+    }
 }
 
 // ── LEAVE REQUESTS ─────────────────────────────────────────────────

@@ -18,27 +18,51 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     if (isset($_GET['booking_id'])) {
+        $bookingId = (int)$_GET['booking_id'];
+        $page  = max(1, (int)($_GET['page'] ?? 1));
+        $limit = max(1, (int)($_GET['limit'] ?? 10));
+        $offset = ($page - 1) * $limit;
+
+        // Total count
+        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM payments WHERE booking_id = :bid");
+        $countStmt->execute([':bid' => $bookingId]);
+        $totalRecords = (int)$countStmt->fetchColumn();
+        $totalPages = ceil($totalRecords / $limit);
+
+        // Paginated results
         $stmt = $pdo->prepare("
             SELECT p.*, u.name AS recorded_by_name
             FROM payments p
             JOIN users u ON u.id = p.recorded_by
             WHERE p.booking_id = :bid
             ORDER BY p.payment_date ASC, p.id ASC
+            LIMIT :limit OFFSET :offset
         ");
-        $stmt->execute([':bid' => (int)$_GET['booking_id']]);
+        $stmt->bindValue(':bid', $bookingId, PDO::PARAM_INT);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
         $payments = $stmt->fetchAll();
 
         // Also return booking summary
         $bStmt = $pdo->prepare("
-            SELECT b.total_cost, b.amount_paid, b.payment_status, b.breakage_total,
+            SELECT b.total_cost, b.amount_paid, b.payment_status, b.breakage_total, b.invoice_token,
                    c.name AS client_name
             FROM bookings b JOIN clients c ON c.id = b.client_id
             WHERE b.id = :bid
         ");
-        $bStmt->execute([':bid' => (int)$_GET['booking_id']]);
+        $bStmt->execute([':bid' => $bookingId]);
         $booking = $bStmt->fetch();
 
-        jsonResponse(true, '', ['payments' => $payments, 'booking' => $booking]);
+        jsonResponse(true, '', [
+            'payments' => $payments, 
+            'booking'  => $booking,
+            'meta' => [
+                'currentPage'  => $page,
+                'totalPages'   => (int)$totalPages,
+                'totalRecords' => $totalRecords
+            ]
+        ]);
     }
 
     // All payments with filter by month/year

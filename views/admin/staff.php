@@ -63,21 +63,30 @@ include __DIR__ . '/../../includes/sidebar.php';
     <div class="card mb-3">
         <div class="card-body p-3">
             <div class="search-bar">
-                <div class="search-input-wrap">
-                    <i class="fas fa-search"></i>
-                    <input type="text" class="search-input" id="staffSearch" placeholder="Search name, email, or phone...">
+                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                    <div style="font-size:10px; font-weight:700; color:var(--label-3); text-transform:uppercase; margin-right:2px; white-space:nowrap;">Search</div>
+                    <div class="search-input-wrap flex-grow-1">
+                        <i class="fas fa-search"></i>
+                        <input type="text" class="search-input" id="staffSearch" placeholder="Search name, email, or phone...">
+                    </div>
                 </div>
-                <select class="form-control" id="staffFilterRole" style="width:160px;">
-                    <option value="">All Roles</option>
-                    <option value="admin">Administrators</option>
-                    <option value="frontdesk">Front Desk</option>
-                    <option value="staff">Event Staff</option>
-                </select>
-                <select class="form-control" id="staffFilterStatus" style="width:140px;">
-                    <option value="">All Status</option>
-                    <option value="1">Active</option>
-                    <option value="0">Inactive</option>
-                </select>
+                <div class="d-flex align-items-center gap-2">
+                    <div style="font-size:10px; font-weight:700; color:var(--label-3); text-transform:uppercase; margin-right:2px; white-space:nowrap;">Role</div>
+                    <select class="form-control" id="staffFilterRole" style="width:160px; border-radius:var(--r-pill); font-size:13px;">
+                        <option value="">All Roles</option>
+                        <option value="admin">Administrators</option>
+                        <option value="frontdesk">Front Desk</option>
+                        <option value="staff">Event Staff</option>
+                    </select>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <div style="font-size:10px; font-weight:700; color:var(--label-3); text-transform:uppercase; margin-right:2px; white-space:nowrap;">Status</div>
+                    <select class="form-control" id="staffFilterStatus" style="width:140px; border-radius:var(--r-pill); font-size:13px;">
+                        <option value="">All Status</option>
+                        <option value="1">Active Only</option>
+                        <option value="0">Inactive Only</option>
+                    </select>
+                </div>
             </div>
         </div>
     </div>
@@ -89,7 +98,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <div class="card-subtitle" id="staffCount">Loading users...</div>
             </div>
             <button class="btn btn-primary btn-sm" onclick="openAddModal()">
-                <i class="fas fa-plus"></i> Add Staff
+                <i class="fas fa-plus"></i> Add User
             </button>
         </div>
         <div class="table-wrapper table-responsive">
@@ -129,12 +138,15 @@ include __DIR__ . '/../../includes/sidebar.php';
                 <div class="card-title">Leave Applications</div>
                 <div class="card-subtitle">Manage time-off requests for all staff levels</div>
             </div>
-            <select class="form-control" id="leaveFilter" style="width:140px;" onchange="loadLeaves()">
-                <option value="pending">⏳ Pending</option>
-                <option value="approved">✅ Approved</option>
-                <option value="rejected">❌ Rejected</option>
-                <option value="">All</option>
-            </select>
+            <div class="d-flex align-items-center gap-2">
+                <div style="font-size:10px; font-weight:700; color:var(--label-3); text-transform:uppercase; margin-right:2px; white-space:nowrap;">Status</div>
+                <select class="form-control" id="leaveFilter" style="width:140px; border-radius:var(--r-pill); font-size:13px;" onchange="loadLeaves()">
+                    <option value="pending">⏳ Pending</option>
+                    <option value="approved">✅ Approved</option>
+                    <option value="rejected">❌ Rejected</option>
+                    <option value="">All</option>
+                </select>
+            </div>
         </div>
         <div class="table-wrapper table-responsive">
             <table class="data-table">
@@ -182,7 +194,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                         </div>
                         <div class="form-group">
                             <label class="form-label">Phone</label>
-                            <input type="text" class="form-control" name="phone" id="sf-phone" maxlength="11">
+                            <input type="tel" class="form-control" name="phone" id="sf-phone" maxlength="11" oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 11)">
                         </div>
                     </div>
                     <div class="form-group">
@@ -507,6 +519,12 @@ async function handleStaffSave() {
         password: document.getElementById('sf-pw').value,
         is_active: id ? parseInt(isActive) : undefined
     };
+
+    // Phone validation
+    if (data.phone && !/^09\d{9}$/.test(data.phone)) {
+        Toast.error('Invalid phone number. Must be exactly 11 digits starting with 09.');
+        return;
+    }
 
     // Master Key Interception for Modal Update
     if (id && role === 'admin' && isActive == 1) {

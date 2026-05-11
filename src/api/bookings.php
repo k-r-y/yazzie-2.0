@@ -167,16 +167,6 @@ function autoCompleteExpiredBookings(PDO $pdo): int {
     return $affected;
 }
 
-// Public: active booking count for login page
-if ($method === 'GET' && isset($_GET['count_active'])) {
-    $count = $pdo->query("
-        SELECT COUNT(*) FROM bookings
-        WHERE booking_status = 'confirmed'
-        AND event_date >= CURDATE()
-    ")->fetchColumn();
-    jsonResponse(true, '', ['count' => (int)$count]);
-}
-
 $user = requireApiRole(['admin', 'frontdesk']);
 requireCsrf();
 
@@ -191,7 +181,7 @@ if ($method === 'GET') {
             SELECT b.*,
                    c.name  AS client_name, c.phone AS client_phone, c.email AS client_email,
                    u.name AS created_by_name,
-                   (SELECT COALESCE(SUM(total_cost), 0) FROM booking_breakages WHERE booking_id = b.id) as breakage_total
+                   (SELECT COALESCE(SUM(total_cost), 0) FROM booking_breakages WHERE booking_id = b.id AND charge_to = 'CLIENT') as breakage_total
             FROM bookings b
             LEFT JOIN clients  c  ON c.id  = b.client_id
             LEFT JOIN users    u  ON u.id  = b.created_by
@@ -355,7 +345,7 @@ if ($method === 'GET') {
     $stmt = $pdo->prepare("
         SELECT b.*,
                c.name AS client_name, c.phone AS client_phone,
-               (SELECT COALESCE(SUM(total_cost), 0) FROM booking_breakages WHERE booking_id = b.id) as breakage_total,
+               (SELECT COALESCE(SUM(total_cost), 0) FROM booking_breakages WHERE booking_id = b.id AND charge_to = 'CLIENT') as breakage_total,
                b.resched_count
         FROM bookings b
         JOIN clients c ON c.id = b.client_id

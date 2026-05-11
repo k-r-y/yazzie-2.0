@@ -160,6 +160,13 @@ if ($method === 'POST') {
     $dup->execute([':e' => trim($d['email'])]);
     if ($dup->fetch()) jsonResponse(false, 'Email address is already in use.', [], 409);
 
+    // Phone validation
+    if (!empty($d['phone'])) {
+        if (!preg_match('/^09\d{9}$/', $d['phone'])) {
+            jsonResponse(false, 'Phone number must be exactly 11 digits starting with 09.', [], 422);
+        }
+    }
+
     // Prepare Job Class
     if (in_array($requestedRole, ['admin', 'frontdesk'], true)) {
         $jobClass = $requestedRole;
@@ -260,8 +267,12 @@ if ($method === 'PUT') {
             }
         }
         if (isset($d['phone'])) {
+            $phone = trim($d['phone']);
+            if ($phone !== '' && !preg_match('/^09\d{9}$/', $phone)) {
+                jsonResponse(false, 'Phone number must be exactly 11 digits starting with 09.', [], 422);
+            }
             $updates[] = "phone = :phone";
-            $params[':phone'] = trim($d['phone']);
+            $params[':phone'] = $phone;
         }
         if (isset($d['is_active']) && $target_id !== $current_admin_id) {
             $updates[] = "is_active = :active";

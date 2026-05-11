@@ -170,7 +170,7 @@ $dynamicPrivacy = appSetting('data_privacy_notice', "We value your privacy. Your
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label" for="nc_phone">Phone Number <span class="required">*</span></label>
-                                    <input type="tel" class="form-control" id="nc_phone" placeholder="09XXXXXXXXX" pattern="\d*" maxlength="11" data-restrict="phone" title="11-digit mobile number">
+                                    <input type="tel" class="form-control" id="nc_phone" placeholder="09XXXXXXXXX" pattern="\d*" maxlength="11" data-restrict="phone" title="11-digit mobile number" oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 11)">
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label" for="nc_email">Email Address <span class="required">*</span></label>
@@ -1092,8 +1092,8 @@ $dynamicPrivacy = appSetting('data_privacy_notice', "We value your privacy. Your
                     return false; 
                 }
 
-                if (phone.length < 11 || !phone.startsWith('09')) {
-                    Toast.error('Please enter a valid 11-digit PH mobile number.');
+                if (!/^09\d{9}$/.test(phone)) {
+                    Toast.error('Please enter a valid 11-digit PH mobile number starting with 09.');
                     return false;
                 }
 
