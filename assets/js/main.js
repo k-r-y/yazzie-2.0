@@ -119,6 +119,10 @@ const Api = {
         return this.request(url, { method: 'PUT', body: JSON.stringify(body) });
     },
 
+    patch(url, body = {}) {
+        return this.request(url, { method: 'PATCH', body: JSON.stringify(body) });
+    },
+
     delete(url, body = {}) {
         return this.request(url, { method: 'DELETE', body: JSON.stringify(body) });
     },

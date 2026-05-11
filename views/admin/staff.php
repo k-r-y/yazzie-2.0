@@ -85,6 +85,7 @@ include __DIR__ . '/../../includes/sidebar.php';
                         <option value="">All Status</option>
                         <option value="1">Active Only</option>
                         <option value="0">Inactive Only</option>
+                        <option value="2">Pending Invite</option>
                     </select>
                 </div>
             </div>
@@ -213,17 +214,19 @@ include __DIR__ . '/../../includes/sidebar.php';
                     <div class="form-group" id="jobClassGroup">
                         <label class="form-label">Job Classification</label>
                         <select class="form-control" name="job_class" id="sf-job-class">
-                            <option value="waiter">🤵 Waiter</option>
+                            <option value="waiter" selected>🤵 Waiter</option>
                             <option value="head_cook">👨‍🍳 Head Cook</option>
                             <option value="cook">🍳 Cook</option>
                             <option value="server">🍽️ Server</option>
                             <option value="helper">🙋 Helper</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Password</label>
-                        <input type="password" class="form-control" name="password" id="sf-pw" placeholder="Min. 8 characters">
-                        <div class="form-hint" id="sf-pw-hint" style="display:none;">Leave blank to keep current password.</div>
+                    <!-- Password field — shown ONLY when editing an existing user -->
+                    
+                    <!-- Invite notice — shown ONLY when adding a new user -->
+                    <div id="sf-invite-notice" style="display:none; background:rgba(48,209,88,0.08); border:1px solid rgba(48,209,88,0.25); border-radius:10px; padding:12px 16px; margin-bottom:4px;">
+                        <div style="font-size:12px; font-weight:700; color:var(--sys-green-dark); margin-bottom:4px;"><i class="fas fa-envelope me-1"></i>Invitation-Based Setup</div>
+                        <div style="font-size:12px; color:var(--label-3); line-height:1.5;">No password needed. A secure setup link &amp; 6-digit OTP will be emailed to the user automatically.</div>
                     </div>
                     <div class="form-group" id="sf-active-group">
                         <label class="form-label">Account Status</label>
@@ -360,9 +363,13 @@ function toggleJobClassField() {
     const role = document.getElementById('sf-role').value;
     const group = document.getElementById('jobClassGroup');
     const select = document.getElementById('sf-job-class');
-    
+
     if (role === 'staff') {
         group.style.display = 'block';
+        // If switching to staff and currently empty, default to waiter
+        if (!select.value) {
+            select.value = 'waiter';
+        }
     } else {
         group.style.display = 'none';
         select.value = ''; // Nullify for non-staff
@@ -412,12 +419,18 @@ function renderRoster() {
     tbody.innerHTML = allStaff.map(u => {
         const isSelf = parseInt(u.id) === currentUserId;
         const roleBadge = `<span class="badge-glass badge-${u.role}">${u.role}</span>`;
-        const statusBadge = u.is_active == 1 
-            ? '<span class="badge badge-accepted">Active</span>' 
-            : '<span class="badge badge-cancelled">Inactive</span>';
-        
+
+        let statusBadge;
+        if (u.is_active == 2) {
+            statusBadge = '<span class="badge badge-pending" style="background:rgba(255,159,10,0.15);color:#B8860B;border:1px solid rgba(255,159,10,0.3);">⏳ Pending Invite</span>';
+        } else if (u.is_active == 1) {
+            statusBadge = '<span class="badge badge-accepted">Active</span>';
+        } else {
+            statusBadge = '<span class="badge badge-cancelled">Inactive</span>';
+        }
+
         const jobClassLabel = { head_cook: '👨‍🍳 Cook (Head)', cook: '🍳 Cook', waiter: '🤵 Waiter', server: '🍽️ Server', helper: '🙋 Helper', admin: '—', frontdesk: '—' };
-        
+
         return `
         <tr>
             <td class="td-name">
@@ -429,11 +442,17 @@ function renderRoster() {
             <td class="text-sm text-muted">${jobClassLabel[u.job_class] || u.job_class || '—'}</td>
             <td>${statusBadge}</td>
             <td class="td-actions">
-                <button class="btn btn-outline-primary btn-sm" onclick='openEditModal(${JSON.stringify(u)})'>
+                <button class="btn btn-outline-primary btn-sm" title="Edit User" onclick='openEditModal(${JSON.stringify(u)})'>
                     <i class="fas fa-edit"></i>
                 </button>
-                ${!isSelf ? `
-                <button class="btn btn-danger btn-sm" onclick="handleStatusToggle(${u.id}, ${u.is_active}, '${u.role}')">
+                ${u.is_active == 2 ? `
+                <button class="btn btn-sm" title="Resend Invitation" onclick="resendInvite(this, ${u.id}, '${htmlEsc(u.name)}')"
+                    style="background:rgba(255,159,10,0.12);border:1px solid rgba(255,159,10,0.3);color:#B8860B;">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+                ` : ''}
+                ${!isSelf && u.is_active != 2 ? `
+                <button class="btn btn-danger btn-sm" title="${u.is_active == 1 ? 'Deactivate' : 'Activate'} User" onclick="handleStatusToggle(${u.id}, ${u.is_active}, '${u.role}')">
                     <i class="fas fa-${u.is_active == 1 ? 'user-slash' : 'user-check'}"></i>
                 </button>
                 ` : ''}
@@ -456,10 +475,11 @@ function changeStaffPage(p) {
 // ── CRUD OPERATIONS & MASTER KEY HANDLER ────────────────────────────
 
 function openAddModal() {
-    document.getElementById('staffModalTitle').textContent = 'Onboard New User';
+    document.getElementById('staffModalTitle').textContent = 'Invite New User';
     document.getElementById('staffForm').reset();
     document.getElementById('sf-id').value = '';
-    document.getElementById('sf-pw-hint').style.display = 'none';
+    // In Add mode: hide password field, show invite notice, hide status selector
+  
     document.getElementById('sf-active-group').style.display = 'none';
     toggleJobClassField();
     staffModal.show();
@@ -469,18 +489,23 @@ function openEditModal(u) {
     document.getElementById('staffModalTitle').textContent = 'Update Account';
     document.getElementById('sf-id').value = u.id;
     document.getElementById('sf-name').value = u.name;
-    document.getElementById('sf-email').value = u.email;
+   const emailField = document.getElementById('sf-email'); 
     document.getElementById('sf-phone').value = u.phone || '';
     document.getElementById('sf-role').value = u.role;
     document.getElementById('sf-active').value = u.is_active;
     document.getElementById('sf-job-class').value = u.job_class || '';
-    document.getElementById('sf-pw').value = '';
-    document.getElementById('sf-pw-hint').style.display = 'block';
-    
+
+    emailField.value = u.email;
+
+    if(u.id){
+    emailField.disabled = true;
+    }
+
+
     // UI Guard for status
     const isSelf = parseInt(u.id) === currentUserId;
     document.getElementById('sf-active-group').style.display = isSelf ? 'none' : 'block';
-    
+
     toggleJobClassField();
     staffModal.show();
 }
@@ -508,7 +533,7 @@ async function handleStaffSave() {
     const id = document.getElementById('sf-id').value;
     const role = document.getElementById('sf-role').value;
     const isActive = document.getElementById('sf-active').value;
-    
+
     const data = {
         id: id || undefined,
         name: document.getElementById('sf-name').value,
@@ -516,9 +541,17 @@ async function handleStaffSave() {
         phone: document.getElementById('sf-phone').value,
         role: role,
         job_class: document.getElementById('sf-job-class').value,
-        password: document.getElementById('sf-pw').value,
         is_active: id ? parseInt(isActive) : undefined
     };
+
+    // Validation: Staff MUST have a job classification
+    if (role === 'staff' && !data.job_class) {
+        Toast.error('Please select a job classification for staff members.');
+        return;
+    }
+
+    // Only send password in edit mode (and only if the field is non-empty)
+   
 
     // Phone validation
     if (data.phone && !/^09\d{9}$/.test(data.phone)) {
@@ -528,8 +561,6 @@ async function handleStaffSave() {
 
     // Master Key Interception for Modal Update
     if (id && role === 'admin' && isActive == 1) {
-        // We need to check if it was previously inactive. 
-        // For simplicity, we can fetch from allStaff or just trigger the modal always if role=admin+active
         const prev = allStaff.find(u => u.id == id);
         if (prev && prev.is_active == 0) {
             pendingTransferData = data;
@@ -540,6 +571,23 @@ async function handleStaffSave() {
     }
 
     executeSave(data);
+}
+
+/**
+ * Resend an invitation email to a user in Pending Invite (is_active=2) state.
+ */
+async function resendInvite(btn, userId, userName) {
+    if (!await confirmDialog(`Resend the setup invitation to ${userName}?\n\nThis will invalidate any previous link and generate a fresh OTP.`)) return;
+
+    Form.setLoading(btn, true);
+    try {
+        const res = await Api.patch(BASE + 'src/api/staff.php', { action: 'resend_invite', id: userId });
+        Toast.success(res.message || 'Invitation resent successfully.');
+    } catch(e) {
+        Toast.error(e.message || 'Failed to resend invitation.');
+    } finally {
+        Form.setLoading(btn, false);
+    }
 }
 
 async function executeSave(data) {
@@ -575,10 +623,11 @@ async function executePut(data) {
 
 // ── LEAVE & ROSTER HELPERS ──────────────────────────────────────────
 
-async function reviewLeave(id, status) {
+async function reviewLeave(btn, id, status) {
     const action = status === 'approved' ? 'approve' : 'reject';
     if (!await confirmDialog(`Are you sure you want to ${action} this leave request?`)) return;
 
+    Form.setLoading(btn, true);
     try {
         const res = await Api.put(BASE + 'src/api/leave.php', { id, status });
         Toast.success(res.message || `Leave request ${status}.`);
@@ -586,6 +635,8 @@ async function reviewLeave(id, status) {
         loadKPIs();
     } catch(e) {
         Toast.error(e.message);
+    } finally {
+        Form.setLoading(btn, false);
     }
 }
 
@@ -604,8 +655,8 @@ async function loadLeaves() {
                 <td><span class="badge badge-${l.status}">${l.status}</span></td>
                 <td class="td-actions">
                     ${l.status === 'pending' ? `
-                        <button class="btn btn-success btn-sm me-1" title="Approve" onclick="reviewLeave(${l.id},'approved')"><i class="fas fa-check"></i></button>
-                        <button class="btn btn-danger btn-sm" title="Reject" onclick="reviewLeave(${l.id},'rejected')"><i class="fas fa-times"></i></button>
+                        <button class="btn btn-success btn-sm me-1" title="Approve" onclick="reviewLeave(this, ${l.id},'approved')"><i class="fas fa-check"></i></button>
+                        <button class="btn btn-danger btn-sm" title="Reject" onclick="reviewLeave(this, ${l.id},'rejected')"><i class="fas fa-times"></i></button>
                     ` : '—'}
                 </td>
             </tr>`).join('');

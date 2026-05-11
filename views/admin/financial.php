@@ -790,24 +790,15 @@ async function sendInvoice(bookingId) {
     if (!bookingId) return;
     
     const btn = document.getElementById('btnEmailInvoice');
-    const originalHtml = btn.innerHTML;
+    Form.setLoading(btn, true, 'Sending...');
     
     try {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-        
         const res = await Api.post(BASE + 'src/api/send_invoice.php', { booking_id: bookingId });
-        
-        if (res.success) {
-            Toast.success(res.message);
-        } else {
-            Toast.error(res.message);
-        }
+        Toast.success(res.message || 'Invoice sent successfully.');
     } catch (e) {
-        Toast.error('An unexpected error occurred while sending the email.');
+        Toast.error(e.message || 'An unexpected error occurred while sending the email.');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
+        Form.setLoading(btn, false);
     }
 }
 

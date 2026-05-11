@@ -2,18 +2,88 @@
 /**
  * Unified User & Staff Management API
  * GET    — list all users/staff
- * POST   — create user (admin only)
+ * POST   — create user via invitation (no password — email invite flow)
  * PUT    — update user / Master Key Transfer
+ * PATCH  — resend invitation email
  * DELETE — deactivate user
  */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/audit.php';
+require_once __DIR__ . '/../../includes/mailer.php';
 
 // Authorization: admin role is required for all management operations
 $currentUser = requireApiRole(['admin']);
 requireCsrf();
+
+/**
+ * Internal helper — generate a fresh invitation record and queue the
+ * setup email. Deletes any pre-existing invitation for this user first.
+ *
+ * @param int    $userId    Target user's ID
+ * @param string $userName  Recipient display name
+ * @param string $userEmail Recipient email address
+ * @return void
+ */
+function issueInvitation(PDO $pdo, int $userId, string $userName, string $userEmail): void
+{
+    // Generate cryptographically secure token + OTP
+    $token     = bin2hex(random_bytes(32));          // 64-char hex
+    $otp       = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $expiresAt = date('Y-m-d H:i:s', strtotime('+24 hours'));
+
+    // Remove any stale invitation for this user (idempotent resend)
+    $pdo->prepare("DELETE FROM user_invitations WHERE user_id = :uid")
+        ->execute([':uid' => $userId]);
+
+    // Insert the new invitation record
+    $pdo->prepare("
+        INSERT INTO user_invitations (user_id, token, otp, expires_at)
+        VALUES (:uid, :token, :otp, :exp)
+    ")->execute([
+        ':uid'   => $userId,
+        ':token' => $token,
+        ':otp'   => $otp,
+        ':exp'   => $expiresAt,
+    ]);
+
+    // Build the setup URL (absolute so it works in any email client)
+    $setupUrl = BASE_URL . '/views/setup.php?token=' . urlencode($token);
+
+    // Compose the invitation email
+    $subject = 'You\'ve been invited to ' . APP_NAME . ' — Complete Your Account Setup';
+    $content = "
+        <h2 style='margin: 0 0 12px; font-size: 22px; font-weight: 800; color: #1C1C1E; letter-spacing: -0.8px;'>Welcome to the Team, {$userName}!</h2>
+        <p style='margin: 0 0 28px; font-size: 15px; color: rgba(60, 60, 67, 0.6); line-height: 1.6;'>An administrator has created an account for you on the Yazzies Catering OMS. To activate your account, you'll need your <strong>One-Time PIN</strong> and the button below to set your password.</p>
+
+        <div style='background-color: #F8F8FA; border-radius: 24px; padding: 40px; margin-bottom: 32px; border: 1px solid rgba(60, 60, 67, 0.08); text-align: center;'>
+            <div style='font-size: 11px; color: rgba(60, 60, 67, 0.4); font-weight: 700; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 16px;'>Your One-Time PIN</div>
+            <div style='font-size: 52px; font-weight: 800; color: #30D158; letter-spacing: 14px; font-family: monospace;'>{$otp}</div>
+        </div>
+
+        <div style='text-align: center; margin-bottom: 32px;'>
+            <a href='{$setupUrl}' class='btn-primary' style='display:inline-block; background:#30D158; color:#fff; padding:14px 32px; border-radius:12px; font-weight:700; font-size:14px; text-decoration:none;'>Complete Account Setup &rarr;</a>
+        </div>
+
+        <p style='margin: 0; font-size: 13px; color: rgba(60, 60, 67, 0.4); text-align: center;'>This link and PIN expire in <strong>24 hours</strong>. If you did not expect this email, please ignore it.</p>
+    ";
+
+    $html = renderEmailTemplate(
+        'Account Invitation',
+        '🔐',
+        $content,
+        '#30D158',
+        "Your OTP is {$otp} — complete your account setup now."
+    );
+
+    // Use immediate send so the admin gets instant feedback if SMTP fails;
+    // log the error but don't abort the user creation.
+    $sent = sendMailImmediate($userEmail, $userName, $subject, $html);
+    if (!$sent) {
+        error_log("[Invite] Failed to send invitation email to {$userEmail} (user_id={$userId}). Check SMTP config.");
+    }
+}
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -137,7 +207,9 @@ if ($method === 'GET') {
 if ($method === 'POST') {
     $d = json_decode(file_get_contents('php://input'), true) ?? [];
 
-    foreach (['name', 'email', 'password', 'role'] as $f) {
+    // Password is no longer accepted at creation time — it is set by the
+    // user themselves via the Email Invitation & Self-Setup flow.
+    foreach (['name', 'email', 'role'] as $f) {
         if (empty($d[$f])) jsonResponse(false, "Field '$f' is required.", [], 422);
     }
 
@@ -148,12 +220,10 @@ if ($method === 'POST') {
         jsonResponse(false, 'Invalid role specified.', [], 403);
     }
 
-    // CREATION GUARD: Force admin to be inactive by default
-    $isActive = ($requestedRole === 'admin') ? 0 : 1;
-
-    // Password Policy
-    $pwError = validatePasswordPolicy($d['password']);
-    if ($pwError) jsonResponse(false, $pwError, [], 422);
+    // All newly created accounts start as "Pending Invite" (is_active = 2)
+    // regardless of role. is_active transitions to 1 (active) or 0 (dormant)
+    // only AFTER the user completes the self-setup flow.
+    $isActive = 2;
 
     // Duplicate Email Check
     $dup = $pdo->prepare("SELECT id FROM users WHERE email = :e");
@@ -175,25 +245,53 @@ if ($method === 'POST') {
         $jobClass = in_array($d['job_class'] ?? '', $validJobClasses, true) ? $d['job_class'] : 'waiter';
     }
 
+    // Insert user with NULL password — password is set during self-setup
     $stmt = $pdo->prepare("
         INSERT INTO users (name, email, password, role, phone, job_class, is_active)
-        VALUES (:name, :email, :password, :role, :phone, :job_class, :is_active)
+        VALUES (:name, :email, NULL, :role, :phone, :job_class, :is_active)
     ");
-
     $stmt->execute([
         ':name'      => trim($d['name']),
         ':email'     => trim($d['email']),
-        ':password'  => password_hash($d['password'], PASSWORD_BCRYPT),
         ':role'      => $requestedRole,
         ':phone'     => !empty($d['phone']) ? trim($d['phone']) : null,
         ':job_class' => $jobClass,
-        ':is_active' => $isActive
+        ':is_active' => $isActive,
     ]);
-    
-    $newId = $pdo->lastInsertId();
-    auditLog($pdo, 'user_created', 'user', (int)$newId, null, ['name' => $d['name'], 'role' => $requestedRole]);
 
-    jsonResponse(true, 'User account created.', ['id' => $newId], 201);
+    $newId = (int)$pdo->lastInsertId();
+    auditLog($pdo, 'user_invited', 'user', $newId, null, ['name' => trim($d['name']), 'role' => $requestedRole]);
+
+    // Issue the invitation: generate token+OTP and send the setup email
+    issueInvitation($pdo, $newId, trim($d['name']), trim($d['email']));
+
+    jsonResponse(true, 'Invitation sent! The user will receive an email with their setup link and OTP.', ['id' => $newId], 201);
+}
+
+// ── PATCH: Resend Invitation ──────────────────────────────────────────────
+if ($method === 'PATCH') {
+    $d      = json_decode(file_get_contents('php://input'), true) ?? [];
+    $action = trim($d['action'] ?? '');
+    $uid    = (int)($d['id'] ?? 0);
+
+    if ($action !== 'resend_invite' || !$uid) {
+        jsonResponse(false, 'Invalid PATCH action or missing user ID.', [], 422);
+    }
+
+    // Fetch the target user — must be in Pending Invite state
+    $stmt = $pdo->prepare("SELECT id, name, email, is_active FROM users WHERE id = :id");
+    $stmt->execute([':id' => $uid]);
+    $target = $stmt->fetch();
+
+    if (!$target) jsonResponse(false, 'User not found.', [], 404);
+    if ((int)$target['is_active'] !== 2) {
+        jsonResponse(false, 'This user is not in a Pending Invite state. Only pending users can have invitations resent.', [], 409);
+    }
+
+    issueInvitation($pdo, (int)$target['id'], $target['name'], $target['email']);
+    auditLog($pdo, 'invite_resent', 'user', (int)$target['id']);
+
+    jsonResponse(true, "Invitation resent to {$target['name']}.");
 }
 
 if ($method === 'PUT') {
@@ -285,8 +383,9 @@ if ($method === 'PUT') {
             $params[':pw'] = password_hash($d['password'], PASSWORD_BCRYPT);
         }
         if (isset($d['job_class']) && (!isset($d['role']) || $d['role'] === 'staff')) {
+             $validJobClasses = ['head_cook','cook','waiter','server','helper'];
              $updates[] = "job_class = :jc_manual";
-             $params[':jc_manual'] = $d['job_class'];
+             $params[':jc_manual'] = in_array($d['job_class'], $validJobClasses, true) ? $d['job_class'] : 'waiter';
         }
 
         if ($updates) {

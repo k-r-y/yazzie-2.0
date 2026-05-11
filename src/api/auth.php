@@ -44,14 +44,20 @@ $stmt->execute([':email' => $email]);
 $user = $stmt->fetch();
 
 // Verify user and password — generic message to prevent enumeration
-if (!$user || !password_verify($password, $user['password'])) {
+// Also guard against NULL password (invitation sent, setup not yet complete)
+if (!$user || empty($user['password']) || !password_verify($password, $user['password'])) {
     recordFailedLogin($pdo, $email);
     jsonResponse(false, 'Invalid email or password. Please try again.', [], 401);
 }
 
-if (!$user['is_active']) {
+// Block inactive (0) and pending-invite (2) accounts
+if ((int)$user['is_active'] === 0) {
     recordFailedLogin($pdo, $email);
     jsonResponse(false, 'Your account has been deactivated. Please contact the Administrator.', [], 403);
+}
+if ((int)$user['is_active'] === 2) {
+    recordFailedLogin($pdo, $email);
+    jsonResponse(false, 'Your account setup is not yet complete. Please check your invitation email to set your password.', [], 403);
 }
 
 // ── Check if debug mode is enabled (block non-admin logins) ──

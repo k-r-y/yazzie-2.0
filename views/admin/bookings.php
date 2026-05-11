@@ -809,6 +809,8 @@ async function openEdit(id) {
 }
 
 async function updateBooking() {
+    const btn = document.querySelector('#editBookingModal .btn-primary');
+    Form.setLoading(btn, true);
     try {
         const data = Form.serialize(document.getElementById('editBookingForm'));
         await Api.put(BASE + 'src/api/bookings.php', data);
@@ -816,34 +818,36 @@ async function updateBooking() {
         Modal.close('editBookingModal');
         await loadBookings();
     } catch (e) { Toast.error(e.message); }
+    finally { Form.setLoading(btn, false); }
 }
 
 async function sendReminder() {
     const id = document.getElementById('edit_id').value;
     if (!id) return;
     const btn = document.getElementById('reminderBtn');
-    const old = btn.innerHTML;
+    Form.setLoading(btn, true, 'Sending...');
     try {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
         await Api.post(BASE + 'src/api/bookings.php', { action: 'send_reminder', id: id });
         Toast.success('Reminder sent successfully.');
     } catch (e) { Toast.error(e.message); }
     finally {
-        btn.disabled = false;
-        btn.innerHTML = old;
+        Form.setLoading(btn, false);
     }
 }
 
 async function archiveBooking() {
     const id = document.getElementById('edit_id').value;
     if (!await confirmDialog('Archive this completed booking? It will be moved to the Archive and removed from the active calendar.')) return;
+    
+    const btn = document.querySelector('#editBookingModal .btn-dark'); // The archive button
+    Form.setLoading(btn, true, 'Archiving...');
     try {
         await Api.post(BASE + 'src/api/archive.php', { booking_id: id });
         Toast.success('Booking archived successfully.');
         Modal.close('editBookingModal');
         await loadBookings();
     } catch (e) { Toast.error(e.message); }
+    finally { Form.setLoading(btn, false); }
 }
 
 async function requestCancellation() {
@@ -894,6 +898,8 @@ async function requestCancellation() {
     if (!result) return;
 
     const reason = result.cancel_reason || '';
+    const btn = document.querySelector('#editBookingModal .btn-danger'); // The cancel button
+    Form.setLoading(btn, true, 'Cancelling...');
     try {
         await Api.post(BASE + 'src/api/cancellations.php', { 
             booking_id: id, 
@@ -903,6 +909,7 @@ async function requestCancellation() {
         Modal.close('editBookingModal');
         await loadBookings();
     } catch (e) { Toast.error(e.message); }
+    finally { Form.setLoading(btn, false); }
 }
 
 

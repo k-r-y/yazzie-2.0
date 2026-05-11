@@ -253,7 +253,7 @@ async function loadSettings() {
                         <div class="setting-desc">${meta.help || ''}</div>
                         <div class="d-flex gap-2 align-items-center">
                             <div style="flex: 1; max-width: 300px;">${inputHtml}</div>
-                            <button class="btn btn-primary btn-sm px-3" onclick="updateSetting('${s.key}')">
+                            <button class="btn btn-primary btn-sm px-3" onclick="updateSetting(this, '${s.key}')">
                                 <i class="fas fa-save me-1"></i> Save
                             </button>
                         </div>
@@ -277,13 +277,17 @@ async function loadSettings() {
     } catch (e) { Toast.error(e.message); }
 }
 
-async function updateSetting(key) {
+async function updateSetting(btn, key) {
     const val = document.getElementById('set_' + key).value;
+    Form.setLoading(btn, true);
     try {
         await Api.put(BASE + 'src/api/settings.php', { key, value: val });
         Toast.success('Setting updated.');
         loadAudit(); // Refresh logs
     } catch (e) { Toast.error(e.message); }
+    finally {
+        Form.setLoading(btn, false);
+    }
 }
 
 let currentAuditPage = 1;
